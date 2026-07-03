@@ -14,4 +14,5 @@ public sealed record UserSummaryResponse(
     string TimeZone,
     string? ProfileImageUrl = null,
     long? EaClubId = null,
-    string? EaClubName = null);
+    string? EaClubName = null,
+    bool IsAdmin = false);

@@ -16,19 +16,24 @@ builder.Services.AddOpenApi();
 builder.Services.AddCPEliteInfrastructure(builder.Configuration);
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("LocalBlazor", policy =>
+    options.AddPolicy("WebClient", policy =>
     {
-        var configuredOrigins = builder.Configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>() ?? [];
+        var configuredOrigins = ReadConfiguredOrigins(builder.Configuration);
         var origins = configuredOrigins
-            .Concat(["http://localhost:5041", "https://localhost:7003"])
+            .Concat(builder.Environment.IsDevelopment() ? ["http://localhost:5041", "https://localhost:7003"] : [])
             .Where(origin => !string.IsNullOrWhiteSpace(origin))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        policy
-            .WithOrigins(origins)
+        if (origins.Length == 0)
+        {
+            policy.SetIsOriginAllowed(_ => false)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+            return;
+        }
+
+        policy.WithOrigins(origins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -55,6 +60,11 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+if (app.Environment.IsProduction())
+{
+    await app.InitializeDatabaseAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -62,7 +72,7 @@ if (app.Environment.IsDevelopment())
     app.MapGet("/diagnostics/ea", () => Results.Content(EaDiagnosticsPage.Html, "text/html"));
 }
 
-app.UseCors("LocalBlazor");
+app.UseCors("WebClient");
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -84,6 +94,36 @@ app.MapGet("/health/db", async (CPEliteDbContext dbContext, CancellationToken ca
 
 app.MapControllers();
 
+if (!app.Environment.IsDevelopment() && HasPublishedBlazorApp(app.Environment.WebRootPath))
+{
+    app.MapFallbackToFile("index.html");
+}
+
 app.Run();
+
+static string[] ReadConfiguredOrigins(IConfiguration configuration)
+{
+    var sectionOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    var flatOrigins = configuration["Cors:AllowedOrigins"];
+
+    if (string.IsNullOrWhiteSpace(flatOrigins))
+    {
+        return sectionOrigins;
+    }
+
+    return sectionOrigins
+        .Concat(flatOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        .ToArray();
+}
+
+static bool HasPublishedBlazorApp(string? webRootPath)
+{
+    if (string.IsNullOrWhiteSpace(webRootPath))
+    {
+        return false;
+    }
+
+    return File.Exists(Path.Combine(webRootPath, "index.html"));
+}
 
 public partial class Program;

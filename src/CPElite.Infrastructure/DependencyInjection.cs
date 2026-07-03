@@ -19,7 +19,9 @@ public static class DependencyInjection
         {
             options.Issuer = configuration["Jwt:Issuer"] ?? options.Issuer;
             options.Audience = configuration["Jwt:Audience"] ?? options.Audience;
-            options.SigningKey = configuration["Jwt:SigningKey"] ?? options.SigningKey;
+            options.SigningKey = configuration["Jwt:SigningKey"]
+                ?? configuration["Jwt:Secret"]
+                ?? options.SigningKey;
 
             if (int.TryParse(configuration["Jwt:ExpiryMinutes"], out var expiryMinutes))
             {
@@ -37,7 +39,8 @@ public static class DependencyInjection
                 return;
             }
 
-            var connectionString = configuration.GetConnectionString("Supabase")
+            var connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? configuration.GetConnectionString("Supabase")
                 ?? configuration.GetConnectionString("Postgres")
                 ?? throw new InvalidOperationException("Supabase/Postgres connection string is not configured.");
 

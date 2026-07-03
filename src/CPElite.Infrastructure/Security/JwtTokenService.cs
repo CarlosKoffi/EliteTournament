@@ -24,13 +24,18 @@ public sealed class JwtTokenService : ITokenService
         var expiresAt = _clock.UtcNow.AddMinutes(_options.ExpiryMinutes);
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Name, user.DisplayName)
         };
+
+        if (user.IsAdmin)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+        }
 
         var token = new JwtSecurityToken(_options.Issuer, _options.Audience, claims, expires: expiresAt.UtcDateTime, signingCredentials: credentials);
         return new AuthToken(new JwtSecurityTokenHandler().WriteToken(token), expiresAt);

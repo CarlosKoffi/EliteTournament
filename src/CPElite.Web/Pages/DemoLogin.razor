@@ -3,6 +3,7 @@
 @inject ApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Navigation
+@inject IWebAssemblyHostEnvironment Environment
 
 <PageTitle>TS Tournament - Demo</PageTitle>
 
@@ -19,6 +20,12 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (Environment.IsProduction())
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
         var login = await Api.LoginAsync(new LoginRequest(DemoEmail, DemoPassword));
         if (!login.Success || login.Value is null)
         {

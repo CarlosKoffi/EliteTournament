@@ -1,6 +1,7 @@
 @page "/demo-logout"
 @inject AuthState AuthState
 @inject NavigationManager Navigation
+@inject IWebAssemblyHostEnvironment Environment
 
 <PageTitle>TS Tournament - Invité</PageTitle>
 
@@ -13,6 +14,12 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
+        if (Environment.IsProduction())
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
         await AuthState.SignOutAsync();
         Navigation.NavigateTo("/");
     }

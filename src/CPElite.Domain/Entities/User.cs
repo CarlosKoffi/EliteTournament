@@ -8,7 +8,7 @@ public sealed class User
 
     private User() { }
 
-    public User(Guid id, string email, string normalizedEmail, string passwordHash, string displayName, string? gamertag, string? eaSportsId, string? discordUserId, Platform platform, string preferredLanguage, string timeZone, DateTimeOffset createdAt, string? profileImageUrl = null, long? eaClubId = null, string? eaClubName = null)
+    public User(Guid id, string email, string normalizedEmail, string passwordHash, string displayName, string? gamertag, string? eaSportsId, string? discordUserId, Platform platform, string preferredLanguage, string timeZone, DateTimeOffset createdAt, string? profileImageUrl = null, long? eaClubId = null, string? eaClubName = null, bool isAdmin = false)
     {
         Id = id;
         Email = email;
@@ -24,6 +24,7 @@ public sealed class User
         ProfileImageUrl = profileImageUrl;
         EaClubId = eaClubId;
         EaClubName = eaClubName;
+        IsAdmin = isAdmin;
         CreatedAt = createdAt;
     }
 
@@ -41,6 +42,7 @@ public sealed class User
     public string? ProfileImageUrl { get; private set; }
     public long? EaClubId { get; private set; }
     public string? EaClubName { get; private set; }
+    public bool IsAdmin { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? LastLoginAt { get; private set; }
     public IReadOnlyCollection<TeamMember> Memberships => _memberships;
