@@ -147,9 +147,21 @@ static void LogWebHostStartupInfo(WebApplication app, ILogger logger)
     logger.LogInformation("WebRootPath: {WebRootPath}", webRootPath ?? "(null)");
     logger.LogInformation("Blazor index path: {IndexPath}", indexPath ?? "(null)");
     logger.LogInformation("Blazor index exists: {IndexExists}", indexPath is not null && File.Exists(indexPath));
+    LogStaticFile(logger, webRootPath, "_framework/blazor.webassembly.js");
+    LogStaticFile(logger, webRootPath, "_framework/blazor.boot.json");
+    LogStaticFile(logger, webRootPath, "CPElite.Web.styles.css");
     logger.LogInformation("ASPNETCORE_URLS: {AspNetCoreUrls}", Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "(not set)");
     logger.LogInformation("ASPNETCORE_HTTP_PORTS: {AspNetCoreHttpPorts}", Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "(not set)");
     logger.LogInformation("PORT: {Port}", Environment.GetEnvironmentVariable("PORT") ?? "(not set)");
+}
+
+static void LogStaticFile(ILogger logger, string? webRootPath, string relativePath)
+{
+    var path = string.IsNullOrWhiteSpace(webRootPath)
+        ? null
+        : Path.Combine(webRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+    logger.LogInformation("Static asset {RelativePath} exists: {Exists}", relativePath, path is not null && File.Exists(path));
 }
 
 static void LogApplicationStarted(WebApplication app, ILogger logger)

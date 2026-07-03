@@ -19,6 +19,21 @@ COPY . .
 
 RUN dotnet publish src/CPElite.Web/CPElite.Web.csproj -c Release -o /app/web
 RUN dotnet publish src/CPElite.Api/CPElite.Api.csproj -c Release -o /app/api /p:UseAppHost=false
+RUN rm -rf /app/api/wwwroot \
+    && mkdir -p /app/api/wwwroot \
+    && cp -a /app/web/wwwroot/. /app/api/wwwroot/ \
+    && test -f /app/api/wwwroot/index.html \
+    && test -f /app/api/wwwroot/_framework/blazor.webassembly.js \
+    && test -f /app/api/wwwroot/_framework/blazor.boot.json \
+    && test -f /app/api/wwwroot/CPElite.Web.styles.css \
+    && grep -o '"[^"]*\.\(wasm\|dat\|js\)"[[:space:]]*:' /app/api/wwwroot/_framework/blazor.boot.json \
+        | cut -d '"' -f 2 \
+        | while read asset; do \
+            if [ -n "$asset" ] && [ ! -f "/app/api/wwwroot/_framework/$asset" ]; then \
+                echo "Missing Blazor framework asset: $asset"; \
+                exit 1; \
+            fi; \
+        done
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
@@ -31,6 +46,5 @@ ENV PORT=8080
 EXPOSE 8080
 
 COPY --from=build /app/api ./
-COPY --from=build /app/web/wwwroot ./wwwroot
 
 ENTRYPOINT ["dotnet", "CPElite.Api.dll"]
