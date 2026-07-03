@@ -59,6 +59,8 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+LogWebHostStartupInfo(app, startupLogger);
 
 if (app.Environment.IsProduction())
 {
@@ -94,11 +96,18 @@ app.MapGet("/health/db", async (CPEliteDbContext dbContext, CancellationToken ca
 
 app.MapControllers();
 
-if (!app.Environment.IsDevelopment() && HasPublishedBlazorApp(app.Environment.WebRootPath))
+var hasPublishedBlazorApp = HasPublishedBlazorApp(app.Environment.WebRootPath);
+if (!app.Environment.IsDevelopment() && hasPublishedBlazorApp)
 {
     app.MapFallbackToFile("index.html");
+    startupLogger.LogInformation("Blazor fallback enabled with wwwroot/index.html.");
+}
+else if (!app.Environment.IsDevelopment())
+{
+    startupLogger.LogWarning("Blazor fallback disabled because wwwroot/index.html was not found.");
 }
 
+app.Lifetime.ApplicationStarted.Register(() => LogApplicationStarted(app, startupLogger));
 app.Run();
 
 static string[] ReadConfiguredOrigins(IConfiguration configuration)
@@ -124,6 +133,32 @@ static bool HasPublishedBlazorApp(string? webRootPath)
     }
 
     return File.Exists(Path.Combine(webRootPath, "index.html"));
+}
+
+static void LogWebHostStartupInfo(WebApplication app, ILogger logger)
+{
+    var webRootPath = app.Environment.WebRootPath;
+    var indexPath = string.IsNullOrWhiteSpace(webRootPath)
+        ? null
+        : Path.Combine(webRootPath, "index.html");
+
+    logger.LogInformation("Environment: {EnvironmentName}", app.Environment.EnvironmentName);
+    logger.LogInformation("ContentRootPath: {ContentRootPath}", app.Environment.ContentRootPath);
+    logger.LogInformation("WebRootPath: {WebRootPath}", webRootPath ?? "(null)");
+    logger.LogInformation("Blazor index path: {IndexPath}", indexPath ?? "(null)");
+    logger.LogInformation("Blazor index exists: {IndexExists}", indexPath is not null && File.Exists(indexPath));
+    logger.LogInformation("ASPNETCORE_URLS: {AspNetCoreUrls}", Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "(not set)");
+    logger.LogInformation("ASPNETCORE_HTTP_PORTS: {AspNetCoreHttpPorts}", Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "(not set)");
+    logger.LogInformation("PORT: {Port}", Environment.GetEnvironmentVariable("PORT") ?? "(not set)");
+}
+
+static void LogApplicationStarted(WebApplication app, ILogger logger)
+{
+    var urls = app.Urls.Count == 0
+        ? "(no urls reported by Kestrel)"
+        : string.Join(", ", app.Urls);
+
+    logger.LogInformation("Application started. Listening URLs: {Urls}", urls);
 }
 
 public partial class Program;
