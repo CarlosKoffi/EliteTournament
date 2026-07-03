@@ -1,0 +1,177 @@
+@page "/"
+@implements IDisposable
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament</PageTitle>
+
+<section class="home-spotlight">
+    <div class="spotlight-main">
+        <p class="eyebrow">Prochain tournoi</p>
+        <h1>TS Tournament organise ta soiree Pro Clubs.</h1>
+        <p>Inscriptions, presence des 11 joueurs, tirage des poules, donnees EA et suivi Discord dans une seule experience.</p>
+        <div class="spotlight-meta">
+            <span>32 equipes max</span>
+            <span>24 minimum</span>
+            <span>50 EUR/equipe</span>
+        </div>
+        <div class="hero-actions">
+            <a class="button-link primary" href="tournaments">Voir le tournoi</a>
+            <a class="button-link" href="teams">Mon equipe</a>
+        </div>
+    </div>
+
+    <aside class="leaderboard-panel">
+        <div class="panel-heading compact">
+            <div>
+                <p class="eyebrow">Leaderboard</p>
+                <h2>Top 5 equipes</h2>
+            </div>
+        </div>
+        <div class="leaderboard-list">
+            @foreach (var team in TopTeams)
+            {
+                <article>
+                    <strong>@team.Rank</strong>
+                    <button type="button" class="inline-team-link leaderboard-team-link" @onclick="() => OpenClubSheet(team)">@team.Name</button>
+                    <small>@team.Points pts</small>
+                </article>
+            }
+        </div>
+    </aside>
+</section>
+
+@if (SelectedClub is not null)
+{
+    <section class="detail-drawer">
+        <div class="detail-drawer-card">
+            <div class="drawer-heading">
+                <div>
+                    <p class="eyebrow">Fiche club</p>
+                    <h2>@SelectedClub.Name</h2>
+                </div>
+                <button class="ghost-action" @onclick="CloseClubSheet">Fermer</button>
+            </div>
+
+            <div class="drawer-metrics">
+                <div><span>Leaderboard</span><strong>#@SelectedClub.Rank</strong></div>
+                <div><span>Points</span><strong>@SelectedClub.Points</strong></div>
+                <div><span>Division EA</span><strong>@SelectedClub.Division</strong></div>
+            </div>
+
+            <div class="drawer-data-grid">
+                <article>
+                    <span class="result-kind">Stats generales EA</span>
+                    <div class="player-skill-grid">
+                        <div><span>Forme</span><strong>@SelectedClub.EaForm</strong></div>
+                        <div><span>Effectif</span><strong>@SelectedClub.PlayerCount</strong></div>
+                        <div><span>Buts / match</span><strong>@SelectedClub.GoalsPerMatch.ToString("0.0")</strong></div>
+                        <div><span>Synchro</span><strong>@SelectedClub.LastSync</strong></div>
+                    </div>
+                </article>
+                <article>
+                    <span class="result-kind">Stats TS Tournament</span>
+                    <dl>
+                        <div><dt>Tournois joues</dt><dd>@SelectedClub.TournamentsPlayed</dd></div>
+                        <div><dt>Record</dt><dd>@SelectedClub.TournamentRecord</dd></div>
+                        <div><dt>Meilleur resultat</dt><dd>@SelectedClub.BestRun</dd></div>
+                        <div><dt>Joueur cle</dt><dd>@SelectedClub.KeyPlayer</dd></div>
+                    </dl>
+                </article>
+            </div>
+        </div>
+    </section>
+}
+
+<section class="search-panel">
+    <div>
+        <p class="eyebrow">Recherche</p>
+        <h2>Trouver une equipe, un joueur ou une annonce</h2>
+    </div>
+    @if (AuthState.IsAuthenticated)
+    {
+        <div class="search-row">
+            <input @bind="SearchQuery" placeholder="Ex: BU ce soir, TheSurvivors, tournoi goodies..." />
+            <select @bind="SearchType">
+                <option>Tout</option>
+                <option>Equipes</option>
+                <option>Joueurs</option>
+                <option>Mercato</option>
+                <option>Tournois</option>
+            </select>
+            <button class="primary-action">Rechercher</button>
+        </div>
+        <div class="global-results">
+            @foreach (var result in GlobalResults)
+            {
+                <a class="global-result-card" href="@result.Href">
+                    <span class="result-kind">@result.Kind</span>
+                    <strong>@result.Title</strong>
+                    <small>@result.Detail</small>
+                </a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="locked-search">
+            <strong>Connecte-toi pour rechercher.</strong>
+            <p>Les annonces publiques restent visibles, mais la recherche et les fiches detaillees sont reservees aux comptes TS Tournament.</p>
+            <div class="hero-actions compact">
+                <a class="button-link primary" href="login">Se connecter</a>
+                <a class="button-link" href="account">Creer un compte</a>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private string SearchQuery { get; set; } = "";
+    private string SearchType { get; set; } = "Tout";
+    private LeaderboardTeam? SelectedClub;
+
+    private IEnumerable<SearchResultItem> GlobalResults => SearchSeed.Where(item =>
+        (SearchType == "Tout" || item.Kind == SearchType)
+        && (string.IsNullOrWhiteSpace(SearchQuery)
+            || item.Title.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || item.Detail.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)));
+
+    private IReadOnlyCollection<LeaderboardTeam> TopTeams { get; } =
+    [
+        new(1, "TheSurvivors", 2085, 8, "2V 1N 0D", 11, 1.2, "03:09", 4, "9V 2N 3D", "Finaliste Goodies Cup", "KoffiMarvelous"),
+        new(2, "FC Toho", 1990, 7, "2V 0N 1D", 11, 1.7, "02:58", 3, "6V 1N 3D", "Demi-finaliste", "AkiraToho"),
+        new(3, "KM Chimera", 1872, 6, "1V 1N 1D", 10, 1.1, "02:44", 2, "4V 2N 2D", "Quart de finale", "ChimeraMVP"),
+        new(4, "Royal XI", 1818, 5, "0V 2N 1D", 11, 1.0, "02:31", 2, "3V 3N 2D", "Phase de poule", "RoyalNueve"),
+        new(5, "Northside Club", 1764, 4, "2V 0N 1D", 9, 1.4, "02:12", 1, "2V 0N 1D", "Nouveau challenger", "NorthCap")
+    ];
+
+    private IReadOnlyCollection<SearchResultItem> SearchSeed { get; } =
+    [
+        new("Equipes", "TheSurvivors", "Club lie EA, 11 joueurs actifs, owner connecte", "teams"),
+        new("Mercato", "BU recherche ce soir", "TheSurvivors cherche un buteur disponible avec compte TS", "mercato"),
+        new("Tournois", "Friday Goodies Cup", "32 equipes max, inscription jusqu'a 21:00", "tournaments"),
+        new("Joueurs", "KoffiMarvelous", "Profil joueur, EA Sports ID et club principal", "account")
+    ];
+
+    protected override void OnInitialized()
+    {
+        AuthState.Changed += StateHasChanged;
+    }
+
+    private void OpenClubSheet(LeaderboardTeam team)
+    {
+        SelectedClub = team;
+    }
+
+    private void CloseClubSheet()
+    {
+        SelectedClub = null;
+    }
+
+    public void Dispose()
+    {
+        AuthState.Changed -= StateHasChanged;
+    }
+
+    private sealed record LeaderboardTeam(int Rank, string Name, int Points, int Division, string EaForm, int PlayerCount, double GoalsPerMatch, string LastSync, int TournamentsPlayed, string TournamentRecord, string BestRun, string KeyPlayer);
+    private sealed record SearchResultItem(string Kind, string Title, string Detail, string Href);
+}

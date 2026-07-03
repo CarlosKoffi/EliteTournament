@@ -1,0 +1,470 @@
+@page "/ea-lab"
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament - EA Lab</PageTitle>
+
+<section class="page-title">
+    <p class="eyebrow">EA data lab</p>
+    <h1>Tester Pro Clubs Tracker et les endpoints EA</h1>
+    <p>On utilise le tracker comme fallback V1 et on garde le chemin pret pour l'API officielle EA.</p>
+</section>
+
+<section class="panel lab-session-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Session test</p>
+            <h2>Connexion rapide API</h2>
+        </div>
+        <span class="presence-pill @(AuthState.IsAuthenticated ? "confirmed" : "pending")">@(AuthState.IsAuthenticated ? "Connecte" : "Session requise")</span>
+    </div>
+
+    <div class="lab-session-grid">
+        <EditForm Model="QuickRegister" OnValidSubmit="RegisterQuickSessionAsync">
+            <div class="form-grid">
+                <label>Email <InputText @bind-Value="QuickRegister.Email" /></label>
+                <label>Password <InputText type="password" @bind-Value="QuickRegister.Password" /></label>
+                <label>Display name <InputText @bind-Value="QuickRegister.DisplayName" /></label>
+                <label>EA Sports ID <InputText @bind-Value="QuickRegister.EaSportsId" /></label>
+            </div>
+            <button class="primary-action" disabled="@Busy">Creer session test</button>
+        </EditForm>
+
+        <EditForm Model="QuickLogin" OnValidSubmit="LoginQuickSessionAsync">
+            <div class="form-grid single">
+                <label>Email <InputText @bind-Value="QuickLogin.Email" /></label>
+                <label>Password <InputText type="password" @bind-Value="QuickLogin.Password" /></label>
+            </div>
+            <div class="row-actions">
+                <button class="ghost-action" disabled="@Busy">Connexion</button>
+                <button type="button" class="ghost-action" @onclick="SignOutAsync">Deconnexion</button>
+            </div>
+        </EditForm>
+    </div>
+
+    <p class="muted">Session active: @(AuthState.User?.Email ?? "aucune"). Elle sert a autoriser les probes EA.</p>
+</section>
+
+<section class="section-grid">
+    <article class="panel">
+        <div class="panel-heading">
+            <p class="eyebrow">Probe</p>
+            <h2>Club lookup</h2>
+        </div>
+        <EditForm Model="Probe" OnValidSubmit="RunProbeAsync">
+            <div class="form-grid">
+                <label>Club name <InputText @bind-Value="Probe.ClubName" /></label>
+                <label>Club ID <InputNumber @bind-Value="Probe.ClubId" /></label>
+                <label>Platform <InputText @bind-Value="Probe.Platform" /></label>
+                <label>Match type
+                    <InputSelect @bind-Value="Probe.MatchType">
+                        <option value="friendlyMatch">friendlyMatch</option>
+                        <option value="leagueMatch">leagueMatch</option>
+                        <option value="playoffMatch">playoffMatch</option>
+                    </InputSelect>
+                </label>
+            </div>
+            <button class="primary-action" disabled="@Busy">Lancer probe</button>
+        </EditForm>
+    </article>
+
+    <article class="panel">
+        <div class="panel-heading">
+            <p class="eyebrow">Player lookup</p>
+            <h2>EA Sports ID</h2>
+        </div>
+        <EditForm Model="PlayerProbe" OnValidSubmit="RunPlayerProbeAsync">
+            <div class="form-grid single">
+                <label>EA Sports ID <InputText @bind-Value="PlayerProbe.EaSportsId" /></label>
+                <label>Club ID <InputNumber @bind-Value="PlayerProbe.ClubId" /></label>
+                <label>Platform <InputText @bind-Value="PlayerProbe.Platform" /></label>
+            </div>
+            <button class="primary-action" disabled="@Busy">Chercher joueur</button>
+        </EditForm>
+    </article>
+</section>
+
+<section class="panel dark-panel">
+    <p class="eyebrow">Data strategy</p>
+    <h2>Ce qu'on veut isoler</h2>
+    <p>Club: identity, division, effectif, stats membres et matches. Joueur: EA Sports ID, nom, poste, note, buts, assists, matches, taille ou attributs si la source les expose.</p>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <p class="eyebrow">Resultats</p>
+        <h2>Reponse API</h2>
+    </div>
+    @if (Response is null)
+    {
+        <p class="muted">Lance un probe pour voir les endpoints et previews.</p>
+    }
+    else
+    {
+        @if (Response.Extracted is not null)
+        {
+            <section class="probe-extract">
+                <div class="extract-header">
+                    <div>
+                        <p class="eyebrow">Extraction TS Tournament</p>
+                        <h3>Donnees lisibles trouvees dans les retours</h3>
+                    </div>
+                    <span>@Response.Extracted.Players.Count joueur(s) · @Response.Extracted.Matches.Count match(s)</span>
+                </div>
+
+                <div class="probe-extract-grid">
+                    <article class="extract-card featured">
+                        <span>Club</span>
+                        <strong>@(Response.Extracted.Club?.Name ?? Response.ClubName ?? "Club non identifie")</strong>
+                        <div class="extract-metric-grid">
+                            <div><small>EA ID</small><b>@(Response.Extracted.Club?.EaClubId?.ToString() ?? Response.ClubId?.ToString() ?? "-")</b></div>
+                            <div><small>Division</small><b>@Display(Response.Extracted.Club?.Division)</b></div>
+                            <div><small>Membres</small><b>@Display(Response.Extracted.Club?.MembersCount)</b></div>
+                            <div><small>Rating</small><b>@Display(Response.Extracted.Club?.SkillRating)</b></div>
+                            <div><small>V-N-D</small><b>@DisplayRecord(Response.Extracted.Club)</b></div>
+                            <div><small>Buts</small><b>@DisplayGoals(Response.Extracted.Club)</b></div>
+                        </div>
+                    </article>
+
+                    <article class="extract-card">
+                        <span>Joueurs detectes</span>
+                        @if (Response.Extracted.Players.Count == 0)
+                        {
+                            <p class="muted">Aucun joueur fiable detecte dans les endpoints qui ont repondu.</p>
+                        }
+                        else
+                        {
+                            <div class="extract-list">
+                                @foreach (var player in Response.Extracted.Players.OrderByDescending(player => player.Goals ?? 0).ThenByDescending(player => player.Assists ?? 0).Take(8))
+                                {
+                                    <div>
+                                        <strong>@player.Name</strong>
+                                        <small>@(player.ProName ?? "pro ?") - @Display(player.Height)cm - OVR @Display(player.Overall) - win @Display(player.WinRate)%</small>
+                                        <small>tir @Display(player.ShotSuccessRate)% - passe @Display(player.PassAccuracy)% - tacle @Display(player.TackleSuccess)% - MOTM @Display(player.PlayerOfTheMatch) - rouges @Display(player.RedCards) - prevGoals @Display(player.PrevGoals)</small>
+                                        <small>@(player.Position ?? "Poste ?") · @Display(player.Matches) match(s) · @Display(player.Goals) B · @Display(player.Assists) A · note @Display(player.AverageRating)</small>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </article>
+
+                    <article class="extract-card">
+                        <span>Matchs detectes</span>
+                        @if (Response.Extracted.Matches.Count == 0)
+                        {
+                            <p class="muted">Aucun match proprement detecte. On garde les previews pour ajuster le mapping.</p>
+                        }
+                        else
+                        {
+                            <div class="extract-list">
+                                @foreach (var match in Response.Extracted.Matches.Take(6))
+                                {
+                                    <div>
+                                        <strong>@(match.HomeClubName ?? "Equipe A") @Display(match.HomeScore) - @Display(match.AwayScore) @(match.AwayClubName ?? "Equipe B")</strong>
+                                        <small>@(match.PlayedAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "date inconnue") · @match.MatchType @DisplaySignals(match.Signals)</small>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </article>
+                </div>
+
+                @if (Response.Extracted.Matches.Any(match => match.PlayerStats.Count > 0 || match.ClubStats.Count > 0))
+                {
+                    <div class="probe-match-details">
+                        <div class="extract-header slim">
+                            <div>
+                                <p class="eyebrow">Match details</p>
+                                <h3>Friendly avec buteurs, assists et stats</h3>
+                            </div>
+                            <span>ProClubTracker raw exploite</span>
+                        </div>
+
+                        @foreach (var match in Response.Extracted.Matches.Take(10))
+                        {
+                            <article class="probe-match-card">
+                                <div class="probe-match-score">
+                                    <span>@(match.PlayedAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "date inconnue")</span>
+                                    <strong>@(match.HomeClubName ?? "Equipe A") @Display(match.HomeScore) - @Display(match.AwayScore) @(match.AwayClubName ?? "Equipe B")</strong>
+                                    <small>@match.MatchType @DisplaySignals(match.Signals)</small>
+                                </div>
+
+                                @if (match.ClubStats.Count > 0)
+                                {
+                                    <div class="probe-club-stats">
+                                        @foreach (var club in match.ClubStats)
+                                        {
+                                            <div>
+                                                <span>Club @club.EaClubId</span>
+                                                <strong>@Display(club.Rating)</strong>
+                                                <small>@Display(club.Shots) tirs - @Display(club.PassSuccessRate)% passes - @Display(club.TackleSuccessRate)% tacles - @Display(club.Saves) saves</small>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                @if (match.PlayerStats.Count > 0)
+                                {
+                                    <div class="probe-scorers">
+                                        @foreach (var player in match.PlayerStats.Where(player => (player.Goals ?? 0) > 0 || (player.Assists ?? 0) > 0 || player.PlayerOfTheMatch).OrderByDescending(player => player.PlayerOfTheMatch).ThenByDescending(player => player.Goals ?? 0).ThenByDescending(player => player.Assists ?? 0))
+                                        {
+                                            <div class="probe-player-line @(player.PlayerOfTheMatch ? "motm" : "")">
+                                                <strong>@player.PlayerName</strong>
+                                                <span>@(player.Position ?? "poste ?") @(player.PlayerOfTheMatch ? "- Homme du match" : "")</span>
+                                                <small>@Display(player.Goals) but(s) - @Display(player.Assists) assist(s) - note @Display(player.Rating) - @Display(player.PassSuccessRate)% passes</small>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <details class="json-preview player-stat-details">
+                                        <summary>Toutes les lignes joueur du match</summary>
+                                        <div class="probe-player-grid">
+                                            @foreach (var player in match.PlayerStats.OrderByDescending(player => player.Rating ?? 0))
+                                            {
+                                                <article>
+                                                    <strong>@player.PlayerName</strong>
+                                                    <span>@(player.Position ?? "poste ?") - club @player.EaClubId</span>
+                                                    <small>@Display(player.Goals) B - @Display(player.Assists) A - @Display(player.Rating) note - @Display(player.Shots) tirs - @Display(player.PassSuccessRate)% passes - @Display(player.TackleSuccessRate)% tacles - @Display(player.SecondsPlayed) sec.</small>
+                                                </article>
+                                            }
+                                        </div>
+                                    </details>
+                                }
+                            </article>
+                        }
+                    </div>
+                }
+
+                @if (Response.Extracted.RawInterestingFields.Count > 0)
+                {
+                    <details class="json-preview extract-fields">
+                        <summary>Champs interessants detectes automatiquement</summary>
+                        <div class="probe-field-grid">
+                            @foreach (var field in Response.Extracted.RawInterestingFields)
+                            {
+                                <article>
+                                    <span>@field.Key</span>
+                                    <strong>@field.Value</strong>
+                                </article>
+                            }
+                        </div>
+                    </details>
+                }
+            </section>
+        }
+
+        <div class="probe-list">
+            @foreach (var step in Response.Steps)
+            {
+                <article class="probe-row @(step.Success ? "ok" : "failed")">
+                    <div>
+                        <strong>@step.Name</strong>
+                        <span>@step.Endpoint</span>
+                    </div>
+                    <small>@(step.Success ? "OK" : "FAILED") - @step.StatusCode</small>
+                    <p>@(step.RawPreview ?? step.Error ?? "-")</p>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <p class="eyebrow">Joueur</p>
+        <h2>Resultat EA Sports ID</h2>
+    </div>
+    @if (PlayerResponse is null)
+    {
+        <p class="muted">Entre un EA Sports ID pour tester les endpoints joueur disponibles.</p>
+    }
+    else
+    {
+        <div class="player-probe-summary">
+            <div>
+                <span>EA Sports ID</span>
+                <strong>@PlayerResponse.EaSportsId</strong>
+            </div>
+            <div>
+                <span>Source</span>
+                <strong>@PlayerResponse.Source</strong>
+            </div>
+            <div>
+                <span>Club ID</span>
+                <strong>@(PlayerResponse.ClubId?.ToString() ?? "-")</strong>
+            </div>
+            <div>
+                <span>Found</span>
+                <strong>@(PlayerResponse.Found ? "Oui" : "Non")</strong>
+            </div>
+        </div>
+
+        @if (PlayerResponse.Fields.Count > 0)
+        {
+            <div class="probe-field-grid">
+                @foreach (var field in PlayerResponse.Fields)
+                {
+                    <article>
+                        <span>@field.Key</span>
+                        <strong>@field.Value</strong>
+                    </article>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="muted">Aucun champ joueur fiable trouve pour cet ID avec les endpoints actuels. On gardera cet endpoint pour l'API EA officielle.</p>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(PlayerResponse.RawJson))
+        {
+            <details class="json-preview">
+                <summary>Voir JSON brut</summary>
+                <pre>@CreatePreview(PlayerResponse.RawJson)</pre>
+            </details>
+        }
+    }
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private ProbeModel Probe { get; } = new();
+    private PlayerProbeModel PlayerProbe { get; } = new();
+    private QuickRegisterModel QuickRegister { get; } = new();
+    private QuickLoginModel QuickLogin { get; } = new();
+    private EaProbeResponse? Response;
+    private EaPlayerLookupResponse? PlayerResponse;
+    private bool Busy;
+    private string? Message;
+
+    private async Task RegisterQuickSessionAsync()
+    {
+        Busy = true;
+        var result = await Api.RegisterAsync(new RegisterPlayerRequest(
+            QuickRegister.Email,
+            QuickRegister.Password,
+            QuickRegister.DisplayName,
+            QuickRegister.DisplayName,
+            QuickRegister.EaSportsId,
+            Platform.CrossPlay,
+            "fr",
+            "Europe/Zurich",
+            $"discord-{QuickRegister.DisplayName}"));
+        await FinishAuthAsync(result);
+    }
+
+    private async Task LoginQuickSessionAsync()
+    {
+        Busy = true;
+        var result = await Api.LoginAsync(new LoginRequest(QuickLogin.Email, QuickLogin.Password));
+        await FinishAuthAsync(result);
+    }
+
+    private async Task FinishAuthAsync(ApiResult<AuthResponse> result)
+    {
+        Busy = false;
+        if (!result.Success || result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        await AuthState.SetSessionAsync(result.Value);
+        QuickLogin.Email = result.Value.User.Email;
+        Message = $"Session prete: {result.Value.User.DisplayName}.";
+    }
+
+    private async Task SignOutAsync()
+    {
+        await AuthState.SignOutAsync();
+        Message = "Session fermee.";
+    }
+
+    private async Task RunProbeAsync()
+    {
+        Busy = true;
+        var result = await Api.ProbeEaAsync(new EaProbeRequest(Probe.Platform, Probe.ClubName, Probe.ClubId, Probe.MatchType, 10));
+        Busy = false;
+        Response = result.Value;
+        Message = result.Success ? $"Probe termine: {Response?.Steps.Count ?? 0} etape(s)." : result.Error;
+    }
+
+    private async Task RunPlayerProbeAsync()
+    {
+        Busy = true;
+        var result = await Api.SearchEaPlayerAsync(PlayerProbe.EaSportsId, PlayerProbe.Platform, PlayerProbe.ClubId);
+        Busy = false;
+        PlayerResponse = result.Value;
+        Message = result.Success
+            ? PlayerResponse?.Found == true ? $"Joueur trouve via {PlayerResponse.Source}." : "Aucune donnee joueur fiable trouvee."
+            : result.Error;
+    }
+
+    private static string CreatePreview(string rawJson)
+    {
+        var compact = rawJson.Replace("\r", string.Empty).Replace("\n", " ").Trim();
+        return compact.Length <= 4000 ? compact : compact[..4000];
+    }
+
+    private static string Display(int? value) => value?.ToString() ?? "-";
+
+    private static string Display(double? value) => value?.ToString("0.##") ?? "-";
+
+    private static string DisplayRecord(EaProbeClubDataResponse? club)
+    {
+        if (club is null)
+        {
+            return "-";
+        }
+
+        return $"{Display(club.Wins)}-{Display(club.Draws)}-{Display(club.Losses)}";
+    }
+
+    private static string DisplayGoals(EaProbeClubDataResponse? club)
+    {
+        if (club is null)
+        {
+            return "-";
+        }
+
+        return $"{Display(club.GoalsFor)} / {Display(club.GoalsAgainst)}";
+    }
+
+    private static string DisplaySignals(IReadOnlyCollection<string> signals)
+    {
+        return signals.Count == 0 ? string.Empty : $"· {string.Join(", ", signals)}";
+    }
+
+    private sealed class ProbeModel
+    {
+        public string Platform { get; set; } = "common-gen5";
+        public string? ClubName { get; set; } = "TheSurvivors";
+        public long? ClubId { get; set; } = 2148207;
+        public string MatchType { get; set; } = "friendlyMatch";
+    }
+
+    private sealed class PlayerProbeModel
+    {
+        public string Platform { get; set; } = "common-gen5";
+        public string EaSportsId { get; set; } = "KoffiMarvelous";
+        public long? ClubId { get; set; } = 2148207;
+    }
+
+    private sealed class QuickRegisterModel
+    {
+        public string Email { get; set; } = $"ea-lab-{Guid.NewGuid():N}@cpelite.local";
+        public string Password { get; set; } = "Password123";
+        public string DisplayName { get; set; } = "EaLabOwner";
+        public string EaSportsId { get; set; } = "KoffiMarvelous";
+    }
+
+    private sealed class QuickLoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "Password123";
+    }
+}

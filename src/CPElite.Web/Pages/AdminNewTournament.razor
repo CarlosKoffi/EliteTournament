@@ -1,0 +1,260 @@
+@page "/admin/tournaments/new"
+@inject ApiClient Api
+
+<PageTitle>TS Tournament Admin - Nouveau tournoi</PageTitle>
+
+<section class="admin-hero">
+    <div>
+        <p class="eyebrow">Admin TS Tournament</p>
+        <h1>Nouveau tournoi.</h1>
+        <p>Cette page sert uniquement a creer un tournoi, fixer les inscriptions, les lots, les restrictions de taille et les restrictions de playstyles.</p>
+    </div>
+    <div class="admin-status">
+        <span>Retour</span>
+        <strong>Pilotage</strong>
+        <nav class="admin-page-nav">
+            <a href="admin/tournaments">Pilotage</a>
+            <a class="active" href="admin/tournaments/new">Nouveau tournoi</a>
+            <a href="admin/tournaments/tracking">Suivi tournois</a>
+        </nav>
+    </div>
+</section>
+
+<section class="section-grid admin-grid">
+    <article class="panel admin-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Configuration</p>
+                <h2>Nouveau tournoi</h2>
+            </div>
+        </div>
+
+        <EditForm Model="Tournament" OnValidSubmit="CreateTournamentAsync">
+            <div class="segmented-control">
+                <button type="button" class="@(Tournament.Type == TournamentType.Normal ? "active" : "")" @onclick="() => SetType(TournamentType.Normal)">Simple</button>
+                <button type="button" class="@(Tournament.Type == TournamentType.Goodies ? "active" : "")" @onclick="() => SetType(TournamentType.Goodies)">Goodies</button>
+            </div>
+
+            <div class="form-grid">
+                <label>Nom <InputText @bind-Value="Tournament.Name" /></label>
+                <label>Banniere URL <InputText @bind-Value="Tournament.BannerUrl" placeholder="https://..." /></label>
+                <label>Date <InputDate @bind-Value="Tournament.StartsDate" /></label>
+                <label>Heure CET <InputText @bind-Value="Tournament.StartsTime" /></label>
+                <label>Debut inscription <InputDate @bind-Value="Tournament.RegistrationStartDate" /></label>
+                <label>Heure ouverture <InputText @bind-Value="Tournament.RegistrationStartTime" /></label>
+                <label>Fin inscription <InputDate @bind-Value="Tournament.RegistrationEndDate" /></label>
+                <label>Heure fermeture <InputText @bind-Value="Tournament.RegistrationEndTime" /></label>
+                <label>Max teams <InputNumber @bind-Value="Tournament.MaxTeams" /></label>
+                <label>Min teams <InputNumber @bind-Value="Tournament.MinTeams" /></label>
+                <label>Entry fee <InputNumber @bind-Value="Tournament.EntryFee" /></label>
+                <label>Prize budget <InputNumber @bind-Value="Tournament.PrizeBudget" /></label>
+            </div>
+
+            <label class="asset-upload compact-upload">
+                Upload banniere tournoi
+                <InputFile OnChange="UploadTournamentBannerAsync" accept="image/png,image/jpeg,image/webp,image/gif" />
+                <small>Cette image sera affichee en fond de la carte tournoi.</small>
+            </label>
+
+            <label class="checkbox-line locked-check"><InputCheckbox @bind-Value="Tournament.IsCashPrize" disabled /> Cash prize / Goodies</label>
+            <label>Lots / description <InputTextArea @bind-Value="Tournament.Goodies" /></label>
+
+            <div class="admin-restriction-panel">
+                <div>
+                    <p class="eyebrow">Restrictions joueurs</p>
+                    <h3>Taille & playstyles</h3>
+                    <small>Ces regles seront visibles par les owners, mais non modifiables pendant l'inscription.</small>
+                </div>
+                <div class="form-grid">
+                    <label>Taille max generale <InputNumber @bind-Value="Tournament.DefaultMaxHeightCm" /></label>
+                    <label>Taille max DC <InputNumber @bind-Value="Tournament.CenterBackMaxHeightCm" /></label>
+                    <label class="checkbox-line"><InputCheckbox @bind-Value="Tournament.EnablePlaystyleRestrictions" /> Activer restriction playstyles</label>
+                    <label>Playstyles interdits <InputText @bind-Value="Tournament.ForbiddenPlaystyles" placeholder="Ex: Aerial+, Power Header+" /></label>
+                </div>
+                <div class="restriction-preview">
+                    <span>Regle publiee</span>
+                    <strong>@Tournament.DefaultMaxHeightCm cm max - DC @Tournament.CenterBackMaxHeightCm cm</strong>
+                    <small>@PlaystyleRestrictionPreview</small>
+                </div>
+            </div>
+
+            <button class="primary-action" disabled="@Busy">Creer le tournoi</button>
+        </EditForm>
+    </article>
+
+    <article class="panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Apercu</p>
+                <h2>@Tournament.Name</h2>
+            </div>
+        </div>
+        <div class="tournament-banner-preview" style="@TournamentBannerStyle">
+            <div>
+                <span>@Tournament.Type</span>
+                <strong>@Tournament.Name</strong>
+                <small>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime - @Tournament.MinTeams/@Tournament.MaxTeams equipes</small>
+            </div>
+        </div>
+        <div class="metric-grid compact-metrics">
+            <div class="metric-card"><span>Type</span><strong>@Tournament.Type</strong></div>
+            <div class="metric-card"><span>Debut</span><strong>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime</strong></div>
+            <div class="metric-card"><span>Inscription</span><strong>@Tournament.RegistrationEndDate.ToString("dd/MM") @Tournament.RegistrationEndTime</strong></div>
+            <div class="metric-card"><span>Equipes</span><strong>@Tournament.MinTeams - @Tournament.MaxTeams</strong></div>
+            <div class="metric-card"><span>Fee</span><strong>@Tournament.EntryFee EUR</strong></div>
+            <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
+        </div>
+    </article>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private TournamentModel Tournament { get; } = new();
+    private bool Busy;
+    private string? Message;
+
+    private string PlaystyleRestrictionPreview => Tournament.EnablePlaystyleRestrictions
+        ? $"Interdits: {Tournament.ForbiddenPlaystyles}"
+        : "Aucune restriction playstyle active.";
+
+    private void SetType(TournamentType type)
+    {
+        Tournament.Type = type;
+        if (type == TournamentType.Normal)
+        {
+            Tournament.Name = "Sunday Community Cup";
+            Tournament.EntryFee = 0;
+            Tournament.PrizeBudget = 0;
+            Tournament.Goodies = "Tournoi simple pour animer la communaute.";
+            Tournament.IsCashPrize = false;
+        }
+        else
+        {
+            Tournament.Name = "Friday Goodies Cup";
+            Tournament.EntryFee = 50;
+            Tournament.PrizeBudget = 700;
+            Tournament.Goodies = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
+            Tournament.IsCashPrize = true;
+        }
+    }
+
+    private async Task CreateTournamentAsync()
+    {
+        Busy = true;
+        var request = new CreateTournamentRequest(
+            Tournament.Name,
+            Tournament.Type,
+            Tournament.BuildStartsAt(),
+            "Europe/Zurich",
+            Tournament.MaxTeams,
+            Tournament.EntryFee,
+            "EUR",
+            Tournament.Goodies,
+            Tournament.MinTeams,
+            Tournament.BuildRegistrationEndsAt(),
+            Tournament.PrizeBudget,
+            15,
+            60,
+            Tournament.BuildRestrictionsJson(),
+            Tournament.IsCashPrize,
+            Tournament.BuildRegistrationStartsAt(),
+            Tournament.BuildRegistrationEndsAt(),
+            Tournament.BannerUrl);
+
+        var result = await Api.CreateTournamentAsync(request);
+        Busy = false;
+        Message = result.Success
+            ? $"Tournoi cree: {result.Value?.Name}. Tu peux revenir au tableau de bord."
+            : result.Error;
+    }
+
+    private async Task UploadTournamentBannerAsync(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        await using var stream = file.OpenReadStream(5_000_000);
+        var result = await Api.UploadTeamAssetAsync(stream, file.Name, file.ContentType);
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        Tournament.BannerUrl = result.Value.Url;
+        Message = "Banniere tournoi uploadee.";
+    }
+
+    private sealed class TournamentModel
+    {
+        public string Name { get; set; } = "Friday Goodies Cup";
+        public TournamentType Type { get; set; } = TournamentType.Goodies;
+        public DateTime StartsDate { get; set; } = DateTime.Today.AddDays(1);
+        public string StartsTime { get; set; } = "22:30";
+        public DateTime RegistrationStartDate { get; set; } = DateTime.Today;
+        public string RegistrationStartTime { get; set; } = "12:00";
+        public DateTime RegistrationEndDate { get; set; } = DateTime.Today.AddDays(1);
+        public string RegistrationEndTime { get; set; } = "18:00";
+        public int MaxTeams { get; set; } = 32;
+        public int MinTeams { get; set; } = 24;
+        public decimal EntryFee { get; set; } = 50m;
+        public decimal PrizeBudget { get; set; } = 700m;
+        public bool IsCashPrize { get; set; } = true;
+        public string Goodies { get; set; } = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
+        public string? BannerUrl { get; set; } = "/images/tournaments/friday-goodies.svg";
+        public int DefaultMaxHeightCm { get; set; } = 182;
+        public int CenterBackMaxHeightCm { get; set; } = 187;
+        public bool EnablePlaystyleRestrictions { get; set; }
+        public string ForbiddenPlaystyles { get; set; } = "";
+
+        public DateTimeOffset BuildStartsAt()
+        {
+            var time = TimeSpan.Parse(StartsTime);
+            return new DateTimeOffset(StartsDate.Date.Add(time), TimeSpan.FromHours(2));
+        }
+
+        public DateTimeOffset BuildRegistrationStartsAt()
+        {
+            var time = TimeSpan.Parse(RegistrationStartTime);
+            return new DateTimeOffset(RegistrationStartDate.Date.Add(time), TimeSpan.FromHours(2));
+        }
+
+        public DateTimeOffset BuildRegistrationEndsAt()
+        {
+            var time = TimeSpan.Parse(RegistrationEndTime);
+            return new DateTimeOffset(RegistrationEndDate.Date.Add(time), TimeSpan.FromHours(2));
+        }
+
+        public string BuildRestrictionsJson()
+        {
+            var playstyles = ForbiddenPlaystyles
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => value.Replace("\"", "\\\""))
+                .ToArray();
+            var forbidden = string.Join(",", playstyles.Select(value => $"\"{value}\""));
+            var playstyleEnabled = EnablePlaystyleRestrictions ? "true" : "false";
+
+            return "{"
+                + "\"height\":{"
+                + "\"enabled\":true,"
+                + $"\"defaultMaxCm\":{DefaultMaxHeightCm},"
+                + "\"positionOverrides\":{"
+                + $"\"DC\":{CenterBackMaxHeightCm}"
+                + "},"
+                + "\"requiresProofWhenUnknown\":true"
+                + "},"
+                + "\"playstyles\":{"
+                + $"\"enabled\":{playstyleEnabled},"
+                + $"\"forbidden\":[{forbidden}],"
+                + "\"requiresOwnerWarning\":true"
+                + "}"
+                + "}";
+        }
+    }
+
+    private string TournamentBannerStyle => string.IsNullOrWhiteSpace(Tournament.BannerUrl)
+        ? ""
+        : $"background-image: linear-gradient(90deg, rgba(0,0,0,.82), rgba(0,0,0,.32)), url('{Tournament.BannerUrl}');";
+}

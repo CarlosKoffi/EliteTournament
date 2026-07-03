@@ -1,0 +1,188 @@
+@page "/admin/tournaments/tracking"
+
+<PageTitle>TS Tournament Admin - Suivi tournois</PageTitle>
+
+<section class="admin-hero">
+    <div>
+        <p class="eyebrow">Admin TS Tournament</p>
+        <h1>Suivi des tournois crees.</h1>
+        <p>Cette page suit les tournois deja crees: inscriptions, waitlist, validations, tirage, statut de preparation et actions administrateur.</p>
+    </div>
+    <div class="admin-status">
+        <span>Mode</span>
+        <strong>Suivi</strong>
+        <small>Donnees mockees pour cadrer l'ecran. A brancher ensuite sur l'API tournoi.</small>
+        <nav class="admin-page-nav">
+            <a href="admin/tournaments">Pilotage</a>
+            <a href="admin/tournaments/new">Nouveau tournoi</a>
+            <a class="active" href="admin/tournaments/tracking">Suivi tournois</a>
+        </nav>
+    </div>
+</section>
+
+<section class="section-grid admin-grid">
+    <article class="panel command-panel">
+        <div class="panel-heading compact">
+            <div>
+                <p class="eyebrow">Tournoi selectionne</p>
+                <h2>@SelectedTournament.Name</h2>
+                <label class="tracking-select">Choisir un tournoi
+                    <select @bind="SelectedTournamentName">
+                        @foreach (var tournament in DemoCreatedTournaments)
+                        {
+                            <option value="@tournament.Name">@tournament.Name</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <button class="ghost-action" @onclick="RefreshTracking">Refresh</button>
+        </div>
+
+        <div class="launch-status">
+            <div>
+                <span>Equipes validees</span>
+                <strong>@SelectedTournament.TeamsRegistered / @SelectedTournament.MinTeams</strong>
+            </div>
+            <div>
+                <span>Capacite</span>
+                <strong>@SelectedTournament.TeamsRegistered / @SelectedTournament.MaxTeams</strong>
+            </div>
+            <div>
+                <span>Etat</span>
+                <strong>@SelectedTournament.Status</strong>
+            </div>
+        </div>
+
+        <div class="registered-list">
+            @foreach (var item in DemoParticipants)
+            {
+                <article class="registered-row @(item.Status == "Waitlist" ? "waitlisted" : "")">
+                    <div>
+                        <strong>@item.TeamName</strong>
+                        <span>@item.Source - @item.Status</span>
+                    </div>
+                    <div>
+                        <span>Joueurs</span>
+                        <strong>@item.PlayerCount / 11</strong>
+                    </div>
+                    <small class="@(item.IsReady ? "ready" : "pending")">@(item.IsReady ? "Pret" : "A confirmer")</small>
+                    <button class="mini-action @(item.CanWithdraw ? "danger" : "")" disabled="@(!item.CanWithdraw)">Retirer</button>
+                </article>
+            }
+        </div>
+
+        <div class="row-actions">
+            <button class="primary-action launch-button" @onclick="LaunchDemoDraw">Lancer le tirage</button>
+            <button class="ghost-action">Promouvoir waitlist</button>
+        </div>
+        <p class="muted">Ici on branchera la vraie API pour inscriptions, validations joueurs, paiement, waitlist et tirage.</p>
+    </article>
+
+    <article class="panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Etat creation</p>
+                <h2>Tournois crees</h2>
+            </div>
+        </div>
+        <div class="upcoming-list">
+            @foreach (var tournament in DemoCreatedTournaments)
+            {
+                <button class="created-tournament-row @(tournament.Name == SelectedTournamentName ? "selected" : "")" @onclick="() => SelectedTournamentName = tournament.Name">
+                    <strong>@tournament.Name</strong>
+                    <span>@tournament.DateLabel - @tournament.Status</span>
+                    <small>@tournament.TeamsRegistered/@tournament.MaxTeams equipes - @tournament.Restrictions</small>
+                </button>
+            }
+        </div>
+    </article>
+</section>
+
+@if (DrawLaunched)
+{
+    <section class="panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Tirage genere</p>
+                <h2>Poules + phase finale</h2>
+            </div>
+        </div>
+        <div class="draw-layout">
+            <div>
+                <p class="eyebrow">Poules</p>
+                <div class="group-grid">
+                    @foreach (var group in DemoGroups)
+                    {
+                        <article class="group-card">
+                            <h3>@group.Name</h3>
+                            @foreach (var team in group.Teams)
+                            {
+                                <span>@team</span>
+                            }
+                        </article>
+                    }
+                </div>
+            </div>
+            <div>
+                <p class="eyebrow">Finales</p>
+                <div class="knockout-list">
+                    <span>Quarts - 4 matchs</span>
+                    <span>Demi-finales - 2 matchs</span>
+                    <span>Finale - 1 match</span>
+                    <span>Petite finale - 1 match</span>
+                </div>
+            </div>
+        </div>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private bool DrawLaunched;
+    private string? Message;
+    private string SelectedTournamentName { get; set; } = "Friday Goodies Cup #4";
+    private CreatedTournamentRow SelectedTournament => DemoCreatedTournaments.First(tournament => tournament.Name == SelectedTournamentName);
+
+    private void RefreshTracking()
+    {
+        Message = $"Suivi rafraichi pour {SelectedTournament.Name}: {SelectedTournament.TeamsRegistered} equipes inscrites.";
+    }
+
+    private void LaunchDemoDraw()
+    {
+        DrawLaunched = true;
+        Message = "Tirage genere en demo. Les poules seront ensuite persistees via l'API.";
+    }
+
+    private static IReadOnlyCollection<TrackingParticipantRow> DemoParticipants { get; } =
+    [
+        new("TheSurvivors", "App", "Accepted", 11, true, true),
+        new("FC Toho", "Discord", "Pending", 9, false, true),
+        new("KM Chimera", "App", "Accepted", 11, true, true),
+        new("Royal XI", "Discord", "Waitlist", 10, false, true),
+        new("HOF 221", "App", "Accepted", 11, true, true)
+    ];
+
+    private static IReadOnlyCollection<CreatedTournamentRow> DemoCreatedTournaments { get; } =
+    [
+        new("Friday Goodies Cup #4", "Ce soir 22:30", "Pret tirage", 28, 24, 32, "182 cm / DC 187 cm"),
+        new("Sunday Community Cup", "Dimanche 22:30", "Inscriptions ouvertes", 18, 24, 32, "Sans playstyle"),
+        new("Friday Goodies Cup #5", "Vendredi 22:30", "Draft", 11, 24, 32, "182 cm / DC 187 cm")
+    ];
+
+    private static IReadOnlyCollection<DemoGroup> DemoGroups { get; } =
+    [
+        new("Poule A", ["HOF 221", "Royal XI", "Akrapo 7", "Les Titans"]),
+        new("Poule B", ["TheSurvivors", "FC Toho", "KM Chimera", "VPG Lions"]),
+        new("Poule C", ["Nexus FC", "Blackout", "Panam Esport", "Olympia"]),
+        new("Poule D", ["Atlas Pro", "Rivals", "RedFox", "Elite Nord"])
+    ];
+
+    private sealed record TrackingParticipantRow(string TeamName, string Source, string Status, int PlayerCount, bool IsReady, bool CanWithdraw);
+    private sealed record CreatedTournamentRow(string Name, string DateLabel, string Status, int TeamsRegistered, int MinTeams, int MaxTeams, string Restrictions);
+    private sealed record DemoGroup(string Name, IReadOnlyCollection<string> Teams);
+}

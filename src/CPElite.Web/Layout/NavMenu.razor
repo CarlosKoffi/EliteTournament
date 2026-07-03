@@ -1,0 +1,128 @@
+@inject AuthState AuthState
+@inject ApiClient Api
+@implements IDisposable
+
+<div class="brand-row">
+    <div class="brand-mark">TS</div>
+    <div>
+        <a class="brand-name" href="">TS Tournament</a>
+        <span class="brand-subtitle">Pro Clubs Tournament</span>
+    </div>
+    <button title="Ouvrir le menu" aria-label="Ouvrir le menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+        <span class="navbar-toggler-icon" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+    </button>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable">
+    <nav class="nav-list" @onclick="CloseOnMobile">
+        @if (AuthState.IsAuthenticated)
+        {
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="nav-icon">01</span> Accueil
+            </NavLink>
+            <NavLink class="nav-link" href="account">
+                <span class="nav-icon">02</span> Compte
+            </NavLink>
+            <NavLink class="nav-link" href="teams">
+                <span class="nav-icon">03</span> Mon equipe
+            </NavLink>
+            <NavLink class="nav-link" href="mercato">
+                <span class="nav-icon">04</span> Mercato
+            </NavLink>
+            <NavLink class="nav-link" href="tournaments">
+                <span class="nav-icon">05</span> Tournois
+            </NavLink>
+            <NavLink class="nav-link admin-link" href="admin/tournaments">
+                <span class="nav-icon">AD</span> Admin
+            </NavLink>
+            <NavLink class="nav-link admin-link" href="admin/content">
+                <span class="nav-icon">TX</span> Textes
+            </NavLink>
+        }
+        else
+        {
+            <NavLink class="nav-link" href="login">
+                <span class="nav-icon">IN</span> Se connecter
+            </NavLink>
+            <NavLink class="nav-link" href="account">
+                <span class="nav-icon">+</span> Creer un compte
+            </NavLink>
+        }
+    </nav>
+
+    <div class="sidebar-card">
+        @if (AuthState.IsAuthenticated)
+        {
+            <span class="eyebrow">@MenuTeamName</span>
+            <strong>@MenuPlayerName</strong>
+            <p>@MenuRoleLabel</p>
+        }
+        else
+        {
+            <span class="eyebrow">Bienvenue</span>
+            <strong>Compte requis</strong>
+            <p>Connecte-toi ou cree ton compte pour rejoindre un club et rechercher.</p>
+        }
+    </div>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private string? TeamName;
+    private string? RoleName;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "nav-collapsed" : null;
+    private string MenuPlayerName => AuthState.User?.DisplayName ?? AuthState.User?.Gamertag ?? "Joueur";
+    private string MenuTeamName => TeamName ?? "Aucun club actif";
+    private string MenuRoleLabel => string.IsNullOrWhiteSpace(RoleName) ? "Role a completer" : RoleName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthState.Changed += OnAuthChanged;
+        await LoadIdentityAsync();
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void CloseOnMobile()
+    {
+        collapseNavMenu = true;
+    }
+
+    private void OnAuthChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadIdentityAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadIdentityAsync()
+    {
+        TeamName = null;
+        RoleName = null;
+
+        if (!AuthState.IsAuthenticated)
+        {
+            return;
+        }
+
+        var result = await Api.GetMeAsync();
+        var membership = result.Value?.Memberships.FirstOrDefault(member => member.TeamId.HasValue);
+        TeamName = membership?.TeamName;
+        RoleName = membership?.Role.ToString();
+    }
+
+    public void Dispose()
+    {
+        AuthState.Changed -= OnAuthChanged;
+    }
+}

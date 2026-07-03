@@ -1,0 +1,19 @@
+@page "/demo-logout"
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>TS Tournament - Invité</PageTitle>
+
+<section class="page-title">
+    <p class="eyebrow">Session locale</p>
+    <h1>Mode invite</h1>
+    <p>Retour a la navigation publique.</p>
+</section>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthState.SignOutAsync();
+        Navigation.NavigateTo("/");
+    }
+}

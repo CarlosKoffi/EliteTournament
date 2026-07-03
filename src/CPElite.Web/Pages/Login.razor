@@ -1,0 +1,71 @@
+@page "/login"
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament - Connexion</PageTitle>
+
+<section class="page-title">
+    <p class="eyebrow">Retour joueur</p>
+    <h1>Se connecter</h1>
+    <p>Accede a ton profil, ton club, tes presences tournoi et tes performances.</p>
+</section>
+
+<section class="section-grid login-only-grid">
+    <article class="panel" id="login">
+        <div class="panel-heading">
+            <p class="eyebrow">Session TS Tournament</p>
+            <h2>Connexion</h2>
+        </div>
+        <EditForm Model="LoginForm" OnValidSubmit="LoginAsync">
+            <DataAnnotationsValidator />
+            <div class="form-grid single">
+                <label>Email <InputText @bind-Value="LoginForm.Email" /></label>
+                <label>Password <InputText type="password" @bind-Value="LoginForm.Password" /></label>
+            </div>
+            <div class="row-actions">
+                <button class="primary-action" disabled="@Busy">Connexion</button>
+                <a class="ghost-action" href="account">Creer un compte</a>
+            </div>
+        </EditForm>
+
+        <div class="session-box">
+            <span class="eyebrow">Session active</span>
+            <strong>@(AuthState.User?.DisplayName ?? "Aucune")</strong>
+            <p>@(AuthState.User?.Email ?? "Connecte-toi pour activer les appels API.")</p>
+        </div>
+    </article>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private LoginModel LoginForm { get; } = new();
+    private bool Busy;
+    private string? Message;
+
+    private async Task LoginAsync()
+    {
+        Busy = true;
+        Message = null;
+        var result = await Api.LoginAsync(new LoginRequest(LoginForm.Email, LoginForm.Password));
+        Busy = false;
+
+        if (!result.Success || result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        await AuthState.SetSessionAsync(result.Value);
+        Message = $"Connecte comme {result.Value.User.DisplayName}.";
+    }
+
+    private sealed class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "Password123";
+    }
+}

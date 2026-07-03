@@ -1,0 +1,260 @@
+@page "/actualites"
+@page "/mercato"
+@page "/today"
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament - Mercato</PageTitle>
+
+<section class="news-hero">
+    <div>
+        <p class="eyebrow">Mercato</p>
+        <h1>Le marche joueurs, propre et direct.</h1>
+        <p>Clubs qui cherchent un poste, joueurs disponibles, prets et transferts. Ici on ne garde que ce qui aide a composer une equipe.</p>
+    </div>
+    <div class="news-kpi">
+        <span>Opportunites actives</span>
+        <strong>@FilteredAnnouncements.Count()</strong>
+        <small>@DateTime.Today.ToString("dd/MM")</small>
+    </div>
+</section>
+
+<section class="news-layout">
+<article class="news-compose panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Publier</p>
+            <h2>Nouvelle annonce mercato</h2>
+        </div>
+    </div>
+    <div class="form-grid">
+        <label>Type
+            <select @bind="NewAnnouncement.Type">
+                <option>Recherche joueur</option>
+                <option>Joueur disponible</option>
+                <option>Pret joueur</option>
+                <option>Transfert</option>
+            </select>
+        </label>
+        <label>Position
+            <InputText @bind-Value="NewAnnouncement.Position" />
+        </label>
+        <label>Club / joueur
+            <InputText @bind-Value="NewAnnouncement.TeamName" />
+        </label>
+        <label>Disponible le
+            <InputDate @bind-Value="NewAnnouncement.Date" />
+        </label>
+    </div>
+    <label>Message <InputTextArea @bind-Value="NewAnnouncement.Message" /></label>
+    <button class="primary-action" @onclick="PublishLocalAnnouncement">Publier mercato</button>
+</article>
+
+<article class="panel news-feed-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Recherche</p>
+            <h2>Trouver le bon profil</h2>
+        </div>
+        <button class="ghost-action" @onclick="LoadTodayAsync">Synchroniser demandes</button>
+    </div>
+    <div class="news-tabs">
+        @foreach (var type in NewsTypes)
+        {
+            <button class="@(Filter.Type == type ? "active" : "")" @onclick="() => Filter.Type = type">@type</button>
+        }
+    </div>
+    <div class="search-row">
+        <input @bind="Filter.Text" placeholder="Club, joueur, poste, style..." />
+        <select @bind="Filter.Position">
+            <option>Tout poste</option>
+            <option>GK</option>
+            <option>DD</option>
+            <option>DG</option>
+            <option>DC</option>
+            <option>MDC</option>
+            <option>MC</option>
+            <option>MOC</option>
+            <option>AD</option>
+            <option>AG</option>
+            <option>BU</option>
+        </select>
+    </div>
+
+    <div class="result-summary">
+        <strong>@FilteredAnnouncements.Count() resultat(s)</strong>
+        <span>@Filter.Type - @Filter.Position</span>
+    </div>
+
+    <div class="announcement-grid">
+        @if (!FilteredAnnouncements.Any())
+        {
+            <div class="empty-state">
+                <strong>Aucune annonce trouvee</strong>
+                <p>Change le poste, le type ou la recherche pour elargir le fil.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var item in FilteredAnnouncements)
+            {
+                <article class="announcement-card @GetAnnouncementTone(item.Type)">
+                    <div class="announcement-topline">
+                        <span class="position-pill">@item.Position</span>
+                        <small>@item.Date.ToString("dd/MM")</small>
+                    </div>
+                    <div class="announcement-main">
+                        <div class="club-avatar">@GetInitials(item.TeamName)</div>
+                        <div>
+                            <span class="result-kind">@item.Type</span>
+                            <h3>@item.TeamName</h3>
+                        </div>
+                    </div>
+                    <p>@item.Message</p>
+                    <div class="mercato-meta-grid">
+                        <span>@item.Availability</span>
+                        <span>@item.AppStatus</span>
+                        <span>@item.Movement</span>
+                    </div>
+                    <div class="card-meta">
+                        <button class="mini-action">@GetPrimaryAction(item.Type)</button>
+                        <button class="mini-action strong">Contacter</button>
+                    </div>
+                </article>
+            }
+        }
+    </div>
+</article>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private List<AnnouncementModel> Announcements { get; } =
+    [
+        new() { Type = "Recherche joueur", TeamName = "TheSurvivors", Position = "BU", Message = "Recherche BU mobile, vocal ok, disponible ce soir. Profil app prioritaire.", Date = DateTime.Today, Availability = "Ce soir", AppStatus = "Compte TS actif", Movement = "Renfort soir" },
+        new() { Type = "Joueur disponible", TeamName = "KoffiMarvelous", Position = "MOC", Message = "Createur disponible apres 21:30, peut depanner MC. Club actuel: TheSurvivors.", Date = DateTime.Today, Availability = "21:30", AppStatus = "Compte TS actif", Movement = "Pret possible" },
+        new() { Type = "Pret joueur", TeamName = "FC Toho", Position = "MC", Message = "Milieu box-to-box ouvert au pret pour une soiree, validation owner requise.", Date = DateTime.Today, Availability = "Aujourd'hui", AppStatus = "A inviter", Movement = "Pret owner" },
+        new() { Type = "Transfert", TeamName = "Northside Club", Position = "DC", Message = "DC 1m87 cherche projet stable, disponible pour essai cette semaine.", Date = DateTime.Today.AddDays(1), Availability = "Cette semaine", AppStatus = "Compte TS actif", Movement = "Transfert" }
+    ];
+
+    private AnnouncementModel NewAnnouncement { get; } = new() { Type = "Recherche joueur", TeamName = "TheSurvivors", Position = "BU", Date = DateTime.Today };
+    private AnnouncementFilter Filter { get; } = new();
+    private string? Message;
+    private IReadOnlyCollection<string> NewsTypes { get; } = ["Tout", "Recherche joueur", "Joueur disponible", "Pret joueur", "Transfert"];
+
+    private IEnumerable<AnnouncementModel> FilteredAnnouncements => Announcements.Where(item =>
+        (Filter.Type == "Tout" || item.Type == Filter.Type)
+        && (Filter.Position == "Tout poste" || item.Position.Equals(Filter.Position, StringComparison.OrdinalIgnoreCase))
+        && (string.IsNullOrWhiteSpace(Filter.Text)
+            || item.TeamName.Contains(Filter.Text, StringComparison.OrdinalIgnoreCase)
+            || item.Position.Contains(Filter.Text, StringComparison.OrdinalIgnoreCase)
+            || item.Message.Contains(Filter.Text, StringComparison.OrdinalIgnoreCase)
+            || item.Movement.Contains(Filter.Text, StringComparison.OrdinalIgnoreCase)
+            || item.AppStatus.Contains(Filter.Text, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTodayAsync();
+    }
+
+    private async Task LoadTodayAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Message = "Connecte-toi pour charger les annonces backend.";
+            return;
+        }
+
+        var result = await Api.GetTodayAsync();
+        if (result.Value is not null)
+        {
+            foreach (var demand in result.Value.PlayerDemands)
+            {
+                Announcements.Add(new AnnouncementModel
+                {
+                    Type = "Recherche joueur",
+                    TeamName = demand.TeamName,
+                    Position = demand.Position,
+                    Message = demand.Note ?? "Besoin joueur pour ce soir.",
+                    Date = demand.NeededAt.DateTime,
+                    Availability = demand.NeededAt.ToString("HH:mm"),
+                    AppStatus = "A confirmer",
+                    Movement = "Renfort soir"
+                });
+            }
+
+            Message = $"{result.Value.PlayerDemands.Count} demande(s) mercato chargee(s).";
+        }
+        else
+        {
+            Message = result.Error;
+        }
+    }
+
+    private void PublishLocalAnnouncement()
+    {
+        Announcements.Insert(0, new AnnouncementModel
+        {
+            Type = NewAnnouncement.Type,
+            TeamName = NewAnnouncement.TeamName,
+            Position = NewAnnouncement.Position,
+            Message = NewAnnouncement.Message,
+            Date = NewAnnouncement.Date.Date,
+            Availability = "A confirmer",
+            AppStatus = "Compte TS a verifier",
+            Movement = NewAnnouncement.Type
+        });
+        Message = "Annonce mercato ajoutee localement. Prochaine etape: brancher la publication persistante en base.";
+    }
+
+    private static string GetInitials(string value)
+    {
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return "CP";
+        }
+
+        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private static string GetAnnouncementTone(string type)
+    {
+        return type switch
+        {
+            "Recherche joueur" => "need-player",
+            "Joueur disponible" => "player-free",
+            "Pret joueur" => "loan",
+            "Transfert" => "transfer",
+            _ => "info"
+        };
+    }
+
+    private static string GetPrimaryAction(string type)
+    {
+        return type == "Joueur disponible" ? "Voir joueur" : "Voir profil";
+    }
+
+    private sealed class AnnouncementModel
+    {
+        public string Type { get; set; } = "Recherche joueur";
+        public string TeamName { get; set; } = "";
+        public string Position { get; set; } = "";
+        public string Message { get; set; } = "";
+        public DateTime Date { get; set; } = DateTime.Today;
+        public string Availability { get; set; } = "A confirmer";
+        public string AppStatus { get; set; } = "Compte TS a verifier";
+        public string Movement { get; set; } = "Mercato";
+    }
+
+    private sealed class AnnouncementFilter
+    {
+        public string Text { get; set; } = "";
+        public string Type { get; set; } = "Tout";
+        public string Position { get; set; } = "Tout poste";
+    }
+}

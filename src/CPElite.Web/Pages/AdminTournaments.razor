@@ -1,0 +1,641 @@
+@page "/admin/tournaments"
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament Admin - Pilotage</PageTitle>
+
+<section class="admin-hero">
+    <div>
+        <p class="eyebrow">Admin TS Tournament</p>
+        <h1>Piloter les tournois TS Tournament.</h1>
+        <p>Cette partie centralise les inscrits, les tirages, les tournois en cours, les prochains tournois et l'historique.</p>
+    </div>
+    <div class="admin-status">
+        <span>Mode</span>
+        <strong>Back-office</strong>
+        <small>Donnees mockees pour cadrer l'ecran. A brancher ensuite sur l'API tournoi.</small>
+        <nav class="admin-page-nav">
+            <a class="active" href="admin/tournaments">Pilotage</a>
+            <a href="admin/tournaments/new">Nouveau tournoi</a>
+            <a href="admin/tournaments/tracking">Suivi tournois</a>
+        </nav>
+    </div>
+</section>
+
+<section class="section-grid admin-grid">
+    @if (ShowLegacyCreateForm)
+    {
+    <article class="panel admin-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Configuration</p>
+                <h2>Nouveau tournoi</h2>
+            </div>
+        </div>
+        <EditForm Model="Tournament" OnValidSubmit="CreateTournamentAsync">
+            <div class="segmented-control">
+                <button type="button" class="@(Tournament.Type == TournamentType.Normal ? "active" : "")" @onclick="() => SetType(TournamentType.Normal)">Simple</button>
+                <button type="button" class="@(Tournament.Type == TournamentType.Goodies ? "active" : "")" @onclick="() => SetType(TournamentType.Goodies)">Goodies</button>
+            </div>
+            <div class="form-grid">
+                <label>Nom <InputText @bind-Value="Tournament.Name" /></label>
+                <label>Banniere URL <InputText @bind-Value="Tournament.BannerUrl" placeholder="https://..." /></label>
+                <label>Date <InputDate @bind-Value="Tournament.StartsDate" /></label>
+                <label>Heure CET <InputText @bind-Value="Tournament.StartsTime" /></label>
+                <label>Debut inscription <InputDate @bind-Value="Tournament.RegistrationStartDate" /></label>
+                <label>Heure ouverture <InputText @bind-Value="Tournament.RegistrationStartTime" /></label>
+                <label>Fin inscription <InputDate @bind-Value="Tournament.RegistrationEndDate" /></label>
+                <label>Heure fermeture <InputText @bind-Value="Tournament.RegistrationEndTime" /></label>
+                <label>Max teams <InputNumber @bind-Value="Tournament.MaxTeams" /></label>
+                <label>Min teams <InputNumber @bind-Value="Tournament.MinTeams" /></label>
+                <label>Entry fee <InputNumber @bind-Value="Tournament.EntryFee" /></label>
+                <label>Prize budget <InputNumber @bind-Value="Tournament.PrizeBudget" /></label>
+            </div>
+            <label class="checkbox-line locked-check"><InputCheckbox @bind-Value="Tournament.IsCashPrize" disabled /> Cash prize / Goodies</label>
+            <label>Lots / description <InputTextArea @bind-Value="Tournament.Goodies" /></label>
+
+            <div class="admin-restriction-panel">
+                <div>
+                    <p class="eyebrow">Restrictions joueurs</p>
+                    <h3>Taille & playstyles</h3>
+                    <small>Ces regles sont fixees par l'admin et seulement lues par le owner lors de l'inscription.</small>
+                </div>
+                <div class="form-grid">
+                    <label>Taille max generale <InputNumber @bind-Value="Tournament.DefaultMaxHeightCm" /></label>
+                    <label>Taille max DC <InputNumber @bind-Value="Tournament.CenterBackMaxHeightCm" /></label>
+                    <label class="checkbox-line"><InputCheckbox @bind-Value="Tournament.EnablePlaystyleRestrictions" /> Activer restriction playstyles</label>
+                    <label>Playstyles interdits <InputText @bind-Value="Tournament.ForbiddenPlaystyles" placeholder="Ex: Aerial+, Power Header+" /></label>
+                </div>
+                <div class="restriction-preview">
+                    <span>Regle publiee</span>
+                    <strong>@Tournament.DefaultMaxHeightCm cm max · DC @Tournament.CenterBackMaxHeightCm cm</strong>
+                    <small>@PlaystyleRestrictionPreview</small>
+                </div>
+            </div>
+
+            <button class="primary-action" disabled="@Busy">Creer le tournoi</button>
+        </EditForm>
+    </article>
+    }
+
+    @if (ShowLegacyCommandPanel)
+    {
+    <article class="panel command-panel">
+        <div class="panel-heading compact">
+            <div>
+                <p class="eyebrow">Commande tournoi</p>
+                <h2>Inscrits et tirage</h2>
+            </div>
+            <button class="ghost-action" @onclick="LoadBoardAsync" disabled="@(CreatedTournament is null)">Refresh</button>
+        </div>
+
+        <div class="launch-status">
+            <div>
+                <span>Equipes validees</span>
+                <strong>@ActiveTeamsCount / @(CreatedTournament?.MinTeams ?? Tournament.MinTeams)</strong>
+            </div>
+            <div>
+                <span>Capacite</span>
+                <strong>@ActiveTeamsCount / @(CreatedTournament?.MaxTeams ?? Tournament.MaxTeams)</strong>
+            </div>
+            <div>
+                <span>Etat</span>
+                <strong>@LaunchReadinessLabel</strong>
+            </div>
+        </div>
+
+        <div class="registered-list">
+            @foreach (var item in CommandRows)
+            {
+                <article class="registered-row @(item.Status == TournamentRegistrationStatus.Waitlisted ? "waitlisted" : "")">
+                    <div>
+                        <strong>@item.TeamName</strong>
+                        <span>@item.Source - @item.Status</span>
+                    </div>
+                    <div>
+                        <span>Joueurs</span>
+                        <strong>@item.PlayerCount / 11</strong>
+                    </div>
+                    <small class="@(item.IsReady ? "ready" : "pending")">@(item.IsReady ? "Pret" : "A confirmer")</small>
+                    @if (item.CanWithdraw)
+                    {
+                        <button class="mini-action danger" @onclick="() => WithdrawTeamAsync(item.TeamId)" disabled="@Busy">Retirer</button>
+                    }
+                </article>
+            }
+        </div>
+
+        <div class="row-actions">
+            <button class="primary-action launch-button" @onclick="LaunchDrawAsync" disabled="@(!CanLaunchDraw || Busy)">Lancer le tirage</button>
+            <button class="ghost-action" @onclick="PromoteNextWaitlistedAsync" disabled="@(CreatedTournament is null || Board?.WaitlistedTeams == 0 || Busy)">Promouvoir waitlist</button>
+        </div>
+        <p class="muted">Le tirage se lance ici seulement quand les equipes et joueurs sont controles.</p>
+    </article>
+    }
+</section>
+
+<section class="panel tournament-ops-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Pilotage</p>
+            <h2>Live tournoi</h2>
+        </div>
+    </div>
+
+    <div class="tournament-tabs">
+        <button class="@(AdminTournamentTab == "live" ? "active" : "")" @onclick='() => AdminTournamentTab = "live"'>En cours</button>
+        <button class="@(AdminTournamentTab == "upcoming" ? "active" : "")" @onclick='() => AdminTournamentTab = "upcoming"'>A venir</button>
+        <button class="@(AdminTournamentTab == "past" ? "active" : "")" @onclick='() => AdminTournamentTab = "past"'>Passes</button>
+    </div>
+
+    @if (AdminTournamentTab == "live")
+    {
+        <article class="ops-feature-card live">
+            <div class="live-admin-heading">
+                <div>
+                    <span class="result-kind">En cours</span>
+                    <h3>@DemoLiveTournament.Name</h3>
+                    <p>@DemoLiveTournament.Status</p>
+                </div>
+                <button class="primary-action" @onclick="RefreshLiveTournamentScoresAsync" disabled="@Busy">Actualiser scores EA</button>
+            </div>
+            <div class="ops-metrics">
+                <div><span>Equipes</span><strong>@DemoLiveTournament.Teams</strong></div>
+                <div><span>Phase</span><strong>@DemoLiveTournament.Stage</strong></div>
+                <div><span>Matchs joues</span><strong>@DemoLiveTournament.PlayedMatches</strong></div>
+            </div>
+
+            <div class="live-admin-grid">
+                <article class="live-matches-panel">
+                    <div class="panel-heading compact">
+                        <div>
+                            <p class="eyebrow">Quarts de finale</p>
+                            <h2>Matchs a monitorer</h2>
+                        </div>
+                        <span class="owner-capacity">EA friendly scan</span>
+                    </div>
+                    <div class="admin-live-match-list">
+                        @foreach (var match in LiveQuarterMatches)
+                        {
+                            <div class="admin-live-match @(match.StatusCss)">
+                                <span>@match.Code</span>
+                                <strong>@match.Home @match.ScoreLabel @match.Away</strong>
+                                <small>@match.Status</small>
+                                <em>@match.EaLookupWindow</em>
+                            </div>
+                        }
+                    </div>
+                </article>
+
+                <article class="live-leaders-panel">
+                    <div class="panel-heading compact">
+                        <div>
+                            <p class="eyebrow">Stats tournoi</p>
+                            <h2>Leaders live</h2>
+                        </div>
+                    </div>
+                    <div class="award-grid">
+                        @foreach (var leader in DemoLiveLeaders)
+                        {
+                            <div>
+                                <span>@leader.Label</span>
+                                <strong>@leader.Player</strong>
+                                <small>@leader.Value</small>
+                            </div>
+                        }
+                    </div>
+                </article>
+            </div>
+        </article>
+    }
+
+    @if (AdminTournamentTab == "upcoming")
+    {
+        <article class="ops-feature-card upcoming">
+            <span class="result-kind">A venir</span>
+            <h3>Prochains tournois</h3>
+            <div class="upcoming-list">
+                @foreach (var tournament in DemoUpcomingTournaments)
+                {
+                    <div>
+                        <strong>@tournament.Name</strong>
+                        <span>@tournament.DateLabel · @tournament.Type · @tournament.TeamsRegistered/@tournament.MaxTeams equipes</span>
+                    </div>
+                }
+            </div>
+        </article>
+    }
+
+    @if (AdminTournamentTab == "past")
+    {
+        <article class="ops-feature-card history">
+            <span class="result-kind">Historique</span>
+            <h3>@DemoPastTournament.Name</h3>
+            <p>@DemoPastTournament.DateLabel · @DemoPastTournament.Teams equipes</p>
+            <div class="podium-grid">
+                @foreach (var podium in DemoPastTournament.Podium)
+                {
+                    <div class="podium-card place-@podium.Place">
+                        <span>#@podium.Place</span>
+                        <strong>@podium.TeamName</strong>
+                        <small>@podium.Reward</small>
+                    </div>
+                }
+            </div>
+            <div class="award-grid">
+                @foreach (var award in DemoPastTournament.Awards)
+                {
+                    <div>
+                        <span>@award.Label</span>
+                        <strong>@award.Player</strong>
+                        <small>@award.Value</small>
+                    </div>
+                }
+            </div>
+        </article>
+    }
+</section>
+
+@if (ShowLegacyCurrentTournamentPanel)
+{
+<section class="panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Tournoi courant</p>
+            <h2>@(CreatedTournament?.Name ?? "Aucun tournoi cree dans cette session")</h2>
+        </div>
+    </div>
+
+    @if (CreatedTournament is not null)
+    {
+        <div class="metric-grid compact-metrics">
+            <div class="metric-card"><span>Type</span><strong>@CreatedTournament.Type</strong></div>
+            <div class="metric-card"><span>Cash prize</span><strong>@(CreatedTournament.IsCashPrize ? "Oui" : "Non")</strong></div>
+            <div class="metric-card"><span>Start</span><strong>@CreatedTournament.StartsAt.ToLocalTime().ToString("dd/MM HH:mm")</strong></div>
+            <div class="metric-card"><span>Inscriptions</span><strong>@FormatRegistrationWindow(CreatedTournament)</strong></div>
+            <div class="metric-card"><span>Fee</span><strong>@CreatedTournament.EntryFee @CreatedTournament.Currency</strong></div>
+            <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
+        </div>
+    }
+
+    @if (Board is not null)
+    {
+        <div class="board-strip">
+            <span>@Board.ActiveTeams active</span>
+            <span>@Board.PendingTeams pending</span>
+            <span>@Board.WaitlistedTeams waitlist</span>
+            <span>@(Board.IsMinimumReached ? "Minimum OK" : "Minimum not reached")</span>
+        </div>
+    }
+
+    @if (Draw is not null)
+    {
+        <div class="draw-layout">
+            <div>
+                <p class="eyebrow">Poules generees</p>
+                <div class="group-grid">
+                    @foreach (var group in Draw.Groups)
+                    {
+                        <article class="group-card">
+                            <h3>@group.Name</h3>
+                            @foreach (var team in group.Teams)
+                            {
+                                <span>@team.Seed. @team.TeamName</span>
+                            }
+                        </article>
+                    }
+                </div>
+            </div>
+            <div>
+                <p class="eyebrow">Phase finale</p>
+                <div class="knockout-list">
+                    @foreach (var round in Draw.KnockoutPlan)
+                    {
+                        <span>@round.Label - @round.MatchCount match(s)</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</section>
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private TournamentModel Tournament { get; } = new();
+    private TournamentResponse? CreatedTournament;
+    private TournamentRegistrationSummaryResponse? Board;
+    private TournamentDrawResponse? Draw;
+    private bool Busy;
+    private string? Message;
+    private bool ShowLegacyCreateForm { get; } = false;
+    private bool ShowLegacyCommandPanel { get; } = false;
+    private bool ShowLegacyCurrentTournamentPanel { get; } = false;
+    private string AdminTournamentTab { get; set; } = "live";
+    private bool LiveScoresRefreshed { get; set; }
+    private int ActiveTeamsCount => Board?.ActiveTeams ?? 0;
+    private bool CanLaunchDraw => CreatedTournament is not null && Board is not null && Board.IsMinimumReached;
+    private string LaunchReadinessLabel => CreatedTournament is null
+        ? "A creer"
+        : Board is null
+            ? "Board a charger"
+            : Board.IsMinimumReached ? "Pret" : "Minimum NOK";
+    private string PlaystyleRestrictionPreview => Tournament.EnablePlaystyleRestrictions
+        ? $"Interdits: {Tournament.ForbiddenPlaystyles}"
+        : "Aucune restriction playstyle active.";
+
+    private IReadOnlyCollection<CommandParticipantRow> CommandRows => Board?.Teams.Count > 0
+        ? Board.Teams.Select((team, index) => new CommandParticipantRow(
+            team.RegistrationId,
+            team.TeamId,
+            team.TeamName,
+            team.Status,
+            team.Source,
+            team.IsPaymentComplete,
+            team.Status is TournamentRegistrationStatus.Accepted ? 11 : Math.Min(11, 8 + index % 4))).ToArray()
+        : DemoParticipants;
+
+    private static IReadOnlyCollection<CommandParticipantRow> DemoParticipants { get; } =
+    [
+        new(Guid.Empty, Guid.Empty, "TheSurvivors", TournamentRegistrationStatus.Accepted, "App", true, 11),
+        new(Guid.Empty, Guid.Empty, "FC Toho", TournamentRegistrationStatus.Pending, "Discord", false, 9),
+        new(Guid.Empty, Guid.Empty, "KM Chimera", TournamentRegistrationStatus.Accepted, "App", true, 11),
+        new(Guid.Empty, Guid.Empty, "Royal XI", TournamentRegistrationStatus.Waitlisted, "Discord", false, 10)
+    ];
+
+    private static DemoLiveTournamentModel DemoLiveTournament { get; } = new("Friday Goodies Cup #4", "Phase de poules terminee, phase finale prete", 32, "Quarts", 48);
+
+    private IReadOnlyCollection<AdminLiveMatchRow> LiveQuarterMatches => LiveScoresRefreshed ? RefreshedQuarterMatches : PendingQuarterMatches;
+
+    private static IReadOnlyCollection<DemoMatchRow> DemoLiveGroupMatches { get; } =
+    [
+        new("Poule B", "TheSurvivors", 3, "FC Toho", 1, "Verifie EA"),
+        new("Poule B", "TheSurvivors", 2, "Royal XI", 2, "Valide owner"),
+        new("Poule B", "TheSurvivors", 1, "KM Chimera", 0, "Verifie EA"),
+        new("Quart", "TheSurvivors", 0, "HOF 221", 0, "A 22:58")
+    ];
+
+    private static IReadOnlyCollection<AdminLiveMatchRow> PendingQuarterMatches { get; } =
+    [
+        new("QF1", "TheSurvivors", "0 - 0", "HOF 221", "En attente EA", "pending", "Scan 22:45-23:15, friendly TheSurvivors vs HOF 221"),
+        new("QF2", "FC Toho", "1 - 1", "VPG Lions", "Owner confirmation", "warning", "Score trouve, details joueurs a valider"),
+        new("QF3", "Royal XI", "- - -", "Akrapo 7", "Non demarre", "idle", "Scan ouvert apres coup d'envoi"),
+        new("QF4", "KM Chimera", "2 - 0", "Les Titans", "Verifie EA", "verified", "Buteurs et assists recuperes")
+    ];
+
+    private static IReadOnlyCollection<AdminLiveMatchRow> RefreshedQuarterMatches { get; } =
+    [
+        new("QF1", "TheSurvivors", "2 - 1", "HOF 221", "Verifie EA", "verified", "Friendly match trouve: 22:58, details joueurs stockes"),
+        new("QF2", "FC Toho", "1 - 1", "VPG Lions", "Owner confirmation", "warning", "Penalties a saisir manuellement"),
+        new("QF3", "Royal XI", "0 - 3", "Akrapo 7", "Verifie EA", "verified", "Score et stats match recuperes"),
+        new("QF4", "KM Chimera", "2 - 0", "Les Titans", "Verifie EA", "verified", "Buteurs et assists recuperes")
+    ];
+
+    private static IReadOnlyCollection<DemoAwardRow> DemoLiveLeaders { get; } =
+    [
+        new("Meilleur buteur", "ginga_blaze", "6 buts"),
+        new("Meilleur passeur", "KoffiMarvelous", "5 assists"),
+        new("MVP live", "Tchollismo", "3 hommes du match"),
+        new("Equipe clean sheets", "TheSurvivors", "2 clean sheets")
+    ];
+
+    private static IReadOnlyCollection<DemoUpcomingTournament> DemoUpcomingTournaments { get; } =
+    [
+        new("Sunday Community Cup", "Dimanche 22:30", "Simple", 18, 32),
+        new("Friday Goodies Cup #5", "Vendredi 22:30", "Goodies", 11, 32),
+        new("Champions Bounty Night", "Mercredi 22:30", "Goodies", 6, 24)
+    ];
+
+    private static DemoPastTournamentModel DemoPastTournament { get; } = new(
+        "Friday Goodies Cup #3",
+        "21/06/2026",
+        28,
+        [
+            new(1, "HOF 221", "Box collector valeur 500 EUR"),
+            new(2, "TheSurvivors", "Lot gaming valeur 200 EUR"),
+            new(3, "FC Toho", "Inscription offerte prochain tournoi")
+        ],
+        [
+            new("Meilleur buteur", "ginga_blaze", "9 buts"),
+            new("Meilleur passeur", "KoffiMarvelous", "7 assists"),
+            new("Homme du tournoi", "IDRdemon", "4 MVP")
+        ]);
+
+    private void SetType(TournamentType type)
+    {
+        Tournament.Type = type;
+        if (type == TournamentType.Normal)
+        {
+            Tournament.Name = "Sunday Community Cup";
+            Tournament.EntryFee = 0;
+            Tournament.PrizeBudget = 0;
+            Tournament.Goodies = "Tournoi simple pour animer la communaute.";
+            Tournament.IsCashPrize = false;
+        }
+        else
+        {
+            Tournament.Name = "Friday Goodies Cup";
+            Tournament.EntryFee = 50;
+            Tournament.PrizeBudget = 700;
+            Tournament.Goodies = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
+            Tournament.IsCashPrize = true;
+        }
+    }
+
+    private async Task CreateTournamentAsync()
+    {
+        Busy = true;
+        var startsAt = Tournament.BuildStartsAt();
+        var registrationStartsAt = Tournament.BuildRegistrationStartsAt();
+        var registrationEndsAt = Tournament.BuildRegistrationEndsAt();
+        var request = new CreateTournamentRequest(
+            Tournament.Name,
+            Tournament.Type,
+            startsAt,
+            "Europe/Zurich",
+            Tournament.MaxTeams,
+            Tournament.EntryFee,
+            "EUR",
+            Tournament.Goodies,
+            Tournament.MinTeams,
+            registrationEndsAt,
+            Tournament.PrizeBudget,
+            15,
+            60,
+            Tournament.BuildRestrictionsJson(),
+            Tournament.IsCashPrize,
+            registrationStartsAt,
+            registrationEndsAt,
+            Tournament.BannerUrl);
+
+        var result = await Api.CreateTournamentAsync(request);
+        Busy = false;
+        CreatedTournament = result.Value;
+        Draw = null;
+        Message = result.Success ? "Tournoi cree. Tu peux lancer le tirage quand les equipes sont pretes." : result.Error;
+        if (CreatedTournament is not null)
+        {
+            await LoadBoardAsync();
+        }
+    }
+
+    private async Task LoadBoardAsync()
+    {
+        if (CreatedTournament is null)
+        {
+            return;
+        }
+
+        var result = await Api.GetTournamentBoardAsync(CreatedTournament.Id);
+        Board = result.Value;
+        Message = result.Success ? "Board charge." : result.Error;
+    }
+
+    private async Task LaunchDrawAsync()
+    {
+        if (CreatedTournament is null)
+        {
+            return;
+        }
+
+        Busy = true;
+        var result = await Api.LaunchWorldCupTournamentAsync(CreatedTournament.Id, new LaunchWorldCupTournamentRequest(4, 2, 20, 26));
+        Busy = false;
+        Draw = result.Value;
+        Message = result.Success
+            ? $"Tirage lance: {Draw?.GroupCount} poules, {Draw?.GroupMatches.Count} matchs de groupe."
+            : result.Error;
+    }
+
+    private async Task RefreshLiveTournamentScoresAsync()
+    {
+        Busy = true;
+        await Task.Delay(350);
+        LiveScoresRefreshed = true;
+        Busy = false;
+        Message = "Actualisation terminee: scan EA friendly lance sur 4 quarts, 3 scores verifies, 1 match en confirmation owner.";
+    }
+
+    private async Task WithdrawTeamAsync(Guid teamId)
+    {
+        if (CreatedTournament is null || teamId == Guid.Empty)
+        {
+            Message = "Action disponible avec un tournoi cree et une equipe reelle.";
+            return;
+        }
+
+        Busy = true;
+        var result = await Api.WithdrawTournamentRegistrationAsync(CreatedTournament.Id, teamId);
+        Busy = false;
+        Board = result.Value?.Summary ?? Board;
+        Message = result.Success ? result.Value?.Message : result.Error;
+    }
+
+    private async Task PromoteNextWaitlistedAsync()
+    {
+        if (CreatedTournament is null)
+        {
+            return;
+        }
+
+        Busy = true;
+        var result = await Api.PromoteNextWaitlistedTournamentTeamAsync(CreatedTournament.Id);
+        Busy = false;
+        Board = result.Value?.Summary ?? Board;
+        Message = result.Success ? result.Value?.Message : result.Error;
+    }
+
+    private sealed class TournamentModel
+    {
+        public string Name { get; set; } = "Friday Goodies Cup";
+        public TournamentType Type { get; set; } = TournamentType.Goodies;
+        public DateTime StartsDate { get; set; } = DateTime.Today.AddDays(1);
+        public string StartsTime { get; set; } = "22:30";
+        public DateTime RegistrationStartDate { get; set; } = DateTime.Today;
+        public string RegistrationStartTime { get; set; } = "12:00";
+        public DateTime RegistrationEndDate { get; set; } = DateTime.Today.AddDays(1);
+        public string RegistrationEndTime { get; set; } = "18:00";
+        public int MaxTeams { get; set; } = 32;
+        public int MinTeams { get; set; } = 24;
+        public decimal EntryFee { get; set; } = 50m;
+        public decimal PrizeBudget { get; set; } = 700m;
+        public bool IsCashPrize { get; set; } = true;
+        public string Goodies { get; set; } = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
+        public string? BannerUrl { get; set; } = "/images/tournaments/friday-goodies.svg";
+        public int DefaultMaxHeightCm { get; set; } = 182;
+        public int CenterBackMaxHeightCm { get; set; } = 187;
+        public bool EnablePlaystyleRestrictions { get; set; }
+        public string ForbiddenPlaystyles { get; set; } = "";
+
+        public DateTimeOffset BuildStartsAt()
+        {
+            var time = TimeSpan.Parse(StartsTime);
+            return new DateTimeOffset(StartsDate.Date.Add(time), TimeSpan.FromHours(2));
+        }
+
+        public DateTimeOffset BuildRegistrationStartsAt()
+        {
+            var time = TimeSpan.Parse(RegistrationStartTime);
+            return new DateTimeOffset(RegistrationStartDate.Date.Add(time), TimeSpan.FromHours(2));
+        }
+
+        public DateTimeOffset BuildRegistrationEndsAt()
+        {
+            var time = TimeSpan.Parse(RegistrationEndTime);
+            return new DateTimeOffset(RegistrationEndDate.Date.Add(time), TimeSpan.FromHours(2));
+        }
+
+        public string BuildRestrictionsJson()
+        {
+            var playstyles = ForbiddenPlaystyles
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => value.Replace("\"", "\\\""))
+                .ToArray();
+            var forbidden = string.Join(",", playstyles.Select(value => $"\"{value}\""));
+            var playstyleEnabled = EnablePlaystyleRestrictions ? "true" : "false";
+
+            return "{"
+                + "\"height\":{"
+                + "\"enabled\":true,"
+                + $"\"defaultMaxCm\":{DefaultMaxHeightCm},"
+                + "\"positionOverrides\":{"
+                + $"\"DC\":{CenterBackMaxHeightCm}"
+                + "},"
+                + "\"requiresProofWhenUnknown\":true"
+                + "},"
+                + "\"playstyles\":{"
+                + $"\"enabled\":{playstyleEnabled},"
+                + $"\"forbidden\":[{forbidden}],"
+                + "\"requiresOwnerWarning\":true"
+                + "}"
+                + "}";
+        }
+    }
+
+    private static string FormatRegistrationWindow(TournamentResponse tournament)
+    {
+        var start = tournament.RegistrationStartsAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "Ouvert";
+        var end = tournament.RegistrationEndsAt?.ToLocalTime().ToString("dd/MM HH:mm")
+            ?? tournament.RegistrationLockAt?.ToLocalTime().ToString("dd/MM HH:mm")
+            ?? "Non defini";
+        return $"{start} -> {end}";
+    }
+
+    private sealed record CommandParticipantRow(Guid RegistrationId, Guid TeamId, string TeamName, TournamentRegistrationStatus Status, string Source, bool PaymentOk, int PlayerCount)
+    {
+        public bool IsReady => PaymentOk && PlayerCount >= 11 && Status is TournamentRegistrationStatus.Accepted;
+        public bool CanWithdraw => TeamId != Guid.Empty && Status is TournamentRegistrationStatus.Accepted or TournamentRegistrationStatus.Pending or TournamentRegistrationStatus.Waitlisted;
+    }
+
+    private sealed record DemoLiveTournamentModel(string Name, string Status, int Teams, string Stage, int PlayedMatches);
+    private sealed record DemoMatchRow(string Stage, string Home, int HomeScore, string Away, int AwayScore, string Status);
+    private sealed record AdminLiveMatchRow(string Code, string Home, string ScoreLabel, string Away, string Status, string StatusCss, string EaLookupWindow);
+    private sealed record DemoUpcomingTournament(string Name, string DateLabel, string Type, int TeamsRegistered, int MaxTeams);
+    private sealed record DemoPastTournamentModel(string Name, string DateLabel, int Teams, IReadOnlyCollection<DemoPodiumRow> Podium, IReadOnlyCollection<DemoAwardRow> Awards);
+    private sealed record DemoPodiumRow(int Place, string TeamName, string Reward);
+    private sealed record DemoAwardRow(string Label, string Player, string Value);
+}

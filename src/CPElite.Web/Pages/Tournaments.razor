@@ -1,0 +1,1134 @@
+@page "/tournaments"
+@implements IDisposable
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament - Tournois</PageTitle>
+
+<section class="page-title">
+    <p class="eyebrow">Espace joueur</p>
+    <h1>Tournois disponibles</h1>
+    <p>@(AuthState.IsAuthenticated ? "Le owner peut gerer plusieurs clubs, inscrire le bon club au bon tournoi, puis soumettre les 11 joueurs qui doivent confirmer leur presence." : "Consulte les prochains tournois disponibles. Cree ton compte pour inscrire ton equipe et acceder au suivi complet.")</p>
+</section>
+
+<section class="tournament-catalog">
+    <article class="tournament-product simple" style="@CommunityCupBannerStyle">
+        <div>
+            <p class="eyebrow">Tournoi simple</p>
+            <h2>Community Cup</h2>
+            <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
+        </div>
+        <div class="product-rules">
+            <span>Date: Dimanche 05/07</span>
+            <span>Coup d'envoi: 22:30 CET</span>
+            <strong>Dans 7 jours</strong>
+            <span>Il reste 14 places</span>
+        </div>
+        <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+    </article>
+
+    <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
+        <div>
+            <p class="eyebrow">Tournoi goodies</p>
+            <h2>Friday Goodies Cup</h2>
+            <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
+        </div>
+        <div class="product-rules">
+            <strong>Goodies</strong>
+            <span>Date: Vendredi 03/07</span>
+            <span>Coup d'envoi: 22:30 CET</span>
+            <strong>Dans 5 jours</strong>
+            <span>Il reste 21 places</span>
+        </div>
+        <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+    </article>
+</section>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <section class="panel public-tournament-lock">
+        <div>
+            <p class="eyebrow">Acces public</p>
+            <h2>Des places sont encore disponibles</h2>
+            <p>Pour inscrire une equipe, voir tes tournois, gerer ton roster ou valider les presences, il faut creer un compte TS Tournament.</p>
+        </div>
+        <div class="public-tournament-actions">
+            <a class="button-link primary" href="account">Creer un compte</a>
+            <a class="button-link" href="login">Se connecter</a>
+        </div>
+    </section>
+}
+
+@if (AuthState.IsAuthenticated)
+{
+<section class="panel player-tournament-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Mes tournois</p>
+            <h2>Suivi equipe TheSurvivors</h2>
+        </div>
+    </div>
+
+    <div class="tournament-tabs">
+        <button class="@(PlayerTournamentTab == "live" ? "active" : "")" @onclick='() => PlayerTournamentTab = "live"'>En cours</button>
+        <button class="@(PlayerTournamentTab == "upcoming" ? "active" : "")" @onclick='() => PlayerTournamentTab = "upcoming"'>A venir</button>
+        <button class="@(PlayerTournamentTab == "past" ? "active" : "")" @onclick='() => PlayerTournamentTab = "past"'>Passes</button>
+    </div>
+
+    @if (PlayerTournamentTab == "live")
+    {
+        <div class="player-tournament-grid">
+        <article class="live-team-card">
+            <span class="result-kind">TheSurvivors</span>
+            <h3>Poule B terminee</h3>
+            <span class="presence-pill confirmed">Qualifie phase finale</span>
+            <p>2 victoires, 1 nul, 8 points. Prochain match: quart de finale contre HOF 221.</p>
+            <div class="ops-metrics">
+                <div><span>BP</span><strong>6</strong></div>
+                <div><span>BC</span><strong>3</strong></div>
+                <div><span>Diff</span><strong>+3</strong></div>
+            </div>
+        </article>
+
+        <article class="group-table-card">
+            <div class="tournament-card-heading">
+                <span class="result-kind">Classement poule B</span>
+                <small>Top 2 qualifies</small>
+            </div>
+            <div class="group-table-header">
+                <span>#</span>
+                <span>Equipe</span>
+                <span>Pts</span>
+                <span>Forme</span>
+            </div>
+            @foreach (var row in DemoGroupRows)
+            {
+                <div class="group-table-row @(row.Team == "TheSurvivors" ? "highlight" : "")">
+                    <strong>@row.Rank</strong>
+                    <button type="button" class="inline-team-link group-team-name" @onclick="() => OpenClubSheetAsync(row.Team)">@row.Team</button>
+                    <span>@row.Points</span>
+                    <small>@row.Record</small>
+                </div>
+            }
+        </article>
+
+        <article class="match-history-card">
+            <span class="result-kind">Matchs joues</span>
+            @foreach (var match in DemoMyTournamentMatches)
+            {
+                <article class="match-row-action">
+                    <div class="match-summary-button" role="button" tabindex="0" @onclick="() => OpenDemoMatch(match)">
+                        <span>@match.Stage</span>
+                        <strong>
+                            <button type="button" class="inline-team-link" @onclick:stopPropagation @onclick="() => OpenClubSheetAsync(match.Home)">@match.Home</button>
+                            @match.HomeScore - @match.AwayScore
+                            <button type="button" class="inline-team-link" @onclick:stopPropagation @onclick="() => OpenClubSheetAsync(match.Away)">@match.Away</button>
+                        </strong>
+                        <small>@match.Status</small>
+                    </div>
+                    @if (match.Players.Count > 0)
+                    {
+                        <span class="match-player-links">
+                            @foreach (var playerName in match.Players)
+                            {
+                                <button type="button" class="match-player-avatar-link" @onclick="() => OpenPlayerByNameAsync(playerName)">
+                                    <span class="player-photo-ring">@GetInitials(playerName)</span>
+                                    <span>@playerName</span>
+                                </button>
+                            }
+                        </span>
+                    }
+                </article>
+            }
+        </article>
+
+        <article class="award-race-card">
+            <span class="result-kind">Courses individuelles</span>
+            @foreach (var award in DemoAwardRace)
+            {
+                <div>
+                    <span>@award.Label</span>
+                    <button type="button" class="inline-player-link strong-link" @onclick="() => OpenPlayerByNameAsync(award.Player)">@award.Player</button>
+                    <small>@award.Value</small>
+                </div>
+            }
+        </article>
+
+        <article class="current-lineup-card">
+            <div class="panel-heading compact">
+                <div>
+                    <p class="eyebrow">Compo engagee</p>
+                    <h2>@SelectedFormation</h2>
+                </div>
+            </div>
+            <div class="lineup-board compact" style="--kit-primary: @KitPrimaryColor; --kit-accent: @KitAccentColor;">
+                @foreach (var row in LineupRows)
+                {
+                    <div class="lineup-row" style="grid-template-columns: repeat(@row.Count, minmax(0, 1fr));">
+                        @foreach (var slot in row)
+                        {
+                            <button class="lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => OpenLineupPlayerAsync(slot.Player)">
+                                <span class="lineup-position">@slot.Position</span>
+                                <span class="lineup-marker">@GetPlayerNumber(slot.Player)</span>
+                                <strong>@(slot.Player?.DisplayName ?? "A choisir")</strong>
+                                <small>@(slot.Player is null ? "Slot ouvert" : $"{slot.Player.Height} cm · {slot.Player.Overall} OVR")</small>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="current-roster-card">
+            <span class="result-kind">Joueurs presents</span>
+            <div class="compact-player-list">
+                @foreach (var player in Roster.Where(player => player.Selected).Take(11))
+                {
+                    <button @onclick="() => OpenPlayerSheetAsync(player)">
+                        <strong>@player.DisplayName</strong>
+                        <span>@player.Position · @player.Status · @player.Height cm</span>
+                    </button>
+                }
+            </div>
+        </article>
+        </div>
+    }
+
+    @if (PlayerTournamentTab == "upcoming")
+    {
+        <div class="player-tournament-grid compact">
+            <article class="live-team-card">
+                <span class="result-kind">A venir</span>
+                <h3>Sunday Community Cup</h3>
+                <p>Inscriptions ouvertes jusqu'a 18:00. TheSurvivors peut inscrire son roster des maintenant.</p>
+                <div class="ops-metrics">
+                    <div><span>Debut</span><strong>22:30</strong></div>
+                    <div><span>Type</span><strong>Simple</strong></div>
+                    <div><span>Equipes</span><strong>18/32</strong></div>
+                </div>
+            </article>
+            <article class="live-team-card">
+                <span class="result-kind">Goodies</span>
+                <h3>Friday Goodies Cup #5</h3>
+                <p>Restriction taille deja publiee. Lots physiques, 24 equipes minimum.</p>
+                <div class="ops-metrics">
+                    <div><span>Debut</span><strong>22:30</strong></div>
+                    <div><span>Fee</span><strong>50 EUR</strong></div>
+                    <div><span>Equipes</span><strong>11/32</strong></div>
+                </div>
+            </article>
+        </div>
+    }
+
+    @if (PlayerTournamentTab == "past")
+    {
+        <div class="past-summary-grid">
+            <article class="ops-feature-card history">
+                <span class="result-kind">Friday Goodies Cup #3</span>
+                <h3>TheSurvivors finaliste</h3>
+                <p>Elimine en finale contre HOF 221, score 2-1. Parcours: 2e de poule, victoire en quart, victoire en demi.</p>
+                <div class="podium-grid">
+                    <div class="podium-card place-1"><span>#1</span><button type="button" class="inline-team-link" @onclick='() => OpenClubSheetAsync("HOF 221")'>HOF 221</button><small>Champion</small></div>
+                    <div class="podium-card place-2"><span>#2</span><button type="button" class="inline-team-link" @onclick='() => OpenClubSheetAsync("TheSurvivors")'>TheSurvivors</button><small>Finaliste</small></div>
+                    <div class="podium-card place-3"><span>#3</span><button type="button" class="inline-team-link" @onclick='() => OpenClubSheetAsync("FC Toho")'>FC Toho</button><small>Inscription offerte</small></div>
+                </div>
+            </article>
+            <article class="award-race-card">
+                <span class="result-kind">Awards tournoi</span>
+                <div><span>Meilleur buteur</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("ginga_blaze")'>ginga_blaze</button><small>9 buts</small></div>
+                <div><span>Meilleur passeur</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("KoffiMarvelous")'>KoffiMarvelous</button><small>7 assists</small></div>
+                <div><span>Homme du tournoi</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("IDRdemon")'>IDRdemon</button><small>4 MVP</small></div>
+            </article>
+            <article class="award-race-card">
+                <span class="result-kind">Awards TheSurvivors</span>
+                <div><span>Buteur equipe</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("ginga_blaze")'>ginga_blaze</button><small>6 buts</small></div>
+                <div><span>Passeur equipe</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("KoffiMarvelous")'>KoffiMarvelous</button><small>7 assists</small></div>
+                <div><span>Homme equipe</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("Tchollismo")'>Tchollismo</button><small>3 MVP</small></div>
+            </article>
+        </div>
+    }
+</section>
+}
+
+@if (AuthState.IsAuthenticated && PlayerTournamentTab == "upcoming")
+{
+<section id="owner-submit" class="owner-submit-shell">
+    <div class="owner-submit-hero">
+        <div>
+            <p class="eyebrow">Owner desk</p>
+            <h2>Soumettre les 11 joueurs</h2>
+            <p>Un owner peut gerer plusieurs clubs. Il choisit le club inscrit ce soir, selectionne 11 joueurs, puis chaque joueur recoit sa confirmation de presence.</p>
+        </div>
+        <div class="owner-readiness-card">
+            <span>Validation</span>
+            <strong>@SelectedRosterCount / 11</strong>
+            <small>@ReadinessLabel</small>
+        </div>
+    </div>
+
+    <div class="owner-submit-grid">
+        <article class="panel owner-control-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Club</p>
+                    <h2>Equipe a inscrire</h2>
+                </div>
+                <button class="ghost-action" @onclick="LoadOwnerContextAsync">Charger mes clubs</button>
+            </div>
+
+            <label>Club owner
+                <select @bind="SelectedOwnerTeamId" @bind:after="LoadRosterForSelectedTeamAsync">
+                    @foreach (var club in OwnerTeams)
+                    {
+                        <option value="@club.TeamId">@club.Name</option>
+                    }
+                </select>
+            </label>
+
+            <button class="team-entry-card clickable-card" @onclick="OpenTeamSheetAsync">
+                <div class="club-avatar">@SelectedOwnerTeamInitials</div>
+                <div>
+                    <span class="result-kind">Tournoi goodies</span>
+                    <strong>@SelectedOwnerTeamName</strong>
+                    <small>Friday Goodies Cup - coup d'envoi 22:30 CET</small>
+                </div>
+            </button>
+
+            <div class="tournament-rule-card">
+                <div>
+                    <span class="result-kind">Infos tournoi</span>
+                    <strong>Friday Goodies Cup</strong>
+                </div>
+                <div class="tournament-rule-summary">
+                    <div><span>Max general</span><strong>@DefaultMaxHeightCm cm</strong></div>
+                    <div><span>Exception DC</span><strong>@CenterBackMaxHeightCm cm</strong></div>
+                    <div><span>Debut</span><strong>22:30 CET</strong></div>
+                    <div><span>Type</span><strong>Goodies</strong></div>
+                </div>
+                <div class="club-kit-summary">
+                    <div>
+                        <span class="kit-swatch" style="background: @KitPrimaryColor;"></span>
+                        <span class="kit-swatch accent" style="background: @KitAccentColor;"></span>
+                    </div>
+                    <small>Couleurs definies dans la configuration du club TheSurvivors.</small>
+                </div>
+                <div class="formation-control">
+                    <label>Formation
+                        <select @bind="SelectedFormation">
+                            <option>4-2-3-1</option>
+                            <option>4-3-3</option>
+                            <option>3-5-2</option>
+                            <option>4-4-2</option>
+                        </select>
+                    </label>
+                </div>
+                <small>Regles fixees par l'admin du tournoi: tous les joueurs max @DefaultMaxHeightCm cm, sauf les DC max @CenterBackMaxHeightCm cm.</small>
+            </div>
+
+            <div class="owner-checklist">
+                <div class="@(SelectedRosterCount == 11 ? "done" : "")"><strong>11</strong><span>joueurs selectionnes</span></div>
+                <div class="@(ConfirmedRosterCount >= 11 ? "done" : "")"><strong>@ConfirmedRosterCount</strong><span>confirmations</span></div>
+                <div class="@(LateRosterCount == 0 ? "done" : "warning")"><strong>@LateRosterCount</strong><span>retard signale</span></div>
+                <div class="done"><strong>@AvailableRosterCount</strong><span>joueurs disponibles</span></div>
+                <div class="@(UnavailableRosterCount == 0 ? "done" : "warning")"><strong>@UnavailableRosterCount</strong><span>pas disponibles</span></div>
+                <div class="@(HeightViolationCount == 0 ? "done" : "warning")"><strong>@HeightViolationCount</strong><span>hors restriction taille</span></div>
+            </div>
+
+            <div class="row-actions">
+                <button class="primary-action" @onclick="SubmitRosterAsync" disabled="@(SelectedRosterCount != 11 || HeightViolationCount > 0 || Busy)">Soumettre les 11</button>
+                <button class="ghost-action" @onclick="RemindPendingAsync" disabled="@Busy">Relancer les joueurs</button>
+            </div>
+        </article>
+
+        <article class="panel roster-submit-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Effectif</p>
+                    <h2>Disponibilites puis selection</h2>
+                </div>
+                <span class="owner-capacity @(SelectedRosterCount > 11 ? "danger" : "")">@SelectedRosterCount / 11</span>
+            </div>
+
+            <div class="availability-strip">
+                <div><strong>@AvailableRosterCount</strong><span>disponibles</span></div>
+                <div><strong>@UnavailableRosterCount</strong><span>absents</span></div>
+                <div><strong>@LateRosterCount</strong><span>retards</span></div>
+            </div>
+
+            @if (HeightViolationCount > 0)
+            {
+                <div class="rules-alert">
+                    <div>
+                        <span>Composition non conforme</span>
+                        <strong>@HeightViolationCount joueur(s) hors restriction taille</strong>
+                        <small>Le bouton de soumission reste bloque tant que la compo ne respecte pas les regles du tournoi.</small>
+                    </div>
+                    <div class="rules-alert-list">
+                        @foreach (var player in Roster.Where(player => player.Selected && !IsHeightEligibleForTournament(player)))
+                        {
+                            <button @onclick="() => OpenPlayerSheetAsync(player)">
+                                <strong>@player.DisplayName</strong>
+                                <span>@player.Position · @player.Height cm / max @GetMaxHeightForPosition(player.Position) cm</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="matchday-roster">
+                @foreach (var player in Roster)
+                {
+                    <article class="matchday-player @(player.Selected ? "selected" : "") @(SelectedPlayer == player ? "focused" : "") @(player.IsUnavailable ? "unavailable" : "") @(!player.HasApp ? "app-required" : "") @(player.Selected && !IsHeightEligibleForTournament(player) ? "height-warning" : "")" @onclick="() => OpenPlayerSheetAsync(player)">
+                        <label class="matchday-select">
+                            <input type="checkbox" checked="@player.Selected" @onclick:stopPropagation @onchange="args => TogglePlayer(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && (SelectedRosterCount >= 11 || !IsHeightEligibleForTournament(player))))" />
+                            <span></span>
+                        </label>
+                        <div class="club-avatar small">@GetInitials(player.DisplayName)</div>
+                        <div class="player-main">
+                            <strong>@player.DisplayName</strong>
+                            <small>@player.Gamertag</small>
+                            <div class="player-inline-data">
+                                <span class="app-state @(player.HasApp ? "in-app" : "outside-app")">@(player.HasApp ? "App installee" : "A inviter")</span>
+                                <span>EA @player.EaPosition</span>
+                                <span class="@(IsHeightEligibleForTournament(player) ? "" : "rule-alert")">@player.Height cm</span>
+                                <span>@player.Overall OVR</span>
+                                <span>@player.Matches MJ</span>
+                            </div>
+                        </div>
+                        <select @bind="player.Position" @onclick:stopPropagation>
+                            <option>GK</option>
+                            <option>DC</option>
+                            <option>DG</option>
+                            <option>DD</option>
+                            <option>MDC</option>
+                            <option>MC</option>
+                            <option>MOC</option>
+                            <option>AG</option>
+                            <option>AD</option>
+                            <option>BU</option>
+                        </select>
+                        <span class="presence-pill @player.StatusCss">@player.Status</span>
+                    </article>
+                }
+            </div>
+        </article>
+
+        <article class="panel lineup-overview-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Compo tournoi</p>
+                    <h2>@SelectedFormation</h2>
+                </div>
+                <span class="owner-capacity @(HeightViolationCount > 0 ? "danger" : "")">@HeightViolationCount alerte(s)</span>
+            </div>
+            <div class="lineup-board" style="--kit-primary: @KitPrimaryColor; --kit-accent: @KitAccentColor;">
+                @foreach (var row in LineupRows)
+                {
+                    <div class="lineup-row" style="grid-template-columns: repeat(@row.Count, minmax(0, 1fr));">
+                        @foreach (var slot in row)
+                        {
+                            <button class="lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => OpenLineupPlayerAsync(slot.Player)">
+                                <span class="lineup-position">@slot.Position</span>
+                                <span class="lineup-marker">@GetPlayerNumber(slot.Player)</span>
+                                <strong>@(slot.Player?.DisplayName ?? "A choisir")</strong>
+                                <small>@(slot.Player is null ? "Slot ouvert" : $"{slot.Player.Height} cm · {slot.Player.Overall} OVR")</small>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="lineup-note">
+                <strong>Objectif final</strong>
+                <span>Tout gerer ici dans l'app: selection, restrictions, confirmations, compo, notifications. Le bot Discord servira seulement de pont au debut.</span>
+            </div>
+        </article>
+    </div>
+</section>
+}
+
+@if (OpenedSheet == "team")
+{
+    <section class="detail-drawer">
+        <div class="detail-drawer-card">
+            <div class="drawer-heading">
+                <div>
+                    <p class="eyebrow">Fiche equipe</p>
+                    <h2>@OpenedClubName</h2>
+                </div>
+                <button class="ghost-action" @onclick="CloseSheet">Fermer</button>
+            </div>
+
+            <div class="drawer-metrics">
+                <div><span>EA club</span><strong>@(TeamClubSnapshot?.EaClubId.ToString() ?? "Demo")</strong></div>
+                <div><span>Division</span><strong>@(TeamClubSnapshot?.Division?.ToString() ?? SelectedClubProfile?.Division.ToString() ?? "1")</strong></div>
+                <div><span>Forme EA</span><strong>@(SelectedClubProfile?.EaForm ?? "2V 1N 0D")</strong></div>
+            </div>
+
+            <div class="drawer-metrics">
+                <div><span>Stats tournoi</span><strong>@(SelectedClubProfile?.TournamentRecord ?? "3 matchs")</strong></div>
+                <div><span>Buts TS</span><strong>@(SelectedClubProfile?.TournamentGoalsFor.ToString() ?? "6")</strong></div>
+                <div><span>Meilleur joueur</span><strong>@(SelectedClubProfile?.KeyPlayer ?? "KoffiMarvelous")</strong></div>
+            </div>
+
+            <div class="drawer-data-grid">
+                <article>
+                    <span class="result-kind">Donnees club</span>
+                    <dl>
+                        <div><dt>Nom EA</dt><dd>@(TeamClubSnapshot?.Name ?? OpenedClubName)</dd></div>
+                        <div><dt>Abbreviation</dt><dd>@(TeamClubSnapshot?.Abbreviation ?? SelectedClubProfile?.ShortName ?? SelectedOwnerTeamInitials)</dd></div>
+                        <div><dt>Plateforme</dt><dd>@(TeamClubSnapshot?.Platform ?? "common-gen5")</dd></div>
+                        <div><dt>Derniere synchro</dt><dd>@(TeamClubSnapshot?.SyncedAt.LocalDateTime.ToString("dd/MM HH:mm") ?? "Demo locale")</dd></div>
+                        <div><dt>Statut TS</dt><dd>@(SelectedClubProfile?.TournamentStatus ?? "Qualifie phase finale")</dd></div>
+                    </dl>
+                </article>
+                <article>
+                    <span class="result-kind">Stats tournoi app</span>
+                    <div class="player-skill-grid">
+                        <div><span>MJ</span><strong>@(SelectedClubProfile?.TournamentPlayed.ToString() ?? "3")</strong></div>
+                        <div><span>BP</span><strong>@(SelectedClubProfile?.TournamentGoalsFor.ToString() ?? "6")</strong></div>
+                        <div><span>BC</span><strong>@(SelectedClubProfile?.TournamentGoalsAgainst.ToString() ?? "3")</strong></div>
+                        <div><span>Classement</span><strong>@(SelectedClubProfile?.Standing ?? "1er poule B")</strong></div>
+                    </div>
+                </article>
+                <article>
+                    <span class="result-kind">Stats membres EA</span>
+                    @if (TeamEaMembers?.Players.Count > 0)
+                    {
+                        <div class="compact-player-list">
+                            @foreach (var player in TeamEaMembers.Players.Take(6))
+                            {
+                                <div>
+                                    <button type="button" class="inline-player-link strong-link" @onclick="() => OpenPlayerByNameAsync(player.Name)">@player.Name</button>
+                                    <span>@(player.Goals?.ToString() ?? "-") buts / @(player.Assists?.ToString() ?? "-") assists</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="muted">On affichera ici les stats membres des que la synchro EA/Tracker les a stockees pour ce club.</p>
+                    }
+                </article>
+            </div>
+        </div>
+    </section>
+}
+
+@if (OpenedSheet == "player" && SelectedPlayer is not null)
+{
+    <section class="detail-drawer">
+        <div class="detail-drawer-card">
+            <div class="drawer-heading">
+                <div>
+                    <p class="eyebrow">Fiche joueur</p>
+                    <h2>@SelectedPlayer.DisplayName</h2>
+                </div>
+                <button class="ghost-action" @onclick="CloseSheet">Fermer</button>
+            </div>
+
+            <div class="player-profile-header">
+                <div class="club-avatar large">@GetInitials(SelectedPlayer.DisplayName)</div>
+                <div>
+                    <span class="result-kind">Poste tournoi @SelectedPlayer.Position</span>
+                    <strong>@SelectedPlayer.Gamertag</strong>
+                    <small>EA Sports ID: @SelectedPlayer.Gamertag · Poste EA: @SelectedPlayer.EaPosition · @(SelectedPlayer.HasApp ? "compte app actif" : "joueur EA sans compte app")</small>
+                </div>
+                <span class="presence-pill @SelectedPlayer.StatusCss">@SelectedPlayer.Status</span>
+            </div>
+
+            <div class="drawer-metrics">
+                <div><span>Taille</span><strong>@SelectedPlayer.Height cm</strong></div>
+                <div><span>OVR</span><strong>@SelectedPlayer.Overall</strong></div>
+                <div><span>Note moyenne</span><strong>@SelectedPlayer.AverageRating.ToString("0.0")</strong></div>
+            </div>
+
+            <div class="drawer-data-grid">
+                <article>
+                    <span class="result-kind">Donnees EA stockees</span>
+                    <dl>
+                        <div><dt>Nom pro</dt><dd>@SelectedPlayer.ProName</dd></div>
+                        <div><dt>Poste EA</dt><dd>@SelectedPlayer.EaPosition</dd></div>
+                        <div><dt>Matchs</dt><dd>@SelectedPlayer.Matches</dd></div>
+                        <div><dt>Win rate</dt><dd>@SelectedPlayer.WinRate%</dd></div>
+                        <div><dt>Buts</dt><dd>@SelectedPlayer.Goals</dd></div>
+                        <div><dt>Assists</dt><dd>@SelectedPlayer.Assists</dd></div>
+                        <div><dt>Homme du match</dt><dd>@SelectedPlayer.PlayerOfTheMatch</dd></div>
+                        <div><dt>PrevGoals</dt><dd>@SelectedPlayer.PrevGoals</dd></div>
+                    </dl>
+                </article>
+                <article>
+                    <span class="result-kind">Controle owner</span>
+                    <div class="drawer-metrics inline">
+                        <div><span>Poste tournoi</span><strong>@SelectedPlayer.Position</strong></div>
+                        <div><span>Presence</span><strong>@SelectedPlayer.Status</strong></div>
+                    </div>
+                    <div class="player-skill-grid">
+                        <div><span>Tirs</span><strong>@SelectedPlayer.ShotSuccessRate%</strong></div>
+                        <div><span>Passes</span><strong>@SelectedPlayer.PassSuccessRate.ToString("0")%</strong></div>
+                        <div><span>Tacles</span><strong>@SelectedPlayer.TackleSuccessRate.ToString("0")%</strong></div>
+                        <div><span>App</span><strong>@(SelectedPlayer.HasApp ? "Oui" : "Non")</strong></div>
+                    </div>
+                    <div class="owner-player-actions">
+                        <button class="ghost-action" @onclick="() => RefreshPlayerEaInfo(SelectedPlayer)">Mettre a jour EA</button>
+                        <button class="ghost-action" @onclick='() => NotifyPlayer(SelectedPlayer, "presence")'>Notifier presence</button>
+                        <button class="ghost-action danger" @onclick='() => NotifyPlayer(SelectedPlayer, "taille")' disabled="@IsHeightEligibleForTournament(SelectedPlayer)">Notifier taille</button>
+                        <button class="ghost-action" @onclick='() => NotifyPlayer(SelectedPlayer, "playstyle")'>Notifier playstyle</button>
+                    </div>
+                    <p class="muted">Le poste EA reste visible pour guider le owner, mais le poste tournoi peut etre ajuste si le joueur depanne ailleurs.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private Guid DemoTournamentId { get; } = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    private const string CommunityCupBannerUrl = "/images/tournaments/community-cup.svg";
+    private const string GoodiesCupBannerUrl = "/images/tournaments/friday-goodies.svg";
+    private Guid? SelectedOwnerTeamId { get; set; }
+    private List<OwnerTeamOption> OwnerTeams { get; } = [];
+    private List<RosterPlayerModel> Roster { get; } = [];
+    private bool Busy;
+    private string? Message;
+    private string? OpenedSheet;
+    private RosterPlayerModel? SelectedPlayer;
+    private string PlayerTournamentTab { get; set; } = "live";
+    private EaClubSnapshotResponse? TeamClubSnapshot;
+    private EaMemberStatsSummaryResponse? TeamEaMembers;
+    private EaPlayerLookupResponse? SelectedPlayerEa;
+    private DemoClubProfile? SelectedClubProfile;
+    private int DefaultMaxHeightCm { get; set; } = 182;
+    private int CenterBackMaxHeightCm { get; set; } = 187;
+    private string SelectedFormation { get; set; } = "4-3-3";
+    private string KitPrimaryColor { get; set; } = "#057a55";
+    private string KitAccentColor { get; set; } = "#d6f35f";
+    private int SelectedRosterCount => Roster.Count(player => player.Selected);
+    private int ConfirmedRosterCount => Roster.Count(player => player.Selected && player.Status == "Confirme");
+    private int LateRosterCount => Roster.Count(player => player.Selected && player.Status == "Retard");
+    private int AvailableRosterCount => Roster.Count(player => !player.IsUnavailable);
+    private int UnavailableRosterCount => Roster.Count(player => player.IsUnavailable);
+    private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
+    private string ReadinessLabel => SelectedRosterCount == 11 && ConfirmedRosterCount == 11 && HeightViolationCount == 0 ? "Equipe prete" : "En attente joueurs";
+    private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? "TheSurvivors";
+    private string SelectedOwnerTeamInitials => GetInitials(SelectedOwnerTeamName);
+    private string OpenedClubName => SelectedClubProfile?.Name ?? SelectedOwnerTeamName;
+    private IReadOnlyList<IReadOnlyList<LineupSlotModel>> LineupRows => BuildLineupRows();
+    private static string CommunityCupBannerStyle => BuildTournamentBannerStyle(CommunityCupBannerUrl);
+    private static string GoodiesCupBannerStyle => BuildTournamentBannerStyle(GoodiesCupBannerUrl);
+
+    private static string BuildTournamentBannerStyle(string? bannerUrl)
+    {
+        return string.IsNullOrWhiteSpace(bannerUrl)
+            ? ""
+            : $"background-image: linear-gradient(90deg, rgba(0,0,0,.86), rgba(0,0,0,.52)), url('{bannerUrl}');";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthState.Changed += OnAuthStateChanged;
+        await LoadOwnerContextAsync();
+    }
+
+    private void OnAuthStateChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadOwnerContextAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadOwnerContextAsync()
+    {
+        OwnerTeams.Clear();
+        if (AuthState.IsAuthenticated)
+        {
+            var result = await Api.GetMeAsync();
+            if (result.Value is not null)
+            {
+                OwnerTeams.AddRange(result.Value.Memberships
+                    .Where(member => member.TeamId.HasValue && (member.Role is TeamRole.Owner or TeamRole.Manager))
+                    .Select(member => new OwnerTeamOption(member.TeamId!.Value, member.TeamName ?? member.DisplayName)));
+            }
+        }
+
+        if (OwnerTeams.Count == 0)
+        {
+            OwnerTeams.AddRange(DemoOwnerTeams);
+        }
+
+        SelectedOwnerTeamId ??= OwnerTeams[0].TeamId;
+        await LoadRosterForSelectedTeamAsync();
+    }
+
+    private async Task LoadRosterForSelectedTeamAsync()
+    {
+        Roster.Clear();
+        TeamClubSnapshot = null;
+        TeamEaMembers = null;
+        SelectedPlayer = null;
+        SelectedPlayerEa = null;
+        if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
+        {
+            var result = await Api.GetTeamMembersAsync(SelectedOwnerTeamId.Value);
+            if (result.Value is not null && result.Value.Count > 0)
+            {
+                Roster.AddRange(result.Value.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, DefaultPosition(index), index < 11, DemoStatus(index))));
+            }
+        }
+
+        if (Roster.Count == 0)
+        {
+            Roster.AddRange(DemoRoster);
+            LoadDemoEaTeamData();
+        }
+    }
+
+    private async Task OpenTeamSheetAsync()
+    {
+        SelectedClubProfile = DemoClubProfiles.FirstOrDefault(club => string.Equals(club.Name, SelectedOwnerTeamName, StringComparison.OrdinalIgnoreCase));
+        OpenedSheet = "team";
+        if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
+        {
+            TeamClubSnapshot = (await Api.GetTeamEaClubAsync(SelectedOwnerTeamId.Value)).Value;
+            TeamEaMembers = (await Api.GetTeamEaMembersAsync(SelectedOwnerTeamId.Value)).Value;
+        }
+        else
+        {
+            LoadDemoEaTeamData();
+        }
+    }
+
+    private Task OpenClubSheetAsync(string teamName)
+    {
+        SelectedClubProfile = DemoClubProfiles.FirstOrDefault(club => string.Equals(club.Name, teamName, StringComparison.OrdinalIgnoreCase))
+            ?? new DemoClubProfile(teamName, GetInitials(teamName), 0, "A synchroniser", "Pas encore lie", 0, 0, 0, "Non classe", "Profil a completer", "Club detecte dans le tournoi");
+
+        if (string.Equals(teamName, SelectedOwnerTeamName, StringComparison.OrdinalIgnoreCase))
+        {
+            return OpenTeamSheetAsync();
+        }
+
+        TeamClubSnapshot = new EaClubSnapshotResponse(
+            SelectedOwnerTeamId ?? DemoOwnerTeams.First().TeamId,
+            0,
+            "common-gen5",
+            SelectedClubProfile.Name,
+            SelectedClubProfile.ShortName,
+            SelectedClubProfile.Division,
+            11,
+            DateTimeOffset.UtcNow.AddMinutes(-18));
+        TeamEaMembers = null;
+        OpenedSheet = "team";
+        return Task.CompletedTask;
+    }
+
+    private async Task OpenPlayerSheetAsync(RosterPlayerModel player)
+    {
+        SelectedPlayer = player;
+        SelectedPlayerEa = null;
+        OpenedSheet = "player";
+        if (player.HasApp)
+        {
+            var result = await Api.SearchEaPlayerAsync(player.Gamertag);
+            SelectedPlayerEa = result.Value;
+        }
+    }
+
+    private Task OpenPlayerByNameAsync(string? playerName)
+    {
+        var player = FindPlayerByName(playerName);
+        if (player is null)
+        {
+            Message = $"Fiche joueur indisponible pour {playerName}. On doit encore relier ce joueur a un profil EA stocke.";
+            return Task.CompletedTask;
+        }
+
+        return OpenPlayerSheetAsync(player);
+    }
+
+    private RosterPlayerModel? FindPlayerByName(string? playerName)
+    {
+        if (string.IsNullOrWhiteSpace(playerName))
+        {
+            return null;
+        }
+
+        return Roster.FirstOrDefault(player => IsSamePlayer(player, playerName))
+            ?? DemoRoster.FirstOrDefault(player => IsSamePlayer(player, playerName));
+    }
+
+    private static bool IsSamePlayer(RosterPlayerModel player, string playerName)
+    {
+        return string.Equals(player.DisplayName, playerName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(player.Gamertag, playerName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(player.ProName, playerName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void CloseSheet()
+    {
+        OpenedSheet = null;
+    }
+
+    private void TogglePlayer(RosterPlayerModel player, ChangeEventArgs args)
+    {
+        player.Selected = player.CanBeSelected && IsHeightEligibleForTournament(player) && args.Value is bool selected && selected;
+    }
+
+    private void RefreshPlayerEaInfo(RosterPlayerModel player)
+    {
+        player.RefreshEaSnapshot();
+        Message = $"{player.DisplayName}: donnees EA mises a jour. Taille actuelle {player.Height} cm, OVR {player.Overall}.";
+    }
+
+    private void NotifyPlayer(RosterPlayerModel player, string reason)
+    {
+        var label = reason switch
+        {
+            "taille" => "ta taille n'est pas conforme aux restrictions du tournoi",
+            "playstyle" => "un playstyle doit etre verifie avant validation",
+            _ => "merci de valider ta presence pour le tournoi"
+        };
+
+        Message = $"Notification envoyee a {player.DisplayName}: {label}.";
+    }
+
+    private void OpenDemoMatch(DemoTournamentMatchRow match)
+    {
+        Message = $"{match.Home} {match.HomeScore}-{match.AwayScore} {match.Away}: stats detaillees disponibles en demo.";
+    }
+
+    private Task OpenLineupPlayerAsync(RosterPlayerModel? player)
+    {
+        return player is null ? Task.CompletedTask : OpenPlayerSheetAsync(player);
+    }
+
+    private bool IsHeightEligibleForTournament(RosterPlayerModel player)
+    {
+        return player.Height <= GetMaxHeightForPosition(player.Position);
+    }
+
+    private int GetMaxHeightForPosition(string position)
+    {
+        return string.Equals(position, "DC", StringComparison.OrdinalIgnoreCase)
+            ? CenterBackMaxHeightCm
+            : DefaultMaxHeightCm;
+    }
+
+    private IReadOnlyList<IReadOnlyList<LineupSlotModel>> BuildLineupRows()
+    {
+        var usedPlayerIds = new HashSet<Guid>();
+        return GetFormationRows(SelectedFormation)
+            .Select(row => row.Select(position => new LineupSlotModel(position, GetLineupPlayer(position, usedPlayerIds))).ToArray())
+            .ToArray();
+    }
+
+    private RosterPlayerModel? GetLineupPlayer(string slot, HashSet<Guid> usedPlayerIds)
+    {
+        var selected = Roster.Where(player => player.Selected).ToList();
+        var direct = selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && string.Equals(player.Position, slot, StringComparison.OrdinalIgnoreCase));
+        if (direct is not null)
+        {
+            usedPlayerIds.Add(direct.UserId);
+            return direct;
+        }
+
+        var fallback = slot switch
+        {
+            "DC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "DG" or "DD" or "MDC"),
+            "DG" or "DD" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "DC" or "MDC"),
+            "MDC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MC" or "DC"),
+            "MC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MDC" or "MOC"),
+            "MOC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MC" or "AG" or "AD"),
+            "AG" or "AD" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MOC" or "BU"),
+            "BU" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "AG" or "AD" or "MOC"),
+            _ => null
+        };
+
+        if (fallback is not null)
+        {
+            usedPlayerIds.Add(fallback.UserId);
+        }
+
+        return fallback;
+    }
+
+    private void LoadDemoEaTeamData()
+    {
+        TeamClubSnapshot = new EaClubSnapshotResponse(SelectedOwnerTeamId ?? DemoOwnerTeams.First().TeamId, 2148207, "common-gen5", SelectedOwnerTeamName, "TSV", 8, Roster.Count, DateTimeOffset.UtcNow.AddMinutes(-14));
+        TeamEaMembers = new EaMemberStatsSummaryResponse(
+            SelectedOwnerTeamId ?? DemoOwnerTeams.First().TeamId,
+            2148207,
+            "common-gen5",
+            DateTimeOffset.UtcNow.AddMinutes(-14),
+            Roster.Count,
+            Roster.Select(player => new EaPlayerStatsResponse(player.DisplayName, player.Gamertag, player.Matches, player.Goals, player.Assists, player.AverageRating, player.EaPosition)).ToArray());
+    }
+
+    private async Task SubmitRosterAsync()
+    {
+        Busy = true;
+        if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
+        {
+            foreach (var player in Roster.Where(player => player.Selected).Take(11))
+            {
+                await Api.AddTournamentParticipantAsync(DemoTournamentId, SelectedOwnerTeamId.Value, new AddTournamentParticipantRequest(player.UserId, player.Position));
+            }
+        }
+
+        Busy = false;
+        Message = "Composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
+    }
+
+    private async Task RemindPendingAsync()
+    {
+        Busy = true;
+        if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
+        {
+            await Api.RemindPendingTournamentParticipantsAsync(DemoTournamentId, SelectedOwnerTeamId.Value);
+        }
+
+        Busy = false;
+        Message = "Relance envoyee aux joueurs qui n'ont pas encore confirme.";
+    }
+
+    private static string DefaultPosition(int index)
+    {
+        var positions = new[] { "GK", "DG", "DC", "DC", "DD", "MDC", "MC", "MOC", "AG", "AD", "BU" };
+        return positions[index % positions.Length];
+    }
+
+    private static string DemoStatus(int index)
+    {
+        return index switch
+        {
+            2 or 8 => "En attente",
+            6 => "Retard",
+            _ => "Confirme"
+        };
+    }
+
+    private static string GetInitials(string value)
+    {
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 0 ? "CP" : string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private static string GetPlayerNumber(RosterPlayerModel? player)
+    {
+        if (player is null)
+        {
+            return "+";
+        }
+
+        var stableNumber = Math.Abs(player.DisplayName.GetHashCode()) % 89 + 1;
+        return stableNumber.ToString("00");
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> GetFormationRows(string formation)
+    {
+        return formation switch
+        {
+            "4-3-3" =>
+            [
+                ["AG", "BU", "AD"],
+                ["MC", "MDC", "MC"],
+                ["DG", "DC", "DC", "DD"],
+                ["GK"]
+            ],
+            "3-5-2" =>
+            [
+                ["BU", "BU"],
+                ["AG", "MC", "MOC", "MC", "AD"],
+                ["DC", "DC", "DC"],
+                ["GK"]
+            ],
+            "4-4-2" =>
+            [
+                ["BU", "BU"],
+                ["AG", "MC", "MC", "AD"],
+                ["DG", "DC", "DC", "DD"],
+                ["GK"]
+            ],
+            _ =>
+            [
+                ["BU"],
+                ["AG", "MOC", "AD"],
+                ["MDC", "MC"],
+                ["DG", "DC", "DC", "DD"],
+                ["GK"]
+            ]
+        };
+    }
+
+    private static IReadOnlyCollection<OwnerTeamOption> DemoOwnerTeams { get; } =
+    [
+        new(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "TheSurvivors"),
+        new(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "TheSurvivors B"),
+        new(Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), "TSV Academy")
+    ];
+
+    private static IReadOnlyCollection<DemoGroupRow> DemoGroupRows { get; } =
+    [
+        new(1, "TheSurvivors", 8, "2V 1N 0D"),
+        new(2, "FC Toho", 6, "2V 0N 1D"),
+        new(3, "Royal XI", 2, "0V 2N 1D"),
+        new(4, "KM Chimera", 1, "0V 1N 2D")
+    ];
+
+    private static IReadOnlyCollection<DemoTournamentMatchRow> DemoMyTournamentMatches { get; } =
+    [
+        new("Poule B J1", "TheSurvivors", 3, "FC Toho", 1, "KoffiMarvelous 2 assists", ["KoffiMarvelous", "ginga_blaze"]),
+        new("Poule B J2", "TheSurvivors", 2, "Royal XI", 2, "ginga_blaze double", ["ginga_blaze"]),
+        new("Poule B J3", "TheSurvivors", 1, "KM Chimera", 0, "Clean sheet valide", ["Tchollismo"]),
+        new("Quart", "TheSurvivors", 0, "HOF 221", 0, "A venir 22:58", [])
+    ];
+
+    private static IReadOnlyCollection<DemoAwardRaceRow> DemoAwardRace { get; } =
+    [
+        new("Buteur", "ginga_blaze", "4 buts"),
+        new("Passeur", "KoffiMarvelous", "3 assists"),
+        new("MVP", "Tchollismo", "2 hommes du match")
+    ];
+
+    private static IReadOnlyCollection<DemoClubProfile> DemoClubProfiles { get; } =
+    [
+        new("TheSurvivors", "TSV", 8, "2V 1N 0D", "2V 1N 0D", 3, 6, 3, "1er poule B", "KoffiMarvelous", "Qualifie quart de finale"),
+        new("FC Toho", "FCT", 7, "2V 0N 1D", "2V 0N 1D", 3, 5, 4, "2e poule B", "AkiraToho", "Qualifie phase finale"),
+        new("Royal XI", "RXI", 5, "0V 2N 1D", "0V 2N 1D", 3, 3, 5, "3e poule B", "RoyalNueve", "Elimine en poule"),
+        new("KM Chimera", "KMC", 6, "0V 1N 2D", "0V 1N 2D", 3, 2, 4, "4e poule B", "ChimeraMVP", "Elimine en poule"),
+        new("HOF 221", "HOF", 4, "3V 0N 0D", "Champion precedent", 4, 9, 2, "Quart de finale", "IDRdemon", "Adversaire quart")
+    ];
+
+    private static IReadOnlyCollection<RosterPlayerModel> DemoRoster { get; } =
+    [
+        new(Guid.NewGuid(), "KoffiMarvelous", "KoffiMarvelous", "Koffi", "MC", "Milieu", true, true, "Confirme", 184, 85, 742, 52, 311, 404, 7.8, 27, 79, 24, 93, 4),
+        new(Guid.NewGuid(), "ginga_blaze", "ginga_blaze", "Blaze", "BU", "Attaquant", true, true, "Confirme", 168, 86, 238, 55, 220, 204, 8.3, 37, 78, 16, 85, 2),
+        new(Guid.NewGuid(), "caboss_238", "caboss_238", "Caboss", "AG", "Ailier", true, true, "En attente", 171, 87, 368, 55, 232, 212, 7.8, 43, 81, 37, 59, 1),
+        new(Guid.NewGuid(), "Le_Siak69", "Le_Siak69", "Siak", "BU", "Buteur", true, true, "Confirme", 166, 88, 222, 61, 208, 150, 7.8, 39, 86, 27, 46, 3),
+        new(Guid.NewGuid(), "Mk_Amazigh", "Mk_Amazigh", "Amazigh", "AD", "Ailier", false, false, "A inviter", 170, 88, 222, 54, 207, 81, 7.8, 45, 82, 22, 29, 2),
+        new(Guid.NewGuid(), "zerug0_", "zerug0_", "Zerugo", "MDC", "Milieu", true, true, "Confirme", 182, 84, 129, 64, 105, 107, 7.8, 36, 84, 38, 25, 1),
+        new(Guid.NewGuid(), "Tchollismo", "Tchollismo", "Tcholli", "DC", "Defenseur", true, true, "Retard", 175, 88, 78, 64, 29, 26, 7.1, 42, 88, 34, 10, 0),
+        new(Guid.NewGuid(), "youyou-gaminges", "youyou-gaminges", "Youyou", "MOC", "Attaquant", false, false, "A inviter", 169, 89, 36, 47, 36, 22, 7.8, 50, 86, 15, 5, 1),
+        new(Guid.NewGuid(), "Moussi00777", "Moussi00777", "Moussi", "DC", "Defenseur", true, true, "En attente", 182, 87, 293, 51, 10, 24, 7.1, 25, 85, 28, 12, 0),
+        new(Guid.NewGuid(), "KiMeST__", "KiMeST__", "KiMeST", "MC", "Milieu defensif", true, true, "Confirme", 174, 88, 57, 57, 28, 19, 7.7, 30, 83, 29, 9, 0),
+        new(Guid.NewGuid(), "lil84330", "lil84330", "Lil", "GK", "Gardien", false, false, "A inviter", 178, 89, 34, 67, 6, 4, 6.4, 31, 87, 39, 2, 0),
+        new(Guid.NewGuid(), "Sparky_72x", "Sparky_72x", "Sparky", "DD", "Lateral", false, false, "Disponible", 176, 84, 91, 48, 8, 16, 6.9, 22, 80, 31, 4, 0),
+        new(Guid.NewGuid(), "JuniorLoan", "JuniorLoan", "Junior", "MC", "Milieu", false, true, "Disponible", 180, 83, 64, 50, 20, 28, 7.0, 29, 82, 25, 6, 0),
+        new(Guid.NewGuid(), "MaxBackup", "MaxBackup", "Max", "DC", "Defenseur", false, false, "Pas dispo", 186, 82, 42, 45, 3, 5, 6.7, 18, 76, 33, 1, 0)
+    ];
+
+    private sealed record OwnerTeamOption(Guid TeamId, string Name);
+
+    private sealed record LineupSlotModel(string Position, RosterPlayerModel? Player);
+    private sealed record DemoGroupRow(int Rank, string Team, int Points, string Record);
+    private sealed record DemoTournamentMatchRow(string Stage, string Home, int HomeScore, string Away, int AwayScore, string Status, IReadOnlyList<string> Players);
+    private sealed record DemoAwardRaceRow(string Label, string Player, string Value);
+    private sealed record DemoClubProfile(string Name, string ShortName, int Division, string EaForm, string TournamentRecord, int TournamentPlayed, int TournamentGoalsFor, int TournamentGoalsAgainst, string Standing, string KeyPlayer, string TournamentStatus);
+
+    private sealed class RosterPlayerModel
+    {
+        public RosterPlayerModel(
+            Guid userId,
+            string displayName,
+            string gamertag,
+            string proName,
+            string position,
+            string eaPosition,
+            bool selected,
+            bool hasApp,
+            string status,
+            int height,
+            int overall,
+            int matches,
+            int winRate,
+            int goals,
+            int assists,
+            double averageRating,
+            int shotSuccessRate,
+            double passSuccessRate,
+            double tackleSuccessRate,
+            int playerOfTheMatch,
+            int prevGoals)
+        {
+            UserId = userId;
+            DisplayName = displayName;
+            Gamertag = gamertag;
+            ProName = proName;
+            Position = position;
+            EaPosition = eaPosition;
+            Selected = selected;
+            HasApp = hasApp;
+            Status = status;
+            Height = height;
+            Overall = overall;
+            Matches = matches;
+            WinRate = winRate;
+            Goals = goals;
+            Assists = assists;
+            AverageRating = averageRating;
+            ShotSuccessRate = shotSuccessRate;
+            PassSuccessRate = passSuccessRate;
+            TackleSuccessRate = tackleSuccessRate;
+            PlayerOfTheMatch = playerOfTheMatch;
+            PrevGoals = prevGoals;
+        }
+
+        public Guid UserId { get; }
+        public string DisplayName { get; }
+        public string Gamertag { get; }
+        public string ProName { get; }
+        public string Position { get; set; }
+        public string EaPosition { get; }
+        public bool Selected { get; set; }
+        public bool HasApp { get; }
+        public string Status { get; set; }
+        public int Height { get; private set; }
+        public int Overall { get; private set; }
+        public int Matches { get; }
+        public int WinRate { get; }
+        public int Goals { get; }
+        public int Assists { get; }
+        public double AverageRating { get; }
+        public int ShotSuccessRate { get; }
+        public double PassSuccessRate { get; }
+        public double TackleSuccessRate { get; }
+        public int PlayerOfTheMatch { get; }
+        public int PrevGoals { get; }
+        public bool IsUnavailable => Status == "Pas dispo";
+        public bool CanBeSelected => HasApp && !IsUnavailable;
+        public string StatusCss => Status switch
+        {
+            "Confirme" => "confirmed",
+            "Retard" => "late",
+            "En attente" => "pending",
+            "Pas dispo" => "unavailable",
+            "A inviter" => "unavailable",
+            _ => "available"
+        };
+
+        public static RosterPlayerModel FromAppMember(Guid userId, string displayName, string gamertag, string position, bool selected, string status)
+        {
+            return new RosterPlayerModel(userId, displayName, gamertag, displayName, position, position, selected, true, status, 180, 82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+
+        public void RefreshEaSnapshot()
+        {
+            if (DisplayName == "KoffiMarvelous")
+            {
+                Height = 181;
+                Overall = 86;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthState.Changed -= OnAuthStateChanged;
+    }
+}

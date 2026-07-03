@@ -1,0 +1,1101 @@
+@page "/teams"
+@inject ApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>TS Tournament - Clubs</PageTitle>
+
+<section class="team-hero">
+    <div class="team-hero-copy">
+        <p class="eyebrow">Club house</p>
+        <h1>Lie ton club, verrouille l'EA ID, construis ton effectif.</h1>
+        <p>Le owner recherche son club par nom, TS Tournament recupere les donnees utiles, les stocke chez nous et les garde a jour avec la synchro periodique.</p>
+    </div>
+    <div class="club-data-ticket">
+        <span>Prochaine evolution</span>
+        <strong>EA ID joueur</strong>
+        <p>Meme logique cote joueur : premiere liaison depuis l'EA Sports ID, stockage local, puis mise a jour par le cron.</p>
+    </div>
+</section>
+
+<section class="club-branding-editor">
+    <article class="club-preview">
+        <div class="club-banner-preview" style="@BannerPreviewStyle">
+            <div class="club-logo-preview">
+                @if (!string.IsNullOrWhiteSpace(Team.LogoUrl))
+                {
+                    <img src="@Team.LogoUrl" alt="Logo equipe" />
+                }
+                else
+                {
+                    <span>@Team.ShortName</span>
+                }
+            </div>
+            <div>
+                <p class="eyebrow">Identite club</p>
+                <h2>@Team.Name</h2>
+                <p>@Team.Description</p>
+                @if (Team.EaClubId is not null)
+                {
+                    <div class="ea-data-strip">
+                        <b>EA ID @Team.EaClubId</b>
+                        <b>@Team.Region</b>
+                        <b>@(SelectedEaClub?.MembersCount?.ToString() ?? "-") joueurs EA</b>
+                    </div>
+                }
+            </div>
+        </div>
+    </article>
+
+    <article class="panel">
+        <div class="panel-heading">
+            <p class="eyebrow">Logo & banniere</p>
+            <h2>Image du club</h2>
+        </div>
+        <div class="upload-grid">
+            <label class="upload-card">
+                <span>Logo equipe</span>
+                <InputFile OnChange="UploadLogoAsync" accept="image/png,image/jpeg,image/webp,image/gif" />
+                <small>@(string.IsNullOrWhiteSpace(Team.LogoUrl) ? "PNG, JPG ou WebP" : "Logo uploade")</small>
+            </label>
+            <label class="upload-card banner-upload">
+                <span>Banniere equipe</span>
+                <InputFile OnChange="UploadBannerAsync" accept="image/png,image/jpeg,image/webp,image/gif" />
+                <small>@(string.IsNullOrWhiteSpace(Team.BannerUrl) ? "Image large recommandee" : "Banniere uploadee")</small>
+            </label>
+        </div>
+    </article>
+</section>
+
+<section class="section-grid">
+    <article class="panel club-search-card">
+        <div class="panel-heading">
+            <p class="eyebrow">Creation equipe</p>
+            <h2>Rechercher le club EA</h2>
+        </div>
+
+        <div class="search-row">
+            <label>Nom du club
+                <InputText @bind-Value="EaSearchTerm" placeholder="Ex: TheSurvivors" />
+            </label>
+            <button class="primary-action" @onclick="SearchEaClubAsync" disabled="@Busy">Rechercher</button>
+        </div>
+
+        @if (EaSearchResults.Count > 0)
+        {
+            <div class="ea-result-grid">
+                @foreach (var club in EaSearchResults)
+                {
+                    <button class="ea-result-card @(SelectedEaClub?.EaClubId == club.EaClubId ? "selected" : "")" @onclick="() => SelectEaClub(club)">
+                        <span>@club.Source</span>
+                        <strong>@club.Name</strong>
+                        <small>ID @club.EaClubId</small>
+                        <div class="ea-data-strip">
+                            <b>DIV @(club.Division?.ToString() ?? "-")</b>
+                            <b>@(club.MembersCount?.ToString() ?? "-") joueurs</b>
+                            <b>@club.Platform</b>
+                        </div>
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="muted">Tape le nom du club pour recuperer les donnees disponibles et selectionner le bon EA club ID.</p>
+        }
+
+        <EditForm Model="Team" OnValidSubmit="CreateTeamAsync">
+            <div class="form-grid">
+                <label>Nom <InputText @bind-Value="Team.Name" /></label>
+                <label>Short name <InputText @bind-Value="Team.ShortName" /></label>
+                <label>Region <InputText @bind-Value="Team.Region" /></label>
+                <label>EA club ID
+                    <InputNumber @bind-Value="Team.EaClubId" disabled="@EaClubLocked" />
+                    @if (EaClubLocked)
+                    {
+                        <small class="locked-ea-id">Verrouille depuis la recherche club</small>
+                    }
+                </label>
+            </div>
+
+            <label>Description <InputTextArea @bind-Value="Team.Description" /></label>
+            <button class="primary-action" disabled="@Busy">Creer equipe et stocker les donnees</button>
+        </EditForm>
+    </article>
+
+    <article class="panel club-selector-panel">
+        <div class="panel-heading">
+            <p class="eyebrow">@(ManagedMemberships.Count > 0 ? "Mes clubs" : "Mon club")</p>
+            <h2>@(ManagedMemberships.Count > 0 ? "Selection club owner" : "Club actif")</h2>
+            <button class="ghost-action" @onclick="LoadMeAsync">Rafraichir</button>
+        </div>
+        @if (Memberships.Count == 0)
+        {
+            <p class="muted">Aucune equipe chargee pour cette session.</p>
+        }
+        else
+        {
+            @if (ManagedMemberships.Count > 1)
+            {
+                <label>Club a piloter
+                    <select @onchange="SelectTeamFromDropdownAsync">
+                        @foreach (var member in ManagedMemberships)
+                        {
+                            <option value="@member.TeamId" selected="@(SelectedTeamId == member.TeamId)">@member.TeamName - @member.Role</option>
+                        }
+                    </select>
+                </label>
+            }
+            else
+            {
+                <div class="active-club-strip">
+                    <strong>@(CurrentMembership?.TeamName ?? SelectedTeamName ?? "Club actif")</strong>
+                    <span>@(CurrentMembership?.Role.ToString() ?? "Joueur")</span>
+                    <small>L'effectif et les donnees EA s'ouvrent automatiquement.</small>
+                </div>
+            }
+        }
+
+        <button class="demo-club-card @(DemoMode ? "selected" : "")" @onclick="SelectDemoTeam">
+            <span>Mode demo EA</span>
+            <strong>TheSurvivors</strong>
+            <small>11 joueurs, profils enrichis, amicaux et detail match stockes.</small>
+        </button>
+    </article>
+</section>
+
+@if (SelectedTeamId.HasValue)
+{
+    <section class="panel team-data-panel">
+        <div class="panel-heading">
+            <p class="eyebrow">Donnees stockees</p>
+            <h2>@(SelectedTeamName ?? "Equipe selectionnee")</h2>
+            <button class="ghost-action" @onclick="SyncSelectedTeamAsync" disabled="@Busy">@EaRefreshButtonLabel</button>
+        </div>
+
+        <div class="team-data-grid">
+            <div class="stat-tile">
+                <span>EA club</span>
+                <strong>@(ClubSnapshot?.Name ?? "Non synchronise")</strong>
+                <small>@(ClubSnapshot is null ? "Lance une mise a jour apres creation." : $"ID {ClubSnapshot.EaClubId} - {ClubSnapshot.Platform}")</small>
+            </div>
+            <div class="stat-tile">
+                <span>Division</span>
+                <strong>@(ClubSnapshot?.Division?.ToString() ?? "-")</strong>
+                <small>Donnee issue de la derniere synchro</small>
+            </div>
+            <div class="stat-tile">
+                <span>Effectif EA</span>
+                <strong>@(EaProfiles.Count > 0 ? EaProfiles.Count.ToString() : EaMembers?.PlayerCount.ToString() ?? "-")</strong>
+                <small>@(EaProfiles.Count == 0 ? "En attente de donnees membres." : "Profils EA actifs normalises stockes")</small>
+            </div>
+            <div class="stat-tile">
+                <span>Friendly</span>
+                <strong>@EaFriendlies.Count</strong>
+                <small>Derniers matchs stockes avec details joueurs</small>
+            </div>
+        </div>
+
+        <div class="club-stats-split">
+            <article class="club-stat-panel">
+                <span class="result-kind">Stats generales EA</span>
+                <h3>@(ClubSnapshot?.Name ?? SelectedTeamName ?? "Club")</h3>
+                <div class="drawer-metrics inline">
+                    <div><span>Forme recente</span><strong>@RecentEaRecord</strong></div>
+                    <div><span>Buts / match</span><strong>@GoalsPerFriendly.ToString("0.0")</strong></div>
+                    <div><span>Joueurs suivis</span><strong>@EaProfiles.Count</strong></div>
+                    <div><span>Derniere synchro</span><strong>@(ClubSnapshot?.SyncedAt.LocalDateTime.ToString("HH:mm") ?? "--")</strong></div>
+                </div>
+            </article>
+            <article class="club-stat-panel accent">
+                <span class="result-kind">Stats TS Tournament</span>
+                <h3>Performance dans nos tournois</h3>
+                <div class="drawer-metrics inline">
+                    <div><span>Tournois</span><strong>@AppTournamentStats.TournamentsPlayed</strong></div>
+                    <div><span>Record</span><strong>@AppTournamentStats.Record</strong></div>
+                    <div><span>Meilleur resultat</span><strong>@AppTournamentStats.BestRun</strong></div>
+                    <div><span>Joueur cle</span><button type="button" class="inline-player-link strong-link" @onclick="() => OpenPlayerSheet(AppTournamentStats.KeyPlayer)">@AppTournamentStats.KeyPlayer</button></div>
+                </div>
+            </article>
+        </div>
+
+        @if (EaProfiles.Count > 0)
+        {
+            <h3>Effectif actif complet (@EaProfiles.Count)</h3>
+            <div class="roster-grid">
+                @foreach (var player in EaProfiles)
+                {
+                    <article class="player-stat-card clickable-card" @onclick="() => OpenPlayerSheet(player)">
+                        <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(player)">@player.PlayerName</button>
+                        <span>@(player.Position ?? "Poste inconnu") · @(player.ProName ?? player.EaPlayerId)</span>
+                        <div class="ea-data-strip">
+                            <b class="@(IsPlayerInApp(player) ? "app-badge-ok" : "app-badge-missing")">@(IsPlayerInApp(player) ? "Dans l'app" : "Hors app")</b>
+                            <b>@(player.Matches?.ToString() ?? "-") MJ</b>
+                            <b>@(player.Goals?.ToString() ?? "-") buts</b>
+                            <b>@(player.Assists?.ToString() ?? "-") assists</b>
+                            <b>@(player.AverageRating?.ToString("0.0") ?? "-") note</b>
+                            <b>@(player.PassSuccessRate?.ToString("0") ?? "-")% passes</b>
+                        </div>
+                        @if (!IsPlayerInApp(player) && CanInvitePlayers)
+                        {
+                            <button type="button" class="mini-action strong" @onclick="() => CreatePersonalInvite(player)">Inviter</button>
+                        }
+                    </article>
+                }
+            </div>
+        }
+
+        @if (EaFriendlies.Count > 0)
+        {
+            <div class="panel-heading compact">
+                <div>
+                    <p class="eyebrow">Matchs amicaux EA</p>
+                    <h3>5 derniers matchs</h3>
+                </div>
+                <button class="ghost-action" @onclick="SyncSelectedTeamAsync" disabled="@Busy">@FriendlyRefreshButtonLabel</button>
+            </div>
+            <div class="friendly-select-card">
+                <label>
+                    Match a consulter
+                    <select @onchange="LoadFriendlyFromSelectAsync">
+                        <option value="">Selectionner un match</option>
+                        @foreach (var match in EaFriendlies.Take(5))
+                        {
+                            <option value="@match.EaMatchId">@FormatFriendlyOption(match)</option>
+                        }
+                    </select>
+                </label>
+                <small>Affichage limite aux 5 derniers matchs a consulter.</small>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <strong>Aucun amical EA stocke</strong>
+                <p>Rafraichis les donnees EA du club pour recuperer les derniers matchs amicaux et leurs details joueurs.</p>
+                <button class="primary-action" @onclick="SyncSelectedTeamAsync" disabled="@Busy">@FriendlyRefreshButtonLabel</button>
+            </div>
+        }
+
+        @if (SelectedFriendlyDetails is not null)
+        {
+            <div class="player-detail">
+                <p class="eyebrow">Detail match EA</p>
+                <h3>@SelectedFriendlyDetails.Match.HomeClubName @SelectedFriendlyDetails.Match.HomeScore - @SelectedFriendlyDetails.Match.AwayScore @SelectedFriendlyDetails.Match.AwayClubName</h3>
+
+                @if (SelectedFriendlyDetails.ClubStats.Count > 0)
+                {
+                    <div class="team-data-grid compact">
+                        @foreach (var clubStat in SelectedFriendlyDetails.ClubStats)
+                        {
+                            <div class="stat-tile">
+                                <span>Club @clubStat.EaClubId</span>
+                                <strong>@(clubStat.Rating?.ToString("0.0") ?? "-")</strong>
+                                <small>@(clubStat.Shots?.ToString() ?? "-") tirs · @(clubStat.PassSuccessRate?.ToString("0") ?? "-")% passes · @(clubStat.TackleSuccessRate?.ToString("0") ?? "-")% tacles</small>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="roster-grid">
+                    @foreach (var stat in SelectedFriendlyDetails.PlayerStats)
+                    {
+                        <article class="player-stat-card clickable-card @(stat.PlayerOfTheMatch ? "selected" : "")" @onclick="() => OpenPlayerSheet(stat)">
+                            <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(stat)">@stat.PlayerName</button>
+                            <span>@(stat.Position ?? "poste ?") @(stat.PlayerOfTheMatch ? "· Homme du match" : "")</span>
+                            <div class="ea-data-strip">
+                                <b>@(stat.Goals?.ToString() ?? "0") B</b>
+                                <b>@(stat.Assists?.ToString() ?? "0") A</b>
+                                <b>@(stat.Rating?.ToString("0.0") ?? "-") note</b>
+                                <b>@(stat.PassSuccessRate?.ToString("0") ?? "-")% passes</b>
+                                <b>@(stat.TackleSuccessRate?.ToString("0") ?? "-")% tacles</b>
+                            </div>
+                        </article>
+                    }
+                </div>
+            </div>
+        }
+
+    </section>
+}
+
+@if (SelectedPlayerSheet is not null)
+{
+    <section class="detail-drawer">
+        <div class="detail-drawer-card">
+            <div class="drawer-heading">
+                <div>
+                    <p class="eyebrow">Fiche joueur</p>
+                    <h2>@SelectedPlayerSheet.Name</h2>
+                </div>
+                <button class="ghost-action" @onclick="ClosePlayerSheet">Fermer</button>
+            </div>
+
+            <div class="player-profile-header">
+                <div class="club-avatar large">@GetInitials(SelectedPlayerSheet.Name)</div>
+                <div>
+                    <span class="result-kind">@SelectedPlayerSheet.Source</span>
+                    <strong>@SelectedPlayerSheet.ProName</strong>
+                    <small>EA Sports ID: @SelectedPlayerSheet.EaPlayerId - Poste: @SelectedPlayerSheet.Position - @(SelectedPlayerSheet.HasApp ? "compte app actif" : "hors app")</small>
+                </div>
+                <span class="presence-pill @(SelectedPlayerSheet.HasApp ? "confirmed" : "pending")">@(SelectedPlayerSheet.HasApp ? "Dans l'app" : "A inviter")</span>
+            </div>
+
+            <div class="drawer-metrics">
+                <div><span>Matchs</span><strong>@SelectedPlayerSheet.Matches</strong></div>
+                <div><span>Buts</span><strong>@SelectedPlayerSheet.Goals</strong></div>
+                <div><span>Assists</span><strong>@SelectedPlayerSheet.Assists</strong></div>
+            </div>
+
+            <div class="drawer-data-grid">
+                <article>
+                    <span class="result-kind">Donnees EA stockees</span>
+                    <dl>
+                        <div><dt>Nom pro</dt><dd>@SelectedPlayerSheet.ProName</dd></div>
+                        <div><dt>Poste</dt><dd>@SelectedPlayerSheet.Position</dd></div>
+                        <div><dt>Taille</dt><dd>@SelectedPlayerSheet.HeightLabel</dd></div>
+                        <div><dt>OVR</dt><dd>@SelectedPlayerSheet.OverallLabel</dd></div>
+                        <div><dt>Note</dt><dd>@SelectedPlayerSheet.RatingLabel</dd></div>
+                        <div><dt>Homme du match</dt><dd>@SelectedPlayerSheet.PlayerOfTheMatchLabel</dd></div>
+                    </dl>
+                </article>
+                <article>
+                    <span class="result-kind">Impact sportif</span>
+                    <div class="player-skill-grid">
+                        <div><span>Passes</span><strong>@SelectedPlayerSheet.PassRateLabel</strong></div>
+                        <div><span>Tacles</span><strong>@SelectedPlayerSheet.TackleRateLabel</strong></div>
+                        <div><span>Tirs</span><strong>@SelectedPlayerSheet.ShotRateLabel</strong></div>
+                        <div><span>Club</span><strong>@(SelectedTeamName ?? "TheSurvivors")</strong></div>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private TeamModel Team { get; } = new();
+    private JoinModel Join { get; } = new();
+    private List<TeamMemberResponse> Memberships { get; } = new();
+    private List<TeamMemberResponse> TeamMembers { get; } = new();
+    private List<EaClubSearchResultResponse> EaSearchResults { get; } = new();
+    private string EaSearchTerm { get; set; } = "TheSurvivors";
+    private EaClubSearchResultResponse? SelectedEaClub;
+    private EaClubSnapshotResponse? ClubSnapshot;
+    private EaMemberStatsSummaryResponse? EaMembers;
+    private List<EaPlayerProfileSnapshotResponse> EaProfiles { get; } = new();
+    private List<EaFriendlyMatchResponse> EaFriendlies { get; } = new();
+    private Dictionary<string, EaFriendlyMatchDetailsResponse> DemoFriendlyDetails { get; } = new();
+    private EaFriendlyMatchDetailsResponse? SelectedFriendlyDetails;
+    private TeamMemberResponse? SelectedPlayer;
+    private PlayerSheetModel? SelectedPlayerSheet;
+    private TeamResponse? SelectedTeamProfile;
+    private Guid? SelectedTeamId;
+    private string? SelectedTeamName;
+    private bool DemoMode;
+    private bool EaClubLocked;
+    private bool Busy;
+    private bool EaSyncBusy;
+    private string? Message;
+    private IReadOnlyList<TeamMemberResponse> ManagedMemberships => Memberships
+        .Where(member => member.Role is TeamRole.Owner or TeamRole.Manager)
+        .ToArray();
+    private TeamMemberResponse? CurrentMembership => Memberships.FirstOrDefault(member => member.TeamId == SelectedTeamId);
+    private bool CanInvitePlayers => DemoMode || CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager;
+    private string EaRefreshButtonLabel => EaSyncBusy ? "Synchro EA..." : "Rafraichir donnees EA";
+    private string FriendlyRefreshButtonLabel => EaSyncBusy ? "Actualisation..." : "Rafraichir amicaux EA";
+    private DemoTournamentTeamStats AppTournamentStats { get; } = new(4, "9V 2N 3D", "Finaliste Friday Goodies Cup #3", "KoffiMarvelous");
+    private static readonly Guid DemoTeamId = Guid.Parse("37d9a7d7-8b8b-47d3-9e25-214820700001");
+    private const long DemoClubId = 2148207;
+    private static readonly HashSet<string> DemoAppPlayers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "KoffiMarvelous",
+        "ginga_blaze",
+        "caboss_238",
+        "Le_Siak69",
+        "zerug0_",
+        "Tchollismo",
+        "Moussi00777",
+        "KiMeST__"
+    };
+    private string BannerPreviewStyle => string.IsNullOrWhiteSpace(Team.BannerUrl)
+        ? ""
+        : $"background-image: linear-gradient(90deg, rgba(7,17,29,.84), rgba(7,17,29,.42)), url('{Team.BannerUrl}');";
+    private int EaWins => EaFriendlies.Count(match => (match.HomeEaClubId == DemoClubId && match.HomeScore > match.AwayScore) || (match.AwayEaClubId == DemoClubId && match.AwayScore > match.HomeScore));
+    private int EaDraws => EaFriendlies.Count(match => match.HomeScore == match.AwayScore);
+    private int EaLosses => Math.Max(EaFriendlies.Count - EaWins - EaDraws, 0);
+    private string RecentEaRecord => EaFriendlies.Count == 0 ? "--" : $"{EaWins}V {EaDraws}N {EaLosses}D";
+    private double GoalsPerFriendly => EaFriendlies.Count == 0 ? 0 : EaFriendlies.Average(match => match.HomeEaClubId == DemoClubId ? match.HomeScore : match.AwayScore);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMeAsync();
+    }
+
+    private async Task SearchEaClubAsync()
+    {
+        Busy = true;
+        var result = await Api.SearchEaClubsAsync(EaSearchTerm);
+        Busy = false;
+
+        EaSearchResults.Clear();
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        EaSearchResults.AddRange(result.Value.Results);
+        Message = EaSearchResults.Count == 0 ? "Aucun club trouve avec ce nom." : $"{EaSearchResults.Count} club(s) trouve(s). Selectionne le bon club.";
+    }
+
+    private void SelectEaClub(EaClubSearchResultResponse club)
+    {
+        SelectedEaClub = club;
+        EaClubLocked = true;
+        Team.EaClubId = club.EaClubId;
+        Team.Name = club.Name;
+        Team.ShortName = string.IsNullOrWhiteSpace(club.Abbreviation) ? Team.ShortName : club.Abbreviation;
+        Message = $"Club EA lie: {club.Name} / ID {club.EaClubId}.";
+    }
+
+    private async Task LoadMeAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            SelectDemoTeam();
+            Message = "Mode demo TheSurvivors charge pour visualiser Mon equipe sans compte connecte.";
+            return;
+        }
+
+        var result = await Api.GetMeAsync();
+        Memberships.Clear();
+        if (result.Value is not null)
+        {
+            Memberships.AddRange(result.Value.Memberships.Where(member => member.TeamId.HasValue));
+            Message = $"Profil charge: {Memberships.Count} membership(s).";
+            if (!SelectedTeamId.HasValue && Memberships.Count > 0)
+            {
+                var defaultClub = ManagedMemberships.FirstOrDefault() ?? Memberships.First();
+                await SelectMemberAsync(defaultClub);
+            }
+        }
+        else
+        {
+            Message = result.Error;
+        }
+    }
+
+    private async Task CreateTeamAsync()
+    {
+        Busy = true;
+        var request = new CreateTeamRequest(Team.Name, Team.ShortName, Platform.CrossPlay, Team.Region, Team.Description, Team.EaClubId, Team.LogoUrl, Team.BannerUrl);
+        var result = await Api.CreateTeamAsync(request);
+        Busy = false;
+        Message = result.Success ? $"Equipe creee. Invite code: {result.Value?.InviteCode}. Donnees EA stockees si la source a repondu." : result.Error;
+        await LoadMeAsync();
+    }
+
+    private async Task UploadLogoAsync(InputFileChangeEventArgs args)
+    {
+        await UploadAssetAsync(args, url => Team.LogoUrl = url, "Logo uploade et sauvegarde.");
+    }
+
+    private async Task UploadBannerAsync(InputFileChangeEventArgs args)
+    {
+        await UploadAssetAsync(args, url => Team.BannerUrl = url, "Banniere uploadee et sauvegardee.");
+    }
+
+    private async Task UploadAssetAsync(InputFileChangeEventArgs args, Action<string> applyUrl, string successMessage)
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Message = "Connecte-toi avant d'uploader une image.";
+            return;
+        }
+
+        Busy = true;
+        var file = args.File;
+        await using var stream = file.OpenReadStream(5_000_000);
+        var result = await Api.UploadTeamAssetAsync(stream, file.Name, file.ContentType);
+        Busy = false;
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        applyUrl(result.Value.Url);
+        if (SelectedTeamId.HasValue && !DemoMode)
+        {
+            await SaveSelectedTeamProfileAsync(successMessage);
+            return;
+        }
+
+        Message = successMessage;
+    }
+
+    private async Task SaveSelectedTeamProfileAsync(string successMessage)
+    {
+        if (!SelectedTeamId.HasValue)
+        {
+            Message = successMessage;
+            return;
+        }
+
+        var request = new UpdateTeamProfileRequest(
+            Team.Name,
+            Team.ShortName,
+            Platform.CrossPlay,
+            Team.Region,
+            Team.Description,
+            Team.EaClubId,
+            Team.LogoUrl,
+            Team.BannerUrl);
+
+        var update = await Api.UpdateTeamProfileAsync(SelectedTeamId.Value, request);
+        if (update.Value is null)
+        {
+            Message = update.Error;
+            return;
+        }
+
+        ApplyTeamProfile(update.Value);
+        Message = successMessage;
+    }
+
+    private void ApplyTeamProfile(TeamResponse team)
+    {
+        SelectedTeamProfile = team;
+        SelectedTeamName = team.Name;
+        Team.Name = team.Name;
+        Team.ShortName = team.ShortName ?? "";
+        Team.Region = team.Region ?? "";
+        Team.Description = team.Description ?? "";
+        Team.EaClubId = team.EaClubId;
+        Team.LogoUrl = team.LogoUrl;
+        Team.BannerUrl = team.BannerUrl;
+    }
+
+    private async Task JoinTeamAsync()
+    {
+        Busy = true;
+        var result = await Api.JoinTeamAsync(new JoinTeamRequest(Join.InviteCode));
+        Busy = false;
+        Message = result.Success ? $"Equipe rejointe: {result.Value?.Name}" : result.Error;
+        await LoadMeAsync();
+    }
+
+    private async Task SelectMemberAsync(TeamMemberResponse member)
+    {
+        if (member.TeamId is null)
+        {
+            Message = "Ce membership n'a pas encore d'ID equipe exploitable.";
+            return;
+        }
+
+        DemoMode = false;
+        SelectedTeamId = member.TeamId.Value;
+        SelectedTeamName = member.TeamName;
+        SelectedPlayer = null;
+        await LoadSelectedTeamDataAsync();
+    }
+
+    private async Task SelectTeamFromDropdownAsync(ChangeEventArgs args)
+    {
+        if (!Guid.TryParse(args.Value?.ToString(), out var teamId))
+        {
+            return;
+        }
+
+        var member = Memberships.FirstOrDefault(item => item.TeamId == teamId);
+        if (member is not null)
+        {
+            await SelectMemberAsync(member);
+        }
+    }
+
+    private void SelectDemoTeam()
+    {
+        DemoMode = true;
+        SelectedTeamId = DemoTeamId;
+        SelectedTeamName = "TheSurvivors";
+        SelectedPlayer = null;
+        LoadDemoTeamData();
+        Message = "Demo TheSurvivors chargee avec 11 joueurs et donnees EA stockees.";
+    }
+
+    private async Task LoadSelectedTeamDataAsync()
+    {
+        if (!SelectedTeamId.HasValue)
+        {
+            return;
+        }
+
+        if (DemoMode)
+        {
+            LoadDemoTeamData();
+            return;
+        }
+
+        var members = await Api.GetTeamMembersAsync(SelectedTeamId.Value);
+        TeamMembers.Clear();
+        if (members.Value is not null)
+        {
+            TeamMembers.AddRange(members.Value);
+        }
+
+        var profile = await Api.GetTeamAsync(SelectedTeamId.Value);
+        if (profile.Value is not null)
+        {
+            ApplyTeamProfile(profile.Value);
+        }
+
+        var club = await Api.GetTeamEaClubAsync(SelectedTeamId.Value);
+        ClubSnapshot = club.Value;
+
+        var eaPlayers = await Api.GetTeamEaMembersAsync(SelectedTeamId.Value);
+        EaMembers = eaPlayers.Value;
+
+        var profiles = await Api.GetTeamEaPlayersAsync(SelectedTeamId.Value);
+        EaProfiles.Clear();
+        if (profiles.Value is not null)
+        {
+            EaProfiles.AddRange(profiles.Value);
+        }
+
+        var friendlies = await Api.GetTeamEaFriendliesAsync(SelectedTeamId.Value, 20);
+        EaFriendlies.Clear();
+        if (friendlies.Value is not null)
+        {
+            EaFriendlies.AddRange(friendlies.Value);
+        }
+
+        await LoadLatestFriendlyDetailsAsync();
+
+        Message = $"Equipe chargee: {TeamMembers.Count} membre(s) app.";
+    }
+
+    private async Task LoadLatestFriendlyDetailsAsync()
+    {
+        var latestMatch = EaFriendlies
+            .OrderByDescending(match => match.PlayedAt)
+            .FirstOrDefault();
+
+        if (latestMatch is null)
+        {
+            SelectedFriendlyDetails = null;
+            return;
+        }
+
+        await LoadFriendlyDetailsAsync(latestMatch);
+    }
+
+    private async Task LoadFriendlyDetailsAsync(EaFriendlyMatchResponse match)
+    {
+        if (!SelectedTeamId.HasValue)
+        {
+            return;
+        }
+
+        if (DemoMode)
+        {
+            SelectedFriendlyDetails = DemoFriendlyDetails.GetValueOrDefault(match.EaMatchId);
+            Message = SelectedFriendlyDetails is null ? "Detail demo indisponible." : "Detail match demo charge.";
+            return;
+        }
+
+        var result = await Api.GetTeamEaFriendlyDetailsAsync(SelectedTeamId.Value, match.EaMatchId);
+        SelectedFriendlyDetails = result.Value;
+        Message = result.Success ? "Detail match EA charge." : result.Error;
+    }
+
+    private async Task LoadFriendlyFromSelectAsync(ChangeEventArgs args)
+    {
+        var eaMatchId = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(eaMatchId))
+        {
+            SelectedFriendlyDetails = null;
+            return;
+        }
+
+        var match = EaFriendlies.FirstOrDefault(item => item.EaMatchId == eaMatchId);
+        if (match is not null)
+        {
+            await LoadFriendlyDetailsAsync(match);
+        }
+    }
+
+    private static string FormatFriendlyOption(EaFriendlyMatchResponse match)
+    {
+        return $"{match.PlayedAt.LocalDateTime:dd/MM HH:mm} - {match.HomeClubName} {match.HomeScore}-{match.AwayScore} {match.AwayClubName}";
+    }
+
+    private bool IsPlayerInApp(EaPlayerProfileSnapshotResponse player)
+    {
+        if (DemoMode)
+        {
+            return DemoAppPlayers.Contains(player.PlayerName)
+                || (!string.IsNullOrWhiteSpace(player.ProName) && DemoAppPlayers.Contains(player.ProName));
+        }
+
+        return TeamMembers.Any(member =>
+            string.Equals(member.Gamertag, player.PlayerName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(member.Gamertag, player.ProName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(member.DisplayName, player.PlayerName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(member.DisplayName, player.ProName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void CreatePersonalInvite(EaPlayerProfileSnapshotResponse player)
+    {
+        var teamId = SelectedTeamId ?? DemoTeamId;
+        var inviteUrl = $"{Navigation.BaseUri}account?clubId={teamId}&eaPlayerId={Uri.EscapeDataString(player.EaPlayerId)}&eaName={Uri.EscapeDataString(player.PlayerName)}";
+        Message = $"Invitation personnalisee pour {player.PlayerName}: {inviteUrl}";
+    }
+
+    private async Task SyncSelectedTeamAsync()
+    {
+        if (!SelectedTeamId.HasValue)
+        {
+            return;
+        }
+
+        if (DemoMode)
+        {
+            LoadDemoTeamData();
+            await LoadLatestFriendlyDetailsAsync();
+            Message = "Demo rafraichie depuis le cache local TheSurvivors.";
+            return;
+        }
+
+        Busy = true;
+        EaSyncBusy = true;
+        Message = "Synchronisation EA en cours: club, effectif, joueurs et matchs amicaux...";
+        var result = await Api.SyncTeamEaAsync(SelectedTeamId.Value, forceRefresh: true);
+        EaSyncBusy = false;
+        Busy = false;
+
+        if (!result.Success)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        var sync = result.Value;
+        await LoadSelectedTeamDataAsync();
+        Message = EaFriendlies.Count == 0
+            ? $"Synchro terminee: club={(sync?.ClubInfoSynced == true ? "ok" : "non")}, membres={(sync?.MemberStatsSynced == true ? "ok" : "non")}, types matchs={sync?.MatchTypesSynced ?? 0}. Aucun amical stocke pour ce club pour le moment."
+            : $"Synchro terminee: {EaProfiles.Count} joueur(s), {EaFriendlies.Count} match(s) amicaux stockes, dernier match ouvert.";
+    }
+
+    private void SelectPlayer(TeamMemberResponse member)
+    {
+        SelectedPlayer = member;
+        SelectedPlayerSheet = PlayerSheetModel.FromMember(member);
+    }
+
+    private void OpenPlayerSheet(EaPlayerProfileSnapshotResponse player)
+    {
+        SelectedPlayerSheet = PlayerSheetModel.FromProfile(player, IsPlayerInApp(player));
+    }
+
+    private void OpenPlayerSheet(EaMatchPlayerStatResponse stat)
+    {
+        var profile = EaProfiles.FirstOrDefault(player =>
+            string.Equals(player.EaPlayerId, stat.EaPlayerId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(player.PlayerName, stat.PlayerName, StringComparison.OrdinalIgnoreCase));
+
+        SelectedPlayerSheet = PlayerSheetModel.FromMatchStat(stat, profile, profile is not null && IsPlayerInApp(profile));
+    }
+
+    private void OpenPlayerSheet(string playerName)
+    {
+        var profile = EaProfiles.FirstOrDefault(player =>
+            string.Equals(player.PlayerName, playerName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(player.ProName, playerName, StringComparison.OrdinalIgnoreCase));
+
+        if (profile is not null)
+        {
+            OpenPlayerSheet(profile);
+            return;
+        }
+
+        var member = TeamMembers.FirstOrDefault(item =>
+            string.Equals(item.DisplayName, playerName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Gamertag, playerName, StringComparison.OrdinalIgnoreCase));
+
+        SelectedPlayerSheet = member is null
+            ? PlayerSheetModel.FromName(playerName)
+            : PlayerSheetModel.FromMember(member);
+    }
+
+    private void ClosePlayerSheet()
+    {
+        SelectedPlayerSheet = null;
+    }
+
+    private static string GetInitials(string value)
+    {
+        var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 0 ? "TS" : string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
+    private void LoadDemoTeamData()
+    {
+        ClubSnapshot = new EaClubSnapshotResponse(DemoTeamId, DemoClubId, "common-gen5", "TheSurvivors", "TSV", 8, 11, DateTimeOffset.UtcNow.AddMinutes(-12));
+
+        TeamMembers.Clear();
+        TeamMembers.AddRange(new[]
+        {
+            DemoMember("KoffiMarvelous", "KoffiMarvelous", TeamRole.Owner),
+            DemoMember("Ginga Blaze", "ginga_blaze", TeamRole.Manager),
+            DemoMember("Caboss", "caboss_238", TeamRole.Player),
+            DemoMember("Le Siak", "Le_Siak69", TeamRole.Player),
+            DemoMember("Mk Amazigh", "Mk_Amazigh", TeamRole.Player),
+            DemoMember("Zerugo", "zerug0_", TeamRole.Player),
+            DemoMember("Tchollismo", "Tchollismo", TeamRole.Player),
+            DemoMember("Youyou", "youyou-gaminges", TeamRole.Player),
+            DemoMember("Moussi", "Moussi00777", TeamRole.Player),
+            DemoMember("KiMeST", "KiMeST__", TeamRole.Player),
+            DemoMember("Lil", "lil84330", TeamRole.Player)
+        });
+
+        EaProfiles.Clear();
+        EaProfiles.AddRange(new[]
+        {
+            DemoProfile("1001", "KoffiMarvelous", "Koffi", "Milieu", 742, 52, 311, 404, 7.8, 182, 85, 27, 13201, 16710, 79, 912, 3800, 24, 0, 4, 0, 93, 1, 4),
+            DemoProfile("1002", "ginga_blaze", "Blaze", "Attaquant", 238, 55, 220, 204, 8.3, 168, 86, 37, 4448, 5700, 78, 344, 2150, 16, 0, 0, 0, 85, 0, 2),
+            DemoProfile("1003", "caboss_238", "Caboss", "Ailier", 368, 55, 232, 212, 7.8, 171, 87, 43, 7317, 9030, 81, 334, 902, 37, 0, 2, 0, 59, 0, 1),
+            DemoProfile("1004", "Le_Siak69", "Siak", "Buteur", 222, 61, 208, 150, 7.8, 166, 88, 39, 6095, 7087, 86, 138, 511, 27, 0, 0, 0, 46, 0, 3),
+            DemoProfile("1005", "Mk_Amazigh", "Amazigh", "Ailier", 222, 54, 207, 81, 7.8, 170, 88, 45, 4522, 5514, 82, 236, 1072, 22, 0, 1, 0, 29, 0, 2),
+            DemoProfile("1006", "zerug0_", "Zerugo", "Milieu", 129, 64, 105, 107, 7.8, 182, 84, 36, 3864, 4600, 84, 174, 458, 38, 0, 3, 0, 25, 0, 1),
+            DemoProfile("1007", "Tchollismo", "Tcholli", "Defenseur", 78, 64, 29, 26, 7.1, 175, 88, 42, 2112, 2400, 88, 40, 118, 34, 0, 8, 0, 10, 1, 0),
+            DemoProfile("1008", "youyou-gaminges", "Youyou", "Attaquant", 36, 47, 36, 22, 7.8, 169, 89, 50, 1170, 1360, 86, 18, 120, 15, 0, 0, 0, 5, 0, 1),
+            DemoProfile("1009", "Moussi00777", "Moussi", "Defenseur", 293, 51, 10, 24, 7.1, 182, 87, 25, 6630, 7800, 85, 270, 964, 28, 0, 18, 0, 12, 2, 0),
+            DemoProfile("1010", "KiMeST__", "KiMeST", "Milieu defensif", 57, 57, 28, 19, 7.7, 174, 88, 30, 1826, 2200, 83, 91, 314, 29, 0, 4, 0, 9, 0, 0),
+            DemoProfile("1011", "lil84330", "Lil", "Gardien", 34, 67, 6, 4, 6.4, 178, 89, 31, 957, 1100, 87, 15, 38, 39, 91, 2, 7, 2, 0, 0)
+        });
+
+        EaMembers = new EaMemberStatsSummaryResponse(
+            DemoTeamId,
+            DemoClubId,
+            "common-gen5",
+            DateTimeOffset.UtcNow.AddMinutes(-12),
+            EaProfiles.Count,
+            EaProfiles.Select(player => new EaPlayerStatsResponse(player.PlayerName, player.PlayerName, player.Matches, player.Goals, player.Assists, player.AverageRating, player.Position)).ToArray());
+
+        EaFriendlies.Clear();
+        EaFriendlies.AddRange(new[]
+        {
+            DemoMatch("775140966150279", DateTimeOffset.UtcNow.AddHours(-2).AddMinutes(-8), "TheSurvivors", 0, "HOF 221", 3, 22),
+            DemoMatch("775140966150278", DateTimeOffset.UtcNow.AddHours(-2).AddMinutes(-29), "TheSurvivors", 0, "HOF 221", 0, 21),
+            DemoMatch("775140966150277", DateTimeOffset.UtcNow.AddHours(-2).AddMinutes(-41), "TheSurvivors", 3, "akrapo 7", 1, 20),
+            DemoMatch("775140966150276", DateTimeOffset.UtcNow.AddHours(-3).AddMinutes(-4), "TheSurvivors", 2, "FC Toho", 1, 22),
+            DemoMatch("775140966150275", DateTimeOffset.UtcNow.AddHours(-3).AddMinutes(-22), "TheSurvivors", 1, "VPG Lions", 1, 21)
+        });
+
+        DemoFriendlyDetails.Clear();
+        foreach (var match in EaFriendlies)
+        {
+            DemoFriendlyDetails[match.EaMatchId] = BuildDemoFriendlyDetails(match);
+        }
+
+        SelectedFriendlyDetails = DemoFriendlyDetails[EaFriendlies[0].EaMatchId];
+    }
+
+    private static TeamMemberResponse DemoMember(string displayName, string gamertag, TeamRole role)
+    {
+        return new TeamMemberResponse(Guid.NewGuid(), displayName, gamertag, role, MembershipStatus.Active, DateTimeOffset.UtcNow.AddMonths(-2), DemoTeamId, "TheSurvivors", "TSV");
+    }
+
+    private static EaPlayerProfileSnapshotResponse DemoProfile(
+        string eaPlayerId,
+        string playerName,
+        string proName,
+        string position,
+        int matches,
+        int winRate,
+        int goals,
+        int assists,
+        double rating,
+        int height,
+        int overall,
+        int shotRate,
+        int passesMade,
+        int passAttempts,
+        double passRate,
+        int tacklesMade,
+        int tackleAttempts,
+        double tackleRate,
+        int saves,
+        int cleanSheets,
+        int cleanSheetsGk,
+        int motm,
+        int redCards,
+        int prevGoals)
+    {
+        return new EaPlayerProfileSnapshotResponse(eaPlayerId, playerName, proName, position, matches, winRate, goals, assists, rating, height, null, overall, null, shotRate, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, cleanSheets, cleanSheetsGk, motm, redCards, prevGoals, DateTimeOffset.UtcNow.AddMinutes(-12));
+    }
+
+    private static EaFriendlyMatchResponse DemoMatch(string id, DateTimeOffset playedAt, string homeName, int homeScore, string awayName, int awayScore, int playerStats)
+    {
+        var awayClubId = awayName == "HOF 221" ? 40142 : 702221;
+        return new EaFriendlyMatchResponse(id, playedAt, "friendlyMatch", DemoClubId, homeName, homeScore, awayClubId, awayName, awayScore, playerStats);
+    }
+
+    private static EaFriendlyMatchDetailsResponse BuildDemoFriendlyDetails(EaFriendlyMatchResponse match)
+    {
+        var awayWon = match.AwayScore > match.HomeScore;
+        var clubStats = new[]
+        {
+            new EaMatchClubStatResponse(match.HomeEaClubId, match.HomeScore, Math.Max(match.HomeScore - 1, 0), 72.0, 4 + match.HomeScore, 96, 136, 70.6, 4, 41, 9.8, 6, match.AwayScore, 0, awayWon ? 0 : 1),
+            new EaMatchClubStatResponse(match.AwayEaClubId, match.AwayScore, Math.Max(match.AwayScore - 1, 0), 75.8, 8 + match.AwayScore, 135, 164, 82.3, 4, 10, 40.0, 2, match.HomeScore, 0, awayWon ? 1 : 0)
+        };
+
+        var playerStats = new[]
+        {
+            DemoPlayerStat(match.HomeEaClubId, "1001", "KoffiMarvelous", "Milieu", match.HomeScore > 0 ? 1 : 0, 0, 7.1, !awayWon && match.HomeScore > 0, 1, 37, 49, 75.5, 3, 10, 30),
+            DemoPlayerStat(match.HomeEaClubId, "1002", "ginga_blaze", "Attaquant", match.HomeScore > 1 ? 1 : 0, 1, 7.4, false, 3, 22, 28, 78.5, 1, 5, 20),
+            DemoPlayerStat(match.HomeEaClubId, "1003", "caboss_238", "Ailier", match.HomeScore > 2 ? 1 : 0, 1, 7.0, false, 2, 24, 31, 77.4, 0, 3, 0),
+            DemoPlayerStat(match.HomeEaClubId, "1007", "Tchollismo", "Defenseur", 0, 0, 6.6, false, 0, 41, 48, 85.4, 3, 8, 37.5),
+            DemoPlayerStat(match.HomeEaClubId, "1011", "lil84330", "Gardien", 0, 0, 6.8, false, 0, 14, 18, 77.8, 0, 1, 0, 6, match.AwayScore),
+            DemoPlayerStat(match.AwayEaClubId, "9001", "Xndambe40__", "Attaquant", match.AwayScore > 0 ? 1 : 0, 0, 7.7, false, 4, 18, 21, 85.7, 0, 2, 0),
+            DemoPlayerStat(match.AwayEaClubId, "9002", "IDRdemon", "Milieu", match.AwayScore > 1 ? 1 : 0, 1, 8.2, awayWon, 2, 46, 54, 85.2, 2, 5, 40),
+            DemoPlayerStat(match.AwayEaClubId, "9003", "Hof_Killer", "Ailier", match.AwayScore > 2 ? 1 : 0, 1, 7.9, false, 3, 31, 39, 79.5, 1, 3, 33.3)
+        };
+
+        return new EaFriendlyMatchDetailsResponse(match, clubStats, playerStats, """{"source":"demo-cache","club":"TheSurvivors","note":"Payload local base sur les champs utiles ProClubTracker/EA."}""");
+    }
+
+    private static EaMatchPlayerStatResponse DemoPlayerStat(
+        long clubId,
+        string eaPlayerId,
+        string playerName,
+        string position,
+        int goals,
+        int assists,
+        double rating,
+        bool motm,
+        int shots,
+        int passesMade,
+        int passAttempts,
+        double passRate,
+        int tacklesMade,
+        int tackleAttempts,
+        double tackleRate,
+        int saves = 0,
+        int conceded = 0)
+    {
+        return new EaMatchPlayerStatResponse(clubId, eaPlayerId, playerName, position, goals, assists, rating, motm, shots, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, conceded, 540, null, 0, 0, position == "Gardien" ? 1 : 0, saves / 2, 0, saves / 2, 0, 0, saves, 0, 540, 540, 0, null, null, null, null, null);
+    }
+
+    private sealed class TeamModel
+    {
+        public string Name { get; set; } = "TheSurvivors";
+        public string? ShortName { get; set; } = "TSV";
+        public string? Region { get; set; } = "France";
+        public string? Description { get; set; } = "Competitive FC26 club ready for night tournaments.";
+        public long? EaClubId { get; set; }
+        public string? LogoUrl { get; set; }
+        public string? BannerUrl { get; set; }
+    }
+
+    private sealed class JoinModel
+    {
+        public string InviteCode { get; set; } = "";
+    }
+
+    private sealed record DemoTournamentTeamStats(int TournamentsPlayed, string Record, string BestRun, string KeyPlayer);
+
+    private sealed record PlayerSheetModel(
+        string Name,
+        string EaPlayerId,
+        string ProName,
+        string Position,
+        string Source,
+        bool HasApp,
+        string Matches,
+        string Goals,
+        string Assists,
+        string HeightLabel,
+        string OverallLabel,
+        string RatingLabel,
+        string PlayerOfTheMatchLabel,
+        string PassRateLabel,
+        string TackleRateLabel,
+        string ShotRateLabel)
+    {
+        public static PlayerSheetModel FromProfile(EaPlayerProfileSnapshotResponse player, bool hasApp)
+        {
+            return new PlayerSheetModel(
+                player.PlayerName,
+                player.EaPlayerId,
+                player.ProName ?? player.PlayerName,
+                player.Position ?? "Poste inconnu",
+                "Profil EA enrichi",
+                hasApp,
+                player.Matches?.ToString() ?? "-",
+                player.Goals?.ToString() ?? "-",
+                player.Assists?.ToString() ?? "-",
+                player.Height?.ToString() is { } height ? $"{height} cm" : "-",
+                player.Overall?.ToString() ?? "-",
+                player.AverageRating?.ToString("0.0") ?? "-",
+                player.PlayerOfTheMatch?.ToString() ?? "-",
+                player.PassSuccessRate?.ToString("0") is { } pass ? $"{pass}%" : "-",
+                player.TackleSuccessRate?.ToString("0") is { } tackle ? $"{tackle}%" : "-",
+                player.ShotSuccessRate?.ToString() is { } shot ? $"{shot}%" : "-");
+        }
+
+        public static PlayerSheetModel FromMatchStat(EaMatchPlayerStatResponse stat, EaPlayerProfileSnapshotResponse? profile, bool hasApp)
+        {
+            return new PlayerSheetModel(
+                stat.PlayerName,
+                stat.EaPlayerId,
+                profile?.ProName ?? stat.PlayerName,
+                stat.Position ?? profile?.Position ?? "Poste inconnu",
+                stat.PlayerOfTheMatch ? "Detail match EA - homme du match" : "Detail match EA",
+                hasApp,
+                profile?.Matches?.ToString() ?? "Match selectionne",
+                stat.Goals?.ToString() ?? "0",
+                stat.Assists?.ToString() ?? "0",
+                profile?.Height?.ToString() is { } height ? $"{height} cm" : "-",
+                profile?.Overall?.ToString() ?? "-",
+                stat.Rating?.ToString("0.0") ?? profile?.AverageRating?.ToString("0.0") ?? "-",
+                stat.PlayerOfTheMatch ? "Oui" : profile?.PlayerOfTheMatch?.ToString() ?? "-",
+                stat.PassSuccessRate?.ToString("0") is { } pass ? $"{pass}%" : "-",
+                stat.TackleSuccessRate?.ToString("0") is { } tackle ? $"{tackle}%" : "-",
+                stat.Shots?.ToString() ?? "-");
+        }
+
+        public static PlayerSheetModel FromMember(TeamMemberResponse member)
+        {
+            return new PlayerSheetModel(
+                member.DisplayName,
+                member.Gamertag ?? member.DisplayName,
+                member.DisplayName,
+                member.Role.ToString(),
+                "Compte TS Tournament",
+                true,
+                "-",
+                "-",
+                "-",
+                "-",
+                "-",
+                "-",
+                "-",
+                "-",
+                "-",
+                "-");
+        }
+
+        public static PlayerSheetModel FromName(string playerName)
+        {
+            return new PlayerSheetModel(playerName, playerName, playerName, "A synchroniser", "Profil a completer", false, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+        }
+    }
+}

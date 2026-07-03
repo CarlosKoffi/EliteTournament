@@ -1,0 +1,52 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthState AuthState
+
+<div class="page">
+    <aside class="sidebar">
+        <NavMenu />
+    </aside>
+
+    <main class="shell">
+        <nav class="league-bar global-league-nav">
+            <a href="">Accueil</a>
+            <a href="tournaments">Tournois</a>
+            @if (AuthState.IsAuthenticated)
+            {
+                <a href="mercato">Mercato</a>
+                <a href="teams">Mon equipe</a>
+                <a href="account">Mon compte</a>
+            }
+            else
+            {
+                <span>Mercato</span>
+                <a href="login">Se connecter</a>
+                <a href="account">Creer un compte</a>
+            }
+        </nav>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthState.Changed += StateHasChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await AuthState.InitializeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthState.Changed -= StateHasChanged;
+    }
+}

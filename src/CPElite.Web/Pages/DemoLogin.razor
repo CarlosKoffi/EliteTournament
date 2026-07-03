@@ -1,0 +1,50 @@
+@page "/demo-login"
+@using CPElite.Contracts.Common
+@inject ApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>TS Tournament - Demo</PageTitle>
+
+<section class="page-title">
+    <p class="eyebrow">Session locale</p>
+    <h1>Connexion demo</h1>
+    <p>@Message</p>
+</section>
+
+@code {
+    private const string DemoEmail = "demo@ts.local";
+    private const string DemoPassword = "Password123";
+    private string Message = "Preparation du compte KoffiMarvelous...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var login = await Api.LoginAsync(new LoginRequest(DemoEmail, DemoPassword));
+        if (!login.Success || login.Value is null)
+        {
+            var register = await Api.RegisterAsync(new RegisterPlayerRequest(
+                DemoEmail,
+                DemoPassword,
+                "KoffiMarvelous",
+                "KoffiMarvelous",
+                "KoffiMarvelous",
+                Platform.CrossPlay,
+                "fr",
+                "Europe/Zurich",
+                "discord-demo",
+                2148207,
+                "TheSurvivors"));
+
+            if (!register.Success || register.Value is null)
+            {
+                Message = register.Error ?? login.Error ?? "Impossible de creer la session demo.";
+                return;
+            }
+
+            login = register;
+        }
+
+        await AuthState.SetSessionAsync(login.Value);
+        Navigation.NavigateTo("/");
+    }
+}

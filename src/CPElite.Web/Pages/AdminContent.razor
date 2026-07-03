@@ -1,0 +1,200 @@
+@page "/admin/content"
+@using CPElite.Contracts.Content
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament - Textes admin</PageTitle>
+
+<section class="page-title">
+    <p class="eyebrow">Admin contenu</p>
+    <h1>Textes traduisibles</h1>
+    <p>Chaque libelle important doit devenir une cle modifiable ici, avec une version francaise et anglaise.</p>
+</section>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <section class="panel">
+        <h2>Connexion requise</h2>
+        <p class="muted">Connecte-toi pour modifier les textes de l'application.</p>
+    </section>
+}
+else
+{
+    <section class="section-grid">
+        <article class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Catalogue</p>
+                    <h2>Textes @Language.ToUpperInvariant()</h2>
+                </div>
+                <button class="ghost-action" @onclick="LoadContentAsync" disabled="@Busy">Rafraichir</button>
+            </div>
+
+            <label>Langue
+                <select @onchange="ChangeLanguageAsync">
+                    <option value="fr" selected="@(Language == "fr")">Francais</option>
+                    <option value="en" selected="@(Language == "en")">English</option>
+                </select>
+            </label>
+
+            @if (Items.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun texte pour cette langue</strong>
+                    <p>Ajoute une premiere cle. Exemple: `nav.home`, `home.hero.title`, `tournaments.join.cta`.</p>
+                </div>
+            }
+            else
+            {
+                <div class="performance-list">
+                    @foreach (var item in Items)
+                    {
+                        <article class="clickable-card" @onclick="() => EditItem(item)">
+                            <div>
+                                <strong>@item.Key</strong>
+                                <span>@(item.Section ?? "General") - @item.Description</span>
+                            </div>
+                            <div class="ea-data-strip">
+                                <b>@item.Language.ToUpperInvariant()</b>
+                                <b>@item.UpdatedAt.LocalDateTime.ToString("dd/MM HH:mm")</b>
+                            </div>
+                            <p>@item.Value</p>
+                        </article>
+                    }
+                </div>
+            }
+        </article>
+
+        <article class="panel">
+            <div class="panel-heading">
+                <p class="eyebrow">Edition</p>
+                <h2>@(EditingExisting ? "Modifier texte" : "Nouveau texte")</h2>
+            </div>
+
+            <EditForm Model="Form" OnValidSubmit="SaveAsync">
+                <div class="form-grid">
+                    <label>Cle
+                        <input @bind="Form.Key" @bind:event="oninput" placeholder="ex: nav.home" />
+                    </label>
+                    <label>Langue
+                        <input @bind="Form.Language" @bind:event="oninput" />
+                    </label>
+                    <label>Section
+                        <input @bind="Form.Section" @bind:event="oninput" placeholder="Navigation, Accueil, Tournois..." />
+                    </label>
+                    <label>Description
+                        <input @bind="Form.Description" @bind:event="oninput" placeholder="Ou ce texte apparait" />
+                    </label>
+                </div>
+                <label>Texte
+                    <textarea @bind="Form.Value" @bind:event="oninput" rows="6"></textarea>
+                </label>
+                <div class="action-row">
+                    <button class="primary-action" disabled="@Busy">Sauvegarder</button>
+                    <button type="button" class="ghost-action" @onclick="NewItem">Nouveau</button>
+                </div>
+            </EditForm>
+        </article>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    private List<ContentItemResponse> Items { get; } = [];
+    private ContentForm Form { get; } = new();
+    private string Language { get; set; } = "fr";
+    private bool Busy;
+    private bool EditingExisting;
+    private string? Message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Form.Language = Language;
+        await LoadContentAsync();
+    }
+
+    private async Task LoadContentAsync()
+    {
+        Busy = true;
+        Message = null;
+        var result = await Api.GetContentCatalogAsync(Language);
+        Busy = false;
+
+        Items.Clear();
+        if (result.Value is not null)
+        {
+            Items.AddRange(result.Value.Items);
+        }
+
+        if (!result.Success)
+        {
+            Message = result.Error;
+        }
+    }
+
+    private async Task ChangeLanguageAsync(ChangeEventArgs args)
+    {
+        Language = args.Value?.ToString() == "en" ? "en" : "fr";
+        Form.Language = Language;
+        await LoadContentAsync();
+    }
+
+    private void EditItem(ContentItemResponse item)
+    {
+        EditingExisting = true;
+        Form.Key = item.Key;
+        Form.Language = item.Language;
+        Form.Value = item.Value;
+        Form.Section = item.Section;
+        Form.Description = item.Description;
+    }
+
+    private void NewItem()
+    {
+        EditingExisting = false;
+        Form.Key = "";
+        Form.Language = Language;
+        Form.Value = "";
+        Form.Section = "";
+        Form.Description = "";
+        Message = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        Busy = true;
+        Message = null;
+
+        var result = await Api.UpsertContentItemAsync(new UpsertContentItemRequest(
+            Form.Key,
+            Form.Language,
+            Form.Value,
+            Form.Section,
+            Form.Description));
+
+        Busy = false;
+        if (!result.Success)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        Language = string.IsNullOrWhiteSpace(Form.Language) ? "fr" : Form.Language.Trim().ToLowerInvariant();
+        await LoadContentAsync();
+        Message = "Texte sauvegarde en base.";
+        EditingExisting = true;
+    }
+
+    private sealed class ContentForm
+    {
+        public string Key { get; set; } = "";
+        public string Language { get; set; } = "fr";
+        public string Value { get; set; } = "";
+        public string? Section { get; set; }
+        public string? Description { get; set; }
+    }
+}
