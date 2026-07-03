@@ -83,7 +83,7 @@
     protected override async Task OnInitializedAsync()
     {
         AuthState.Changed += OnAuthChanged;
-        await LoadIdentityAsync();
+        await SafeLoadIdentityAsync();
     }
 
     private void ToggleNavMenu()
@@ -100,9 +100,23 @@
     {
         _ = InvokeAsync(async () =>
         {
-            await LoadIdentityAsync();
+            await SafeLoadIdentityAsync();
             StateHasChanged();
         });
+    }
+
+    private async Task SafeLoadIdentityAsync()
+    {
+        try
+        {
+            await LoadIdentityAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Navigation identity loading failed. {ex.Message}");
+            TeamName = null;
+            RoleName = null;
+        }
     }
 
     private async Task LoadIdentityAsync()

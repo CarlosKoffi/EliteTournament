@@ -20,6 +20,11 @@ public sealed class ApiClient
 
     public ApiClient(string apiBaseUrl)
     {
+        if (string.IsNullOrWhiteSpace(apiBaseUrl))
+        {
+            throw new ArgumentException("API base URL is required.", nameof(apiBaseUrl));
+        }
+
         _http = new HttpClient { BaseAddress = new Uri(apiBaseUrl.TrimEnd('/') + "/") };
         _jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         _jsonOptions.Converters.Add(new JsonStringEnumConverter());
@@ -193,6 +198,7 @@ public sealed class ApiClient
         }
         catch (Exception ex)
         {
+            Console.Error.WriteLine($"API call failed: {method} {path} - {ex.Message}");
             return ApiResult<T>.Fail(ex.Message);
         }
     }

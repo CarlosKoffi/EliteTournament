@@ -1,7 +1,21 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
+<Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        <ErrorBoundary>
+            <ChildContent>
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </ChildContent>
+            <ErrorContent>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <section class="empty-state" role="alert">
+                        <p class="eyebrow">Erreur interface</p>
+                        <h1>La page n'a pas pu etre chargee.</h1>
+                        <p>Recharge la page. Si le probleme continue, reconnecte-toi pour recreer une session propre.</p>
+                        <a class="button-link" href="/">Retour accueil</a>
+                    </section>
+                </LayoutView>
+            </ErrorContent>
+        </ErrorBoundary>
     </Found>
     <NotFound>
         <PageTitle>TS Tournament - Page introuvable</PageTitle>

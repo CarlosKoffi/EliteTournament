@@ -41,7 +41,14 @@
     {
         if (firstRender)
         {
-            await AuthState.InitializeAsync();
+            try
+            {
+                await AuthState.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Main layout auth initialization failed. {ex.Message}");
+            }
         }
     }
 

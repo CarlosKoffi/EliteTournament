@@ -1,5 +1,6 @@
 using CPElite.Contracts.Auth;
 using Microsoft.JSInterop;
+using System.Text.Json;
 
 namespace CPElite.Web.Services;
 
@@ -9,6 +10,7 @@ public sealed class AuthState
     private const string UserKey = "cpelite.user";
     private readonly ApiClient _api;
     private readonly IJSRuntime _js;
+    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
     public AuthState(ApiClient api, IJSRuntime js)
     {
@@ -24,37 +26,114 @@ public sealed class AuthState
 
     public async Task InitializeAsync()
     {
-        var token = await _js.InvokeAsync<string?>("localStorage.getItem", TokenKey);
-        var userJson = await _js.InvokeAsync<string?>("localStorage.getItem", UserKey);
-        _api.Token = token;
-        User = string.IsNullOrWhiteSpace(userJson)
-            ? null
-            : System.Text.Json.JsonSerializer.Deserialize<UserSummaryResponse>(userJson, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-        Changed?.Invoke();
+        try
+        {
+            var token = await _js.InvokeAsync<string?>("localStorage.getItem", TokenKey);
+            var userJson = await _js.InvokeAsync<string?>("localStorage.getItem", UserKey);
+            _api.Token = token;
+            User = DeserializeUser(userJson);
+
+            if (!string.IsNullOrWhiteSpace(userJson) && User is null)
+            {
+                await ClearStoredSessionAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Auth initialization failed. Falling back to guest session. {ex.Message}");
+            _api.Token = null;
+            User = null;
+            await TryClearStoredSessionAsync();
+        }
+
+        NotifyChanged();
     }
 
     public async Task SetSessionAsync(AuthResponse response)
     {
         _api.Token = response.AccessToken;
         User = response.User;
-        await _js.InvokeVoidAsync("localStorage.setItem", TokenKey, response.AccessToken);
-        await _js.InvokeVoidAsync("localStorage.setItem", UserKey, System.Text.Json.JsonSerializer.Serialize(response.User));
-        Changed?.Invoke();
+        try
+        {
+            await _js.InvokeVoidAsync("localStorage.setItem", TokenKey, response.AccessToken);
+            await _js.InvokeVoidAsync("localStorage.setItem", UserKey, JsonSerializer.Serialize(response.User, _jsonOptions));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to persist auth session in localStorage. {ex.Message}");
+        }
+
+        NotifyChanged();
     }
 
     public async Task UpdateUserAsync(UserSummaryResponse user)
     {
         User = user;
-        await _js.InvokeVoidAsync("localStorage.setItem", UserKey, System.Text.Json.JsonSerializer.Serialize(user));
-        Changed?.Invoke();
+        try
+        {
+            await _js.InvokeVoidAsync("localStorage.setItem", UserKey, JsonSerializer.Serialize(user, _jsonOptions));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to persist user session in localStorage. {ex.Message}");
+        }
+
+        NotifyChanged();
     }
 
     public async Task SignOutAsync()
     {
         _api.Token = null;
         User = null;
+        await TryClearStoredSessionAsync();
+        NotifyChanged();
+    }
+
+    private UserSummaryResponse? DeserializeUser(string? userJson)
+    {
+        if (string.IsNullOrWhiteSpace(userJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<UserSummaryResponse>(userJson, _jsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            Console.Error.WriteLine($"Stored auth user is invalid and will be cleared. {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task TryClearStoredSessionAsync()
+    {
+        try
+        {
+            await ClearStoredSessionAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Unable to clear auth session from localStorage. {ex.Message}");
+        }
+    }
+
+    private async Task ClearStoredSessionAsync()
+    {
         await _js.InvokeVoidAsync("localStorage.removeItem", TokenKey);
         await _js.InvokeVoidAsync("localStorage.removeItem", UserKey);
-        Changed?.Invoke();
+    }
+
+    private void NotifyChanged()
+    {
+        try
+        {
+            Changed?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Auth state change notification failed. {ex.Message}");
+        }
     }
 }
