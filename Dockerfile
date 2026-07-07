@@ -26,6 +26,7 @@ RUN rm -rf /app/api/wwwroot \
     && test -f /app/api/wwwroot/_framework/blazor.webassembly.js \
     && test -f /app/api/wwwroot/_framework/blazor.boot.json \
     && test -f /app/api/wwwroot/CPElite.Web.styles.css \
+    && find /app/api/wwwroot/_framework -maxdepth 1 -type f -name 'icudt_EFIGS*.dat' | grep -q . \
     && grep -o '"[^"]*\.\(wasm\|dat\|js\)"[[:space:]]*:' /app/api/wwwroot/_framework/blazor.boot.json \
         | cut -d '"' -f 2 \
         | while read asset; do \
@@ -46,5 +47,9 @@ ENV PORT=8080
 EXPOSE 8080
 
 COPY --from=build /app/api ./
+RUN test -f /app/wwwroot/index.html \
+    && test -f /app/wwwroot/_framework/blazor.webassembly.js \
+    && test -f /app/wwwroot/_framework/blazor.boot.json \
+    && find /app/wwwroot/_framework -maxdepth 1 -type f -name 'icudt_EFIGS*.dat' | grep -q .
 
 ENTRYPOINT ["dotnet", "CPElite.Api.dll"]
