@@ -5,6 +5,7 @@ using CPElite.Infrastructure;
 using CPElite.Infrastructure.Data;
 using CPElite.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -75,7 +76,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("WebClient");
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = CreateBlazorContentTypeProvider()
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -133,6 +137,17 @@ static bool HasPublishedBlazorApp(string? webRootPath)
     }
 
     return File.Exists(Path.Combine(webRootPath, "index.html"));
+}
+
+static FileExtensionContentTypeProvider CreateBlazorContentTypeProvider()
+{
+    var provider = new FileExtensionContentTypeProvider();
+    provider.Mappings[".dat"] = "application/octet-stream";
+    provider.Mappings[".wasm"] = "application/wasm";
+    provider.Mappings[".dll"] = "application/octet-stream";
+    provider.Mappings[".br"] = "application/octet-stream";
+    provider.Mappings[".gz"] = "application/gzip";
+    return provider;
 }
 
 static void LogWebHostStartupInfo(WebApplication app, ILogger logger)
