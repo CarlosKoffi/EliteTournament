@@ -18,6 +18,7 @@ RUN dotnet restore CPElite.sln
 COPY . .
 
 RUN dotnet publish src/CPElite.Web/CPElite.Web.csproj -c Release -o /app/web
+RUN find / -name "icudt_EFIGS*.dat" -print
 RUN dotnet publish src/CPElite.Api/CPElite.Api.csproj -c Release -o /app/api /p:UseAppHost=false
 RUN rm -rf /app/api/wwwroot \
     && mkdir -p /app/api/wwwroot \
@@ -47,9 +48,11 @@ ENV PORT=8080
 EXPOSE 8080
 
 COPY --from=build /app/api ./
+RUN find /app -name "icudt_EFIGS*.dat" -print
 RUN test -f /app/wwwroot/index.html \
     && test -f /app/wwwroot/_framework/blazor.webassembly.js \
     && test -f /app/wwwroot/_framework/blazor.boot.json \
+    && test -f /app/wwwroot/_framework/icudt_EFIGS.tptq2av103.dat \
     && find /app/wwwroot/_framework -maxdepth 1 -type f -name 'icudt_EFIGS*.dat' | grep -q .
 
 ENTRYPOINT ["dotnet", "CPElite.Api.dll"]
