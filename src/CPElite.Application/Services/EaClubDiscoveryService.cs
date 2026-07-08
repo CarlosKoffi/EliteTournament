@@ -31,7 +31,18 @@ public sealed class EaClubDiscoveryService
         "mom",
         "platform",
         "height",
-        "weight"
+        "proHeight",
+        "weight",
+        "proWeight",
+        "role",
+        "clubRole",
+        "memberRole",
+        "isManager",
+        "manager",
+        "isCaptain",
+        "captain",
+        "isAdmin",
+        "clubAdmin"
     ];
 
     private readonly IEaDiagnosticsClient _client;
@@ -155,6 +166,8 @@ public sealed class EaClubDiscoveryService
         var players = ParseClubRoster(response.RawBody, activeRosterKeys).ToArray();
         for (var index = 0; index < players.Length; index++)
         {
+            players[index] = EnrichRosterPlayer(players[index], response.RawBody, players[index].PlayerName, resolvedPlatform, clubId);
+
             var appUser = await _users.GetByEaIdentityAsync(players[index].EaPlayerId, players[index].PlayerName, players[index].ProName, cancellationToken);
             if (appUser is not null)
             {
@@ -171,6 +184,41 @@ public sealed class EaClubDiscoveryService
 
         var clubName = TryReadClubName(response.RawBody);
         return Result<EaClubRosterResponse>.Success(new EaClubRosterResponse(clubId, resolvedPlatform, clubName, players));
+    }
+
+    private static EaClubRosterPlayerResponse EnrichRosterPlayer(EaClubRosterPlayerResponse player, string rawJson, string lookupName, string platform, long clubId)
+    {
+        var fields = ExtractPlayerFields(rawJson, lookupName);
+        if (fields.Count == 0 && !string.Equals(player.EaPlayerId, lookupName, StringComparison.OrdinalIgnoreCase))
+        {
+            fields = ExtractPlayerFields(rawJson, player.EaPlayerId);
+        }
+
+        if (fields.Count == 0)
+        {
+            return player;
+        }
+
+        var enrichedFields = new Dictionary<string, string?>(fields, StringComparer.OrdinalIgnoreCase)
+        {
+            ["platform"] = platform,
+            ["clubId"] = clubId.ToString()
+        };
+
+        return player with
+        {
+            ProName = string.IsNullOrWhiteSpace(player.ProName) ? ReadField(enrichedFields, "proName", "clubName") : player.ProName,
+            Position = string.IsNullOrWhiteSpace(player.Position) ? ReadField(enrichedFields, "position", "favoritePosition", "pos") : player.Position,
+            Overall = player.Overall ?? ReadIntField(enrichedFields, "overall", "rating", "proOverall"),
+            Height = player.Height ?? ReadHeightCm(enrichedFields),
+            Weight = player.Weight ?? ReadWeightKg(enrichedFields),
+            Matches = player.Matches ?? ReadIntField(enrichedFields, "matches", "gamesPlayed"),
+            Goals = player.Goals ?? ReadIntField(enrichedFields, "goals"),
+            Assists = player.Assists ?? ReadIntField(enrichedFields, "assists"),
+            AverageRating = player.AverageRating ?? ReadDoubleField(enrichedFields, "averageRating", "ratingAve", "rating"),
+            IsManager = player.IsManager || ReadIsManager(enrichedFields),
+            ExtraFields = enrichedFields
+        };
     }
 
     private static IEnumerable<EaClubSearchResultResponse> ParseClubResults(string rawJson, string platform)
@@ -387,7 +435,8 @@ public sealed class EaClubDiscoveryService
                 FindInt(item, "matches", "gamesPlayed"),
                 FindInt(item, "goals"),
                 FindInt(item, "assists"),
-                FindDouble(item, "averageRating", "ratingAve", "rating"));
+                FindDouble(item, "averageRating", "ratingAve", "rating"),
+                IsManager: ReadIsManager(item));
         }
     }
 
@@ -429,6 +478,167 @@ public sealed class EaClubDiscoveryService
         }
 
         return value is >= 45 and <= 120 ? value : null;
+    }
+
+    private static bool ReadIsManager(JsonElement item)
+    {
+        if (FindBool(item, "isManager", "manager", "isCaptain", "captain", "isAdmin", "clubAdmin", "isOwner", "owner") is { } flag)
+        {
+            return flag;
+        }
+
+        var role = FindString(item, "role", "clubRole", "memberRole", "memberType", "accessLevel", "title");
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return false;
+        }
+
+        return role.Contains("manager", StringComparison.OrdinalIgnoreCase)
+            || role.Contains("owner", StringComparison.OrdinalIgnoreCase)
+            || role.Contains("admin", StringComparison.OrdinalIgnoreCase)
+            || role.Contains("captain", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("gm", StringComparison.OrdinalIgnoreCase)
+            || role.Equals("co-gm", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ReadField(IReadOnlyDictionary<string, string?> fields, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (fields.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ReadIntField(IReadOnlyDictionary<string, string?> fields, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (fields.TryGetValue(name, out var value) && int.TryParse(value, out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static double? ReadDoubleField(IReadOnlyDictionary<string, string?> fields, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (fields.TryGetValue(name, out var value) &&
+                double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ReadHeightCm(IReadOnlyDictionary<string, string?> fields)
+    {
+        var value = ReadIntField(fields, "proHeight", "height", "playerHeight", "avatarHeight", "virtualProHeight");
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is >= 55 and <= 90)
+        {
+            return (int)Math.Round(value.Value * 2.54);
+        }
+
+        return value is >= 120 and <= 230 ? value : null;
+    }
+
+    private static int? ReadWeightKg(IReadOnlyDictionary<string, string?> fields)
+    {
+        var value = ReadIntField(fields, "proWeight", "weight", "playerWeight", "avatarWeight", "virtualProWeight");
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is > 110 and <= 260)
+        {
+            return (int)Math.Round(value.Value * 0.45359237);
+        }
+
+        return value is >= 45 and <= 120 ? value : null;
+    }
+
+    private static bool ReadIsManager(IReadOnlyDictionary<string, string?> fields)
+    {
+        foreach (var name in new[] { "isManager", "manager", "isCaptain", "captain", "isAdmin", "clubAdmin", "isOwner", "owner" })
+        {
+            var value = ReadField(fields, name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (bool.TryParse(value, out var parsedBool))
+            {
+                return parsedBool;
+            }
+
+            if (int.TryParse(value, out var parsedNumber))
+            {
+                return parsedNumber != 0;
+            }
+        }
+
+        var role = ReadField(fields, "role", "clubRole", "memberRole", "memberType", "accessLevel", "title");
+        return !string.IsNullOrWhiteSpace(role) &&
+            (role.Contains("manager", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("owner", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("admin", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("captain", StringComparison.OrdinalIgnoreCase)
+             || role.Equals("gm", StringComparison.OrdinalIgnoreCase)
+             || role.Equals("co-gm", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool? FindBool(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                return value.GetBoolean();
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+            {
+                return number != 0;
+            }
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var text = value.GetString();
+                if (bool.TryParse(text, out var parsed))
+                {
+                    return parsed;
+                }
+
+                if (int.TryParse(text, out var parsedNumber))
+                {
+                    return parsedNumber != 0;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static IReadOnlySet<string> ExtractActiveRosterKeys(string rawJson)

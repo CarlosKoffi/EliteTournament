@@ -16,4 +16,6 @@ public sealed record EaClubRosterPlayerResponse(
     Guid? ApplicationUserId = null,
     string? ApplicationDisplayName = null,
     long? ApplicationEaClubId = null,
-    string? ApplicationEaClubName = null);
+    string? ApplicationEaClubName = null,
+    bool IsManager = false,
+    IReadOnlyDictionary<string, string?>? ExtraFields = null);

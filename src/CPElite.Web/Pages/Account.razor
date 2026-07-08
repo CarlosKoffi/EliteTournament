@@ -177,14 +177,22 @@
             <div class="registration-roster">
                 @foreach (var player in RegistrationRoster)
                 {
-                    <button type="button" class="registration-player-card @(SelectedRegistrationPlayer?.EaPlayerId == player.EaPlayerId ? "selected" : "") @(player.IsInApplication ? "is-taken" : "")" @onclick="() => SelectRegistrationPlayer(player)" disabled="@player.IsInApplication">
+                    <button type="button" class="registration-player-card @(SelectedRegistrationPlayer?.EaPlayerId == player.EaPlayerId ? "selected" : "") @(player.IsInApplication ? "is-taken" : "")" @onclick="() => SelectRegistrationPlayerAsync(player)" disabled="@(player.IsInApplication || Busy)">
                         <span class="player-photo-ring">@GetInitials(player.PlayerName)</span>
-                        <span>
-                            <strong>@player.PlayerName</strong>
-                            <small>@(player.Position ?? "Poste ?") - @GetRosterPhysicalStatus(player) - @(player.Overall?.ToString() ?? "-") OVR</small>
-                            <em class="app-status @(player.IsInApplication ? "is-linked" : "is-unlinked")">
-                                @GetApplicationPlayerStatus(player)
-                            </em>
+                        <span class="registration-player-main">
+                            <span class="registration-player-topline">
+                                <strong>@player.PlayerName</strong>
+                                <em class="app-status @(player.IsInApplication ? "is-linked" : "is-unlinked")">@GetApplicationPlayerStatus(player)</em>
+                            </span>
+                            <small>@ValueOrMissing(player.ProName) - @FormatPosition(player.Position)</small>
+                            <span class="registration-player-stats">
+                                <b>@FormatMetric(player.Height, "cm")</b>
+                                <b>@FormatNumber(player.Matches) matchs</b>
+                                <b>@FormatNumber(player.Goals) buts</b>
+                                <b>@FormatNumber(player.Assists) assists</b>
+                                <b>@FormatRating(player.AverageRating) note</b>
+                                <b class="@(player.IsManager ? "manager-tag is-manager" : "manager-tag")">@(player.IsManager ? "Manager EA" : "Joueur")</b>
+                            </span>
                         </span>
                     </button>
                 }
@@ -237,6 +245,7 @@
                 <label>Display name <InputText @bind-Value="Register.DisplayName" /></label>
                 <label>Gamertag EA <InputText @bind-Value="Register.Gamertag" disabled /></label>
                 <label>EA Sports ID <InputText @bind-Value="Register.EaSportsId" disabled /></label>
+                <label>Manager EA ? <input value="@Register.EaManagerLabel" disabled /></label>
                 <label>Discord / PSN ID <InputText @bind-Value="Register.DiscordUserId" /></label>
                 <label>Platform
                     <InputSelect @bind-Value="Register.Platform" disabled>
@@ -378,6 +387,7 @@ else
         RegistrationRoster.Clear();
         SelectedRegistrationClub = null;
         SelectedRegistrationPlayer = null;
+        Register.IsEaManager = false;
         ResetPlayerClaim();
 
         var result = await Api.SearchEaClubsAsync(ClubSearchTerm);
@@ -397,6 +407,7 @@ else
         Busy = true;
         SelectedRegistrationClub = club;
         SelectedRegistrationPlayer = null;
+        Register.IsEaManager = false;
         ResetPlayerClaim();
         RegistrationRoster.Clear();
         ClubSearchTerm = club.Name;
@@ -416,7 +427,7 @@ else
             : $"Club trouve. {RegistrationRoster.Count} joueur(s) actif(s) retourne(s) par EA.";
     }
 
-    private void SelectRegistrationPlayer(EaClubRosterPlayerResponse player)
+    private async Task SelectRegistrationPlayerAsync(EaClubRosterPlayerResponse player)
     {
         if (player.IsInApplication)
         {
@@ -424,15 +435,42 @@ else
             return;
         }
 
-        SelectedRegistrationPlayer = player;
-        Register.DisplayName = player.PlayerName;
-        Register.Gamertag = player.PlayerName;
-        Register.EaSportsId = player.EaPlayerId;
+        Busy = true;
+        Message = $"Verification des donnees EA de {player.PlayerName}...";
+        var enrichedPlayer = await TryEnrichRegistrationPlayerAsync(player);
+        Busy = false;
+
+        SelectedRegistrationPlayer = enrichedPlayer;
+        Register.DisplayName = enrichedPlayer.PlayerName;
+        Register.Gamertag = enrichedPlayer.PlayerName;
+        Register.EaSportsId = enrichedPlayer.EaPlayerId;
+        Register.IsEaManager = enrichedPlayer.IsManager;
         PlayerClaimVerified = false;
-        ClaimChallenge = CreatePlayerClaimChallenge(player);
+        ClaimChallenge = CreatePlayerClaimChallenge(enrichedPlayer);
         Message = ClaimChallenge is null
-            ? $"{player.PlayerName} selectionne. Joueur trouve dans EA, mais taille ou poste absent dans la reponse actuelle. Verification automatique impossible avec cette source."
-            : $"{player.PlayerName} selectionne. Fais la verification EA taille/poste avant de creer ton compte.";
+            ? $"{enrichedPlayer.PlayerName} selectionne. Joueur trouve dans EA, mais taille ou poste absent dans la reponse actuelle. Verification automatique impossible avec cette source."
+            : $"{enrichedPlayer.PlayerName} selectionne. Mets dans FC une taille differente ({ClaimChallenge.TargetHeight} cm) et un poste different ({FormatPosition(ClaimChallenge.TargetPosition)}), puis clique sur Verifier EA.";
+    }
+
+    private async Task<EaClubRosterPlayerResponse> TryEnrichRegistrationPlayerAsync(EaClubRosterPlayerResponse player)
+    {
+        if (SelectedRegistrationClub is null)
+        {
+            return player;
+        }
+
+        var lookup = await Api.SearchEaPlayerAsync(player.PlayerName, SelectedRegistrationClub.Platform, SelectedRegistrationClub.EaClubId);
+        if (lookup.Value is null || !lookup.Value.Found)
+        {
+            return player;
+        }
+
+        return player with
+        {
+            Height = player.Height ?? ReadLookupHeight(lookup.Value.Fields),
+            Position = string.IsNullOrWhiteSpace(player.Position) ? ReadLookupPosition(lookup.Value.Fields) : player.Position,
+            IsManager = player.IsManager || ReadLookupManager(lookup.Value.Fields)
+        };
     }
 
     private async Task VerifyPlayerClaimAsync()
@@ -476,6 +514,7 @@ else
             return;
         }
 
+        refreshed = await TryEnrichRegistrationPlayerAsync(refreshed);
         var heightOk = refreshed.Height == ClaimChallenge.TargetHeight;
         var positionOk = SamePosition(refreshed.Position, ClaimChallenge.TargetPosition);
         if (heightOk && positionOk)
@@ -695,6 +734,84 @@ else
         };
     }
 
+    private static int? ReadLookupHeight(IReadOnlyDictionary<string, string?> fields)
+    {
+        var value = ReadLookupInt(fields, "proHeight", "height", "playerHeight", "avatarHeight", "virtualProHeight");
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is >= 55 and <= 90)
+        {
+            return (int)Math.Round(value.Value * 2.54);
+        }
+
+        return value is >= 120 and <= 230 ? value : null;
+    }
+
+    private static string? ReadLookupPosition(IReadOnlyDictionary<string, string?> fields)
+    {
+        return ReadLookupString(fields, "position", "favoritePosition", "pos");
+    }
+
+    private static bool ReadLookupManager(IReadOnlyDictionary<string, string?> fields)
+    {
+        foreach (var key in new[] { "isManager", "manager", "isCaptain", "captain", "isAdmin", "clubAdmin", "isOwner", "owner" })
+        {
+            var value = ReadLookupString(fields, key);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (bool.TryParse(value, out var boolean))
+            {
+                return boolean;
+            }
+
+            if (int.TryParse(value, out var number))
+            {
+                return number != 0;
+            }
+        }
+
+        var role = ReadLookupString(fields, "role", "clubRole", "memberRole", "memberType", "accessLevel", "title");
+        return !string.IsNullOrWhiteSpace(role) &&
+            (role.Contains("manager", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("owner", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("admin", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("captain", StringComparison.OrdinalIgnoreCase)
+             || role.Equals("gm", StringComparison.OrdinalIgnoreCase)
+             || role.Equals("co-gm", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int? ReadLookupInt(IReadOnlyDictionary<string, string?> fields, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (fields.TryGetValue(key, out var value) && int.TryParse(value, out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadLookupString(IReadOnlyDictionary<string, string?> fields, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (fields.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private static string? NormalizePosition(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -860,6 +977,8 @@ else
         public string DisplayName { get; set; } = "";
         public string? Gamertag { get; set; }
         public string? EaSportsId { get; set; }
+        public bool IsEaManager { get; set; }
+        public string EaManagerLabel => IsEaManager ? "Oui - manager EA detecte" : "Non";
         public string? DiscordUserId { get; set; }
         public Platform Platform { get; set; } = Platform.CrossPlay;
         public string TimeZone { get; set; } = "Europe/Zurich";

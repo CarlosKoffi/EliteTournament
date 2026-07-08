@@ -5672,10 +5672,10 @@ body {
 
 .registration-player-card {
     display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 10px;
-    align-items: center;
-    padding: 10px;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 12px;
     background: #ffffff;
     color: #050505;
     border: 1px solid rgba(5, 5, 5, .16);
@@ -5709,6 +5709,52 @@ body {
     color: inherit;
     opacity: .72;
     font-weight: 850;
+}
+
+.registration-player-main {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.registration-player-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.registration-player-topline strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.registration-player-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.registration-player-stats b {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 4px 7px;
+    background: #050505;
+    color: #ffffff;
+    font-size: .72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.registration-player-stats .manager-tag {
+    background: rgba(5, 5, 5, .08);
+    color: #050505;
+}
+
+.registration-player-stats .manager-tag.is-manager {
+    background: var(--app-pitch);
+    color: #050505;
 }
 
 .registration-player-card .app-status {
