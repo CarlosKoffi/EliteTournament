@@ -1,9 +1,44 @@
 @page "/admin/tournaments"
 @inject ApiClient Api
 @inject AuthState AuthState
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
 <PageTitle>TS Tournament Admin - Pilotage</PageTitle>
 
+@if (HostEnvironment.IsProduction())
+{
+    <section class="admin-hero">
+        <div>
+            <p class="eyebrow">Admin TS Tournament</p>
+            <h1>Pilotage production</h1>
+            <p>Aucune donnee de demonstration n'est affichee en production. Cree un tournoi reel depuis la page Nouveau tournoi.</p>
+        </div>
+        <div class="admin-status">
+            <span>Mode</span>
+            <strong>Production</strong>
+            <small>Base propre, donnees reelles uniquement.</small>
+            <nav class="admin-page-nav">
+                <a class="active" href="admin/tournaments">Pilotage</a>
+                <a href="admin/tournaments/new">Nouveau tournoi</a>
+                <a href="admin/tournaments/tracking">Suivi tournois</a>
+            </nav>
+        </div>
+    </section>
+
+    <section class="panel public-tournament-lock">
+        <div>
+            <p class="eyebrow">Donnees reelles</p>
+            <h2>Aucun tournoi a piloter pour le moment</h2>
+            <p>Les listes, classements et matchs apparaitront ici quand les endpoints de lecture admin seront branches sur les tournois crees en base.</p>
+        </div>
+        <div class="public-tournament-actions">
+            <a class="button-link primary" href="admin/tournaments/new">Creer un tournoi</a>
+            <a class="button-link" href="/">Retour accueil</a>
+        </div>
+    </section>
+}
+else
+{
 <section class="admin-hero">
     <div>
         <p class="eyebrow">Admin TS Tournament</p>
@@ -323,6 +358,8 @@
 @if (!string.IsNullOrWhiteSpace(Message))
 {
     <div class="notice">@Message</div>
+}
+
 }
 
 @code {

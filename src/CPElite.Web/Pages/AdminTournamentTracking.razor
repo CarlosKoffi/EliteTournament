@@ -1,7 +1,42 @@
 @page "/admin/tournaments/tracking"
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
 <PageTitle>TS Tournament Admin - Suivi tournois</PageTitle>
 
+@if (HostEnvironment.IsProduction())
+{
+    <section class="admin-hero">
+        <div>
+            <p class="eyebrow">Admin TS Tournament</p>
+            <h1>Suivi production</h1>
+            <p>Aucune donnee de demonstration n'est affichee en production. Les vrais tournois apparaitront ici apres branchement des lectures admin.</p>
+        </div>
+        <div class="admin-status">
+            <span>Mode</span>
+            <strong>Production</strong>
+            <small>Base propre, donnees reelles uniquement.</small>
+            <nav class="admin-page-nav">
+                <a href="admin/tournaments">Pilotage</a>
+                <a href="admin/tournaments/new">Nouveau tournoi</a>
+                <a class="active" href="admin/tournaments/tracking">Suivi tournois</a>
+            </nav>
+        </div>
+    </section>
+
+    <section class="panel public-tournament-lock">
+        <div>
+            <p class="eyebrow">Suivi</p>
+            <h2>Aucun tournoi cree pour le moment</h2>
+            <p>Des que des tournois reels seront disponibles en base, cette page affichera les inscriptions, la waitlist et le tirage.</p>
+        </div>
+        <div class="public-tournament-actions">
+            <a class="button-link primary" href="admin/tournaments/new">Creer un tournoi</a>
+            <a class="button-link" href="admin/tournaments">Retour pilotage</a>
+        </div>
+    </section>
+}
+else
+{
 <section class="admin-hero">
     <div>
         <p class="eyebrow">Admin TS Tournament</p>
@@ -139,6 +174,8 @@
 @if (!string.IsNullOrWhiteSpace(Message))
 {
     <div class="notice">@Message</div>
+}
+
 }
 
 @code {

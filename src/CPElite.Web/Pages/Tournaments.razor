@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ApiClient Api
 @inject AuthState AuthState
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
 <PageTitle>TS Tournament - Tournois</PageTitle>
 
@@ -11,40 +12,57 @@
     <p>@(AuthState.IsAuthenticated ? "Le owner peut gerer plusieurs clubs, inscrire le bon club au bon tournoi, puis soumettre les 11 joueurs qui doivent confirmer leur presence." : "Consulte les prochains tournois disponibles. Cree ton compte pour inscrire ton equipe et acceder au suivi complet.")</p>
 </section>
 
-<section class="tournament-catalog">
-    <article class="tournament-product simple" style="@CommunityCupBannerStyle">
-        <div>
-            <p class="eyebrow">Tournoi simple</p>
-            <h2>Community Cup</h2>
-            <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
-        </div>
-        <div class="product-rules">
-            <span>Date: Dimanche 05/07</span>
-            <span>Coup d'envoi: 22:30 CET</span>
-            <strong>Dans 7 jours</strong>
-            <span>Il reste 14 places</span>
-        </div>
-        <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
-    </article>
+@if (ShowDemoData)
+{
+    <section class="tournament-catalog">
+        <article class="tournament-product simple" style="@CommunityCupBannerStyle">
+            <div>
+                <p class="eyebrow">Tournoi simple</p>
+                <h2>Community Cup</h2>
+                <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
+            </div>
+            <div class="product-rules">
+                <span>Date: Dimanche 05/07</span>
+                <span>Coup d'envoi: 22:30 CET</span>
+                <strong>Dans 7 jours</strong>
+                <span>Il reste 14 places</span>
+            </div>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+        </article>
 
-    <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
+        <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
+            <div>
+                <p class="eyebrow">Tournoi goodies</p>
+                <h2>Friday Goodies Cup</h2>
+                <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
+            </div>
+            <div class="product-rules">
+                <strong>Goodies</strong>
+                <span>Date: Vendredi 03/07</span>
+                <span>Coup d'envoi: 22:30 CET</span>
+                <strong>Dans 5 jours</strong>
+                <span>Il reste 21 places</span>
+            </div>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+        </article>
+    </section>
+}
+else
+{
+    <section class="panel public-tournament-lock">
         <div>
-            <p class="eyebrow">Tournoi goodies</p>
-            <h2>Friday Goodies Cup</h2>
-            <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
+            <p class="eyebrow">Tournois</p>
+            <h2>Aucun tournoi publie pour le moment</h2>
+            <p>Les prochains tournois apparaitront ici des qu'un admin TS Tournament les aura crees et ouverts aux inscriptions.</p>
         </div>
-        <div class="product-rules">
-            <strong>Goodies</strong>
-            <span>Date: Vendredi 03/07</span>
-            <span>Coup d'envoi: 22:30 CET</span>
-            <strong>Dans 5 jours</strong>
-            <span>Il reste 21 places</span>
+        <div class="public-tournament-actions">
+            <a class="button-link primary" href="account">Creer un compte</a>
+            <a class="button-link" href="/">Retour accueil</a>
         </div>
-        <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
-    </article>
-</section>
+    </section>
+}
 
-@if (!AuthState.IsAuthenticated)
+@if (!AuthState.IsAuthenticated && ShowDemoData)
 {
     <section class="panel public-tournament-lock">
         <div>
@@ -59,7 +77,7 @@
     </section>
 }
 
-@if (AuthState.IsAuthenticated)
+@if (AuthState.IsAuthenticated && ShowDemoData)
 {
 <section class="panel player-tournament-panel">
     <div class="panel-heading">
@@ -250,7 +268,7 @@
 </section>
 }
 
-@if (AuthState.IsAuthenticated && PlayerTournamentTab == "upcoming")
+@if (AuthState.IsAuthenticated && ShowDemoData && PlayerTournamentTab == "upcoming")
 {
 <section id="owner-submit" class="owner-submit-shell">
     <div class="owner-submit-hero">
@@ -598,6 +616,7 @@
     private string? OpenedSheet;
     private RosterPlayerModel? SelectedPlayer;
     private string PlayerTournamentTab { get; set; } = "live";
+    private bool ShowDemoData => !HostEnvironment.IsProduction();
     private EaClubSnapshotResponse? TeamClubSnapshot;
     private EaMemberStatsSummaryResponse? TeamEaMembers;
     private EaPlayerLookupResponse? SelectedPlayerEa;
@@ -659,6 +678,13 @@
 
         if (OwnerTeams.Count == 0)
         {
+            if (!ShowDemoData)
+            {
+                SelectedOwnerTeamId = null;
+                Roster.Clear();
+                return;
+            }
+
             OwnerTeams.AddRange(DemoOwnerTeams);
         }
 

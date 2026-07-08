@@ -47,7 +47,8 @@ public static class DatabaseInitializer
 
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            throw new InvalidOperationException("No admin user exists. Configure Seed__AdminEmail and Seed__AdminPassword to create the initial admin account.");
+            logger.LogWarning("No admin user exists and Seed__AdminEmail/Seed__AdminPassword are not configured. The app will start without an admin account.");
+            return;
         }
 
         if (!email.Contains('@', StringComparison.Ordinal) || password.Length < 12)

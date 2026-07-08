@@ -84,3 +84,26 @@ For the first online version:
 - Backend: .NET host that supports background services.
 - Frontend: static Blazor WebAssembly host.
 - Later: Discord bot hosted as a separate worker using the same API.
+
+## 6. Reset production data before launch
+
+To launch with only website labels/texts and no demo/product data, run this script once from the PostgreSQL SQL editor:
+
+```text
+deploy/production-content-only-reset.sql
+```
+
+It keeps:
+
+- EF Core migration history.
+- `LocalizedContents` labels/texts.
+
+It removes:
+
+- users/admin accounts
+- teams
+- tournaments
+- EA snapshots/cache
+- billing/slot data
+
+If `Seed__AdminEmail` and `Seed__AdminPassword` are configured, the API will recreate an admin user at startup. Remove those variables if the launch must contain zero users.

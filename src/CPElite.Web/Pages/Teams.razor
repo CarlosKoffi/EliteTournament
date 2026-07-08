@@ -2,6 +2,7 @@
 @inject ApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Navigation
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
 <PageTitle>TS Tournament - Clubs</PageTitle>
 
@@ -156,11 +157,14 @@
             }
         }
 
-        <button class="demo-club-card @(DemoMode ? "selected" : "")" @onclick="SelectDemoTeam">
-            <span>Mode demo EA</span>
-            <strong>TheSurvivors</strong>
-            <small>11 joueurs, profils enrichis, amicaux et detail match stockes.</small>
-        </button>
+        @if (!HostEnvironment.IsProduction())
+        {
+            <button class="demo-club-card @(DemoMode ? "selected" : "")" @onclick="SelectDemoTeam">
+                <span>Mode demo EA</span>
+                <strong>TheSurvivors</strong>
+                <small>11 joueurs, profils enrichis, amicaux et detail match stockes.</small>
+            </button>
+        }
     </article>
 </section>
 
@@ -384,7 +388,7 @@
     private List<TeamMemberResponse> Memberships { get; } = new();
     private List<TeamMemberResponse> TeamMembers { get; } = new();
     private List<EaClubSearchResultResponse> EaSearchResults { get; } = new();
-    private string EaSearchTerm { get; set; } = "TheSurvivors";
+    private string EaSearchTerm { get; set; } = "";
     private EaClubSearchResultResponse? SelectedEaClub;
     private EaClubSnapshotResponse? ClubSnapshot;
     private EaMemberStatsSummaryResponse? EaMembers;
@@ -468,8 +472,19 @@
     {
         if (!AuthState.IsAuthenticated)
         {
-            SelectDemoTeam();
-            Message = "Mode demo TheSurvivors charge pour visualiser Mon equipe sans compte connecte.";
+            if (!HostEnvironment.IsProduction())
+            {
+                SelectDemoTeam();
+                Message = "Mode demo TheSurvivors charge pour visualiser Mon equipe sans compte connecte.";
+            }
+            else
+            {
+                SelectedTeamId = null;
+                SelectedTeamName = null;
+                DemoMode = false;
+                Message = "Connecte-toi ou cree ton compte pour voir ton club.";
+            }
+
             return;
         }
 
@@ -996,10 +1011,10 @@
 
     private sealed class TeamModel
     {
-        public string Name { get; set; } = "TheSurvivors";
-        public string? ShortName { get; set; } = "TSV";
-        public string? Region { get; set; } = "France";
-        public string? Description { get; set; } = "Competitive FC26 club ready for night tournaments.";
+        public string Name { get; set; } = "";
+        public string? ShortName { get; set; }
+        public string? Region { get; set; }
+        public string? Description { get; set; }
         public long? EaClubId { get; set; }
         public string? LogoUrl { get; set; }
         public string? BannerUrl { get; set; }

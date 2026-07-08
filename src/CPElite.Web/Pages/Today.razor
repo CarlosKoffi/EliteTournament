@@ -3,6 +3,7 @@
 @page "/today"
 @inject ApiClient Api
 @inject AuthState AuthState
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
 <PageTitle>TS Tournament - Mercato</PageTitle>
 
@@ -133,15 +134,9 @@
 }
 
 @code {
-    private List<AnnouncementModel> Announcements { get; } =
-    [
-        new() { Type = "Recherche joueur", TeamName = "TheSurvivors", Position = "BU", Message = "Recherche BU mobile, vocal ok, disponible ce soir. Profil app prioritaire.", Date = DateTime.Today, Availability = "Ce soir", AppStatus = "Compte TS actif", Movement = "Renfort soir" },
-        new() { Type = "Joueur disponible", TeamName = "KoffiMarvelous", Position = "MOC", Message = "Createur disponible apres 21:30, peut depanner MC. Club actuel: TheSurvivors.", Date = DateTime.Today, Availability = "21:30", AppStatus = "Compte TS actif", Movement = "Pret possible" },
-        new() { Type = "Pret joueur", TeamName = "FC Toho", Position = "MC", Message = "Milieu box-to-box ouvert au pret pour une soiree, validation owner requise.", Date = DateTime.Today, Availability = "Aujourd'hui", AppStatus = "A inviter", Movement = "Pret owner" },
-        new() { Type = "Transfert", TeamName = "Northside Club", Position = "DC", Message = "DC 1m87 cherche projet stable, disponible pour essai cette semaine.", Date = DateTime.Today.AddDays(1), Availability = "Cette semaine", AppStatus = "Compte TS actif", Movement = "Transfert" }
-    ];
+    private List<AnnouncementModel> Announcements { get; } = [];
 
-    private AnnouncementModel NewAnnouncement { get; } = new() { Type = "Recherche joueur", TeamName = "TheSurvivors", Position = "BU", Date = DateTime.Today };
+    private AnnouncementModel NewAnnouncement { get; } = new() { Type = "Recherche joueur", Date = DateTime.Today };
     private AnnouncementFilter Filter { get; } = new();
     private string? Message;
     private IReadOnlyCollection<string> NewsTypes { get; } = ["Tout", "Recherche joueur", "Joueur disponible", "Pret joueur", "Transfert"];
@@ -158,6 +153,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!HostEnvironment.IsProduction())
+        {
+            Announcements.AddRange([
+                new() { Type = "Recherche joueur", TeamName = "TheSurvivors", Position = "BU", Message = "Recherche BU mobile, vocal ok, disponible ce soir. Profil app prioritaire.", Date = DateTime.Today, Availability = "Ce soir", AppStatus = "Compte TS actif", Movement = "Renfort soir" },
+                new() { Type = "Joueur disponible", TeamName = "KoffiMarvelous", Position = "MOC", Message = "Createur disponible apres 21:30, peut depanner MC. Club actuel: TheSurvivors.", Date = DateTime.Today, Availability = "21:30", AppStatus = "Compte TS actif", Movement = "Pret possible" },
+                new() { Type = "Pret joueur", TeamName = "FC Toho", Position = "MC", Message = "Milieu box-to-box ouvert au pret pour une soiree, validation owner requise.", Date = DateTime.Today, Availability = "Aujourd'hui", AppStatus = "A inviter", Movement = "Pret owner" },
+                new() { Type = "Transfert", TeamName = "Northside Club", Position = "DC", Message = "DC 1m87 cherche projet stable, disponible pour essai cette semaine.", Date = DateTime.Today.AddDays(1), Availability = "Cette semaine", AppStatus = "Compte TS actif", Movement = "Transfert" }
+            ]);
+        }
+
         await LoadTodayAsync();
     }
 

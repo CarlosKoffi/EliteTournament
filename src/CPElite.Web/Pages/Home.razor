@@ -1,6 +1,7 @@
 @page "/"
 @implements IDisposable
 @inject AuthState AuthState
+@inject IWebAssemblyHostEnvironment HostEnvironment
 
 <PageTitle>TS Tournament</PageTitle>
 
@@ -28,6 +29,14 @@
             </div>
         </div>
         <div class="leaderboard-list">
+            @if (TopTeams.Count == 0)
+            {
+                <article>
+                    <strong>-</strong>
+                    <span>Le leaderboard sera disponible apres les premiers tournois.</span>
+                    <small>Aucune equipe classee</small>
+                </article>
+            }
             @foreach (var team in TopTeams)
             {
                 <article>
@@ -100,16 +109,26 @@
             </select>
             <button class="primary-action">Rechercher</button>
         </div>
-        <div class="global-results">
-            @foreach (var result in GlobalResults)
-            {
-                <a class="global-result-card" href="@result.Href">
-                    <span class="result-kind">@result.Kind</span>
-                    <strong>@result.Title</strong>
-                    <small>@result.Detail</small>
-                </a>
-            }
-        </div>
+        @if (!GlobalResults.Any())
+        {
+            <div class="empty-state">
+                <strong>Aucun resultat pour le moment</strong>
+                <p>Les resultats apparaitront quand les equipes, joueurs, annonces mercato et tournois seront crees.</p>
+            </div>
+        }
+        else
+        {
+            <div class="global-results">
+                @foreach (var result in GlobalResults)
+                {
+                    <a class="global-result-card" href="@result.Href">
+                        <span class="result-kind">@result.Kind</span>
+                        <strong>@result.Title</strong>
+                        <small>@result.Detail</small>
+                    </a>
+                }
+            </div>
+        }
     }
     else
     {
@@ -135,22 +154,26 @@
             || item.Title.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || item.Detail.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)));
 
-    private IReadOnlyCollection<LeaderboardTeam> TopTeams { get; } =
-    [
-        new(1, "TheSurvivors", 2085, 8, "2V 1N 0D", 11, 1.2, "03:09", 4, "9V 2N 3D", "Finaliste Goodies Cup", "KoffiMarvelous"),
-        new(2, "FC Toho", 1990, 7, "2V 0N 1D", 11, 1.7, "02:58", 3, "6V 1N 3D", "Demi-finaliste", "AkiraToho"),
-        new(3, "KM Chimera", 1872, 6, "1V 1N 1D", 10, 1.1, "02:44", 2, "4V 2N 2D", "Quart de finale", "ChimeraMVP"),
-        new(4, "Royal XI", 1818, 5, "0V 2N 1D", 11, 1.0, "02:31", 2, "3V 3N 2D", "Phase de poule", "RoyalNueve"),
-        new(5, "Northside Club", 1764, 4, "2V 0N 1D", 9, 1.4, "02:12", 1, "2V 0N 1D", "Nouveau challenger", "NorthCap")
-    ];
+    private IReadOnlyCollection<LeaderboardTeam> TopTeams => HostEnvironment.IsProduction()
+        ? []
+        :
+        [
+            new(1, "TheSurvivors", 2085, 8, "2V 1N 0D", 11, 1.2, "03:09", 4, "9V 2N 3D", "Finaliste Goodies Cup", "KoffiMarvelous"),
+            new(2, "FC Toho", 1990, 7, "2V 0N 1D", 11, 1.7, "02:58", 3, "6V 1N 3D", "Demi-finaliste", "AkiraToho"),
+            new(3, "KM Chimera", 1872, 6, "1V 1N 1D", 10, 1.1, "02:44", 2, "4V 2N 2D", "Quart de finale", "ChimeraMVP"),
+            new(4, "Royal XI", 1818, 5, "0V 2N 1D", 11, 1.0, "02:31", 2, "3V 3N 2D", "Phase de poule", "RoyalNueve"),
+            new(5, "Northside Club", 1764, 4, "2V 0N 1D", 9, 1.4, "02:12", 1, "2V 0N 1D", "Nouveau challenger", "NorthCap")
+        ];
 
-    private IReadOnlyCollection<SearchResultItem> SearchSeed { get; } =
-    [
-        new("Equipes", "TheSurvivors", "Club lie EA, 11 joueurs actifs, owner connecte", "teams"),
-        new("Mercato", "BU recherche ce soir", "TheSurvivors cherche un buteur disponible avec compte TS", "mercato"),
-        new("Tournois", "Friday Goodies Cup", "32 equipes max, inscription jusqu'a 21:00", "tournaments"),
-        new("Joueurs", "KoffiMarvelous", "Profil joueur, EA Sports ID et club principal", "account")
-    ];
+    private IReadOnlyCollection<SearchResultItem> SearchSeed => HostEnvironment.IsProduction()
+        ? []
+        :
+        [
+            new("Equipes", "TheSurvivors", "Club lie EA, 11 joueurs actifs, owner connecte", "teams"),
+            new("Mercato", "BU recherche ce soir", "TheSurvivors cherche un buteur disponible avec compte TS", "mercato"),
+            new("Tournois", "Friday Goodies Cup", "32 equipes max, inscription jusqu'a 21:00", "tournaments"),
+            new("Joueurs", "KoffiMarvelous", "Profil joueur, EA Sports ID et club principal", "account")
+        ];
 
     protected override void OnInitialized()
     {

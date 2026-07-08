@@ -126,7 +126,7 @@
         Tournament.Type = type;
         if (type == TournamentType.Normal)
         {
-            Tournament.Name = "Sunday Community Cup";
+            Tournament.Name = "Nouveau tournoi simple";
             Tournament.EntryFee = 0;
             Tournament.PrizeBudget = 0;
             Tournament.Goodies = "Tournoi simple pour animer la communaute.";
@@ -134,7 +134,7 @@
         }
         else
         {
-            Tournament.Name = "Friday Goodies Cup";
+            Tournament.Name = "Nouveau tournoi goodies";
             Tournament.EntryFee = 50;
             Tournament.PrizeBudget = 700;
             Tournament.Goodies = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
@@ -189,7 +189,7 @@
 
     private sealed class TournamentModel
     {
-        public string Name { get; set; } = "Friday Goodies Cup";
+        public string Name { get; set; } = "Nouveau tournoi goodies";
         public TournamentType Type { get; set; } = TournamentType.Goodies;
         public DateTime StartsDate { get; set; } = DateTime.Today.AddDays(1);
         public string StartsTime { get; set; } = "22:30";
