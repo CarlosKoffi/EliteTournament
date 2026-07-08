@@ -7,8 +7,11 @@ public sealed record EaClubRosterPlayerResponse(
     string? Position,
     int? Overall,
     int? Height,
+    int? Weight,
     int? Matches,
     int? Goals,
     int? Assists,
-    double? AverageRating);
-
+    double? AverageRating,
+    bool IsInApplication = false,
+    Guid? ApplicationUserId = null,
+    string? ApplicationDisplayName = null);

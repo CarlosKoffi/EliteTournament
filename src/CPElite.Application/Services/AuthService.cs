@@ -40,6 +40,15 @@ public sealed class AuthService
             return Result<AuthResponse>.Failure(ErrorType.Conflict, "auth.email_taken", "An account already exists for this email.");
         }
 
+        if (!string.IsNullOrWhiteSpace(request.EaSportsId))
+        {
+            var existingPlayer = await _users.GetByEaIdentityAsync(request.EaSportsId, request.Gamertag ?? request.DisplayName, cancellationToken);
+            if (existingPlayer is not null)
+            {
+                return Result<AuthResponse>.Failure(ErrorType.Conflict, "auth.ea_player_taken", "This EA player is already linked to an account.");
+            }
+        }
+
         var user = new User(
             Guid.NewGuid(),
             request.Email.Trim(),

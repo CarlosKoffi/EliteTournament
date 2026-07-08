@@ -38,7 +38,7 @@
                 <div><span>Nom joueur</span><strong>@PlayerName</strong></div>
                 <div><span>Gamertag</span><strong>@PlayerGamertag</strong></div>
                 <div><span>EA Sports ID</span><strong>@PlayerEaId</strong></div>
-                <div><span>Discord</span><strong>@PlayerDiscordId</strong></div>
+                <div><span>Discord / PSN ID</span><strong>@PlayerDiscordId</strong></div>
                 <div><span>Plateforme</span><strong>@PlayerPlatform</strong></div>
                 <div><span>Fuseau horaire</span><strong>@PlayerTimeZone</strong></div>
                 <div><span>Club actif</span><strong>@PlayerClubName</strong></div>
@@ -137,7 +137,7 @@
                         <em class="app-status @(club.IsInApplication ? "is-linked" : "is-unlinked")">
                             @(club.IsInApplication ? $"Club deja dans l'app: {club.ApplicationTeamName}" : "Pas encore cree dans l'app")
                         </em>
-                        <small>ID @club.EaClubId Â· DIV @(club.Division?.ToString() ?? "-") Â· @(club.MembersCount?.ToString() ?? "-") joueurs</small>
+                        <small>ID @club.EaClubId - DIV @(club.Division?.ToString() ?? "-") - @(club.MembersCount?.ToString() ?? "-") joueurs</small>
                     </button>
                 }
             </div>
@@ -149,7 +149,7 @@
                 <span>Club selectionne</span>
                 <strong>@SelectedRegistrationClub.Name</strong>
                 <small>@SelectedClubApplicationStatus</small>
-                <small>EA ID @SelectedRegistrationClub.EaClubId Â· choisis maintenant ton joueur dans le roster.</small>
+                <small>EA ID @SelectedRegistrationClub.EaClubId - choisis maintenant ton joueur dans le roster.</small>
             </div>
         }
 
@@ -158,11 +158,14 @@
             <div class="registration-roster">
                 @foreach (var player in RegistrationRoster)
                 {
-                    <button type="button" class="registration-player-card @(SelectedRegistrationPlayer?.EaPlayerId == player.EaPlayerId ? "selected" : "")" @onclick="() => SelectRegistrationPlayer(player)">
+                    <button type="button" class="registration-player-card @(SelectedRegistrationPlayer?.EaPlayerId == player.EaPlayerId ? "selected" : "") @(player.IsInApplication ? "is-taken" : "")" @onclick="() => SelectRegistrationPlayer(player)" disabled="@player.IsInApplication">
                         <span class="player-photo-ring">@GetInitials(player.PlayerName)</span>
                         <span>
                             <strong>@player.PlayerName</strong>
-                            <small>@(player.Position ?? "Poste ?") - @(player.Height?.ToString() ?? "-") cm - @(player.Overall?.ToString() ?? "-") OVR</small>
+                            <small>@(player.Position ?? "Poste ?") - @(player.Height?.ToString() ?? "-") cm - @(player.Weight?.ToString() ?? "-") kg - @(player.Overall?.ToString() ?? "-") OVR</small>
+                            <em class="app-status @(player.IsInApplication ? "is-linked" : "is-unlinked")">
+                                @(player.IsInApplication ? $"Deja pris par {player.ApplicationDisplayName}" : "Disponible dans l'app")
+                            </em>
                         </span>
                     </button>
                 }
@@ -182,16 +185,36 @@
                 <strong>@SelectedRegistrationPlayer.PlayerName</strong>
                 <small>Le compte sera cree avec ce joueur et ce club EA comme point d'entree.</small>
             </div>
+
+            <div class="claim-verification-card @(PlayerClaimVerified ? "verified" : "")">
+                <div>
+                    <p class="eyebrow">Verification EA</p>
+                    <h3>@(PlayerClaimVerified ? "Joueur verifie" : "Prouve que c'est bien ton joueur")</h3>
+                    @if (ClaimChallenge is not null)
+                    {
+                        <p>Dans FC, change temporairement ton pro avec ces valeurs exactes, puis clique sur verifier.</p>
+                        <div class="claim-targets">
+                            <div><span>Taille actuelle</span><strong>@FormatMetric(ClaimChallenge.CurrentHeight, "cm")</strong></div>
+                            <div><span>Poids actuel</span><strong>@FormatMetric(ClaimChallenge.CurrentWeight, "kg")</strong></div>
+                            <div><span>Taille demandee</span><strong>@ClaimChallenge.TargetHeight cm</strong></div>
+                            <div><span>Poids demande</span><strong>@ClaimChallenge.TargetWeight kg</strong></div>
+                        </div>
+                        <small>Temps restant: @ClaimTimeLeftLabel</small>
+                    }
+                </div>
+                <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified)">Verifier EA</button>
+            </div>
         }
         <EditForm Model="Register" OnValidSubmit="RegisterAsync">
             <DataAnnotationsValidator />
             <div class="form-grid">
                 <label>Email <InputText @bind-Value="Register.Email" /></label>
                 <label>Password <InputText type="password" @bind-Value="Register.Password" /></label>
+                <label>Confirmer password <InputText type="password" @bind-Value="Register.ConfirmPassword" /></label>
                 <label>Display name <InputText @bind-Value="Register.DisplayName" /></label>
-                <label>Gamertag <InputText @bind-Value="Register.Gamertag" /></label>
-                <label>EA Sports ID <InputText @bind-Value="Register.EaSportsId" /></label>
-                <label>Discord user ID <InputText @bind-Value="Register.DiscordUserId" /></label>
+                <label>Gamertag EA <InputText @bind-Value="Register.Gamertag" disabled /></label>
+                <label>EA Sports ID <InputText @bind-Value="Register.EaSportsId" disabled /></label>
+                <label>Discord / PSN ID <InputText @bind-Value="Register.DiscordUserId" /></label>
                 <label>Platform
                     <InputSelect @bind-Value="Register.Platform">
                         <option value="@Platform.CrossPlay">CrossPlay</option>
@@ -202,10 +225,14 @@
                 </label>
                 <label>Time zone <InputText @bind-Value="Register.TimeZone" /></label>
             </div>
-            <button class="primary-action" disabled="@(Busy || SelectedRegistrationClub is null || SelectedRegistrationPlayer is null)">Creer le compte</button>
+            <button class="primary-action" disabled="@(Busy || SelectedRegistrationClub is null || SelectedRegistrationPlayer is null || !PlayerClaimVerified)">Creer le compte</button>
             @if (SelectedRegistrationPlayer is null)
             {
                 <p class="form-hint">Cherche ton club puis selectionne ton joueur EA pour activer la creation du compte.</p>
+            }
+            else if (!PlayerClaimVerified)
+            {
+                <p class="form-hint">La creation du compte sera activee apres verification EA taille/poids.</p>
             }
         </EditForm>
     </article>
@@ -237,6 +264,8 @@ else
     private EaClubSearchResultResponse? SelectedRegistrationClub;
     private EaClubRosterPlayerResponse? SelectedRegistrationPlayer;
     private string ClubSearchTerm { get; set; } = "TheSurvivors";
+    private PlayerClaimChallenge? ClaimChallenge;
+    private bool PlayerClaimVerified;
     private bool Busy;
     private string? Message;
     private string? ProfilePhotoDataUrl;
@@ -273,6 +302,24 @@ else
             return;
         }
 
+        if (!PlayerClaimVerified)
+        {
+            Message = "Verifie ton joueur avec les valeurs EA demandees avant de creer le compte.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Register.Email) || string.IsNullOrWhiteSpace(Register.Password))
+        {
+            Message = "Email et password sont obligatoires.";
+            return;
+        }
+
+        if (!string.Equals(Register.Password, Register.ConfirmPassword, StringComparison.Ordinal))
+        {
+            Message = "Les deux passwords ne correspondent pas.";
+            return;
+        }
+
         Busy = true;
         Message = null;
         var result = await Api.RegisterAsync(new RegisterPlayerRequest(
@@ -298,6 +345,7 @@ else
         RegistrationRoster.Clear();
         SelectedRegistrationClub = null;
         SelectedRegistrationPlayer = null;
+        ResetPlayerClaim();
 
         var result = await Api.SearchEaClubsAsync(ClubSearchTerm);
         Busy = false;
@@ -320,6 +368,7 @@ else
         Busy = true;
         SelectedRegistrationClub = club;
         SelectedRegistrationPlayer = null;
+        ResetPlayerClaim();
         RegistrationRoster.Clear();
         ClubSearchTerm = club.Name;
 
@@ -343,11 +392,67 @@ else
 
     private void SelectRegistrationPlayer(EaClubRosterPlayerResponse player)
     {
+        if (player.IsInApplication)
+        {
+            Message = $"{player.PlayerName} est deja rattache a un compte TS Tournament.";
+            return;
+        }
+
         SelectedRegistrationPlayer = player;
         Register.DisplayName = player.PlayerName;
         Register.Gamertag = player.PlayerName;
         Register.EaSportsId = player.EaPlayerId;
-        Message = $"{player.PlayerName} selectionne. Tu peux completer email/password puis creer ton compte.";
+        PlayerClaimVerified = false;
+        ClaimChallenge = CreatePlayerClaimChallenge(player);
+        Message = $"{player.PlayerName} selectionne. Fais la verification EA taille/poids avant de creer ton compte.";
+    }
+
+    private async Task VerifyPlayerClaimAsync()
+    {
+        if (SelectedRegistrationClub is null || SelectedRegistrationPlayer is null || ClaimChallenge is null)
+        {
+            Message = "Selectionne d'abord ton club et ton joueur.";
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow > ClaimChallenge.ExpiresAt)
+        {
+            ClaimChallenge = CreatePlayerClaimChallenge(SelectedRegistrationPlayer);
+            Message = "Le delai de 5 minutes est depasse. Un nouveau challenge a ete genere.";
+            return;
+        }
+
+        Busy = true;
+        var roster = await Api.GetEaClubRosterAsync(SelectedRegistrationClub.EaClubId, SelectedRegistrationClub.Platform);
+        Busy = false;
+
+        if (roster.Value is null)
+        {
+            Message = roster.Error ?? "Impossible de verifier EA pour le moment.";
+            return;
+        }
+
+        var refreshed = roster.Value.Players.FirstOrDefault(player =>
+            string.Equals(player.EaPlayerId, SelectedRegistrationPlayer.EaPlayerId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(player.PlayerName, SelectedRegistrationPlayer.PlayerName, StringComparison.OrdinalIgnoreCase));
+
+        if (refreshed is null)
+        {
+            Message = "Joueur introuvable dans le roster EA actualise.";
+            return;
+        }
+
+        var heightOk = refreshed.Height == ClaimChallenge.TargetHeight;
+        var weightOk = refreshed.Weight == ClaimChallenge.TargetWeight;
+        if (heightOk && weightOk)
+        {
+            SelectedRegistrationPlayer = refreshed;
+            PlayerClaimVerified = true;
+            Message = "Verification EA validee. Tu peux creer ton compte.";
+            return;
+        }
+
+        Message = $"Verification non validee. EA renvoie taille {FormatMetric(refreshed.Height, "cm")} et poids {FormatMetric(refreshed.Weight, "kg")}.";
     }
 
     private async Task LoginAsync()
@@ -471,28 +576,72 @@ else
     {
         return
         [
-            new("1001", "KoffiMarvelous", "Marvelous", "Milieu", 91, 182, 742, 404, 311, 7.8),
-            new("1002", "ginga_blaze", "Ginga", "Attaquant", 89, 180, 520, 318, 129, 7.4),
-            new("1003", "caboss_238", "Caboss", "Ailier", 87, 176, 488, 201, 174, 7.1),
-            new("1004", "MomoControl", "Momo", "MDC", 88, 181, 610, 64, 221, 7.3),
-            new("1005", "YanisTempo", "Tempo", "MC", 86, 179, 450, 83, 188, 7.0),
-            new("1006", "NicoVitesse", "Vitesse", "Ailier", 85, 174, 390, 142, 97, 6.9),
-            new("1007", "Tchollismo", "Tcholli", "Defenseur", 88, 187, 555, 18, 34, 7.2),
-            new("1008", "MikaStopper", "Stopper", "Defenseur", 86, 184, 501, 10, 22, 6.9),
-            new("1009", "RayanLock", "Lock", "Defenseur", 84, 181, 360, 8, 19, 6.8),
-            new("1010", "DjoLateral", "Djo", "Lateral", 83, 178, 330, 16, 61, 6.7),
-            new("1011", "lil84330", "Lil", "Gardien", 90, 188, 690, 0, 3, 7.5)
+            new("1001", "KoffiMarvelous", "Marvelous", "Milieu", 91, 182, 79, 742, 404, 311, 7.8, true, Guid.Parse("8d74f6df-5f67-46ab-8f6b-0412513f0001"), "KoffiMarvelous"),
+            new("1002", "ginga_blaze", "Ginga", "Attaquant", 89, 180, 76, 520, 318, 129, 7.4),
+            new("1003", "caboss_238", "Caboss", "Ailier", 87, 176, 73, 488, 201, 174, 7.1),
+            new("1004", "MomoControl", "Momo", "MDC", 88, 181, 78, 610, 64, 221, 7.3),
+            new("1005", "YanisTempo", "Tempo", "MC", 86, 179, 74, 450, 83, 188, 7.0),
+            new("1006", "NicoVitesse", "Vitesse", "Ailier", 85, 174, 70, 390, 142, 97, 6.9),
+            new("1007", "Tchollismo", "Tcholli", "Defenseur", 88, 187, 84, 555, 18, 34, 7.2),
+            new("1008", "MikaStopper", "Stopper", "Defenseur", 86, 184, 82, 501, 10, 22, 6.9),
+            new("1009", "RayanLock", "Lock", "Defenseur", 84, 181, 80, 360, 8, 19, 6.8),
+            new("1010", "DjoLateral", "Djo", "Lateral", 83, 178, 75, 330, 16, 61, 6.7),
+            new("1011", "lil84330", "Lil", "Gardien", 90, 188, 86, 690, 0, 3, 7.5)
         ];
+    }
+
+    private void ResetPlayerClaim()
+    {
+        ClaimChallenge = null;
+        PlayerClaimVerified = false;
+    }
+
+    private static PlayerClaimChallenge CreatePlayerClaimChallenge(EaClubRosterPlayerResponse player)
+    {
+        var currentHeight = player.Height ?? 180;
+        var currentWeight = player.Weight ?? 76;
+        var seed = HashCode.Combine(player.EaPlayerId, DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 300);
+        var random = new Random(seed);
+        var targetHeight = NextDifferent(random, currentHeight, 165, 199);
+        var targetWeight = NextDifferent(random, currentWeight, 60, 95);
+
+        return new PlayerClaimChallenge(currentHeight, currentWeight, targetHeight, targetWeight, DateTimeOffset.UtcNow.AddMinutes(5));
+    }
+
+    private static int NextDifferent(Random random, int current, int min, int max)
+    {
+        var value = random.Next(min, max + 1);
+        return value == current ? Math.Min(max, value + 1) : value;
+    }
+
+    private string ClaimTimeLeftLabel
+    {
+        get
+        {
+            if (ClaimChallenge is null)
+            {
+                return "-";
+            }
+
+            var remaining = ClaimChallenge.ExpiresAt - DateTimeOffset.UtcNow;
+            return remaining <= TimeSpan.Zero ? "expire" : $"{Math.Ceiling(remaining.TotalMinutes)} min";
+        }
+    }
+
+    private static string FormatMetric(int? value, string unit)
+    {
+        return value is null ? "-" : $"{value} {unit}";
     }
 
     private sealed class RegisterModel
     {
-        public string Email { get; set; } = $"player-{Guid.NewGuid():N}@cpelite.local";
-        public string Password { get; set; } = "Password123";
-        public string DisplayName { get; set; } = "KoffiMarvelous";
-        public string? Gamertag { get; set; } = "KoffiMarvelous";
-        public string? EaSportsId { get; set; } = "KoffiMarvelous";
-        public string? DiscordUserId { get; set; } = "discord-owner-1";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string? Gamertag { get; set; }
+        public string? EaSportsId { get; set; }
+        public string? DiscordUserId { get; set; }
         public Platform Platform { get; set; } = Platform.CrossPlay;
         public string TimeZone { get; set; } = "Europe/Zurich";
     }
@@ -506,5 +655,6 @@ else
     private sealed record EaProfileDemo(string Position, int HeightCm, int Matches, int WinRate, int Goals, int Assists, double AverageRating, int PassSuccessRate, int PlayerOfTheMatch);
     private sealed record TournamentTotalsDemo(int Matches, int Goals, int Assists, double Rating);
     private sealed record TournamentPerformanceDemo(string Tournament, string Match, string Stage, string Score, int Goals, int Assists, double Rating, string Status);
+    private sealed record PlayerClaimChallenge(int CurrentHeight, int CurrentWeight, int TargetHeight, int TargetWeight, DateTimeOffset ExpiresAt);
 }
 

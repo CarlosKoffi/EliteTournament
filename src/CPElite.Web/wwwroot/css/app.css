@@ -5659,12 +5659,87 @@ body {
     border-color: var(--app-pitch);
 }
 
+.registration-player-card.is-taken {
+    opacity: .58;
+    cursor: not-allowed;
+}
+
+.registration-player-card.is-taken:hover {
+    background: #ffffff;
+    color: #050505;
+}
+
 .registration-player-card small {
     display: block;
     margin-top: 3px;
     color: inherit;
     opacity: .72;
     font-weight: 850;
+}
+
+.registration-player-card .app-status {
+    margin-top: 7px;
+    color: #050505;
+    border-color: rgba(5, 5, 5, .18);
+}
+
+.registration-player-card .app-status.is-linked {
+    background: #050505;
+    color: #ffffff;
+}
+
+.claim-verification-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    margin: 14px 0;
+    padding: 14px;
+    background: #050505;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-left: 6px solid #ffffff;
+}
+
+.claim-verification-card.verified {
+    border-left-color: var(--app-pitch);
+}
+
+.claim-verification-card h3,
+.claim-verification-card p {
+    margin: 0;
+}
+
+.claim-verification-card p {
+    color: rgba(255, 255, 255, .72);
+    font-weight: 800;
+}
+
+.claim-targets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0 8px;
+}
+
+.claim-targets div {
+    padding: 10px;
+    background: #ffffff;
+    color: #050505;
+}
+
+.claim-targets span {
+    display: block;
+    font-size: .72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: var(--app-subtle);
+}
+
+.claim-targets strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 1.1rem;
 }
 
 .form-hint {

@@ -36,11 +36,13 @@ public sealed class EaClubDiscoveryService
 
     private readonly IEaDiagnosticsClient _client;
     private readonly ITeamRepository _teams;
+    private readonly IUserRepository _users;
 
-    public EaClubDiscoveryService(IEaDiagnosticsClient client, ITeamRepository teams)
+    public EaClubDiscoveryService(IEaDiagnosticsClient client, ITeamRepository teams, IUserRepository users)
     {
         _client = client;
         _teams = teams;
+        _users = users;
     }
 
     public async Task<Result<EaClubSearchResponse>> SearchClubAsync(string clubName, string? platform, CancellationToken cancellationToken = default)
@@ -58,7 +60,7 @@ public sealed class EaClubDiscoveryService
             return Result<EaClubSearchResponse>.Failure(ErrorType.Validation, "ea.club_search_failed", response.Error ?? "EA club search failed.");
         }
 
-        var results = ParseClubResults(response.RawBody, resolvedPlatform).Take(8).ToArray();
+        var results = ParseClubResults(response.RawBody, resolvedPlatform).ToArray();
         for (var index = 0; index < results.Length; index++)
         {
             var appTeam = await _teams.GetByEaClubIdAsync(results[index].EaClubId, cancellationToken);
@@ -146,7 +148,22 @@ public sealed class EaClubDiscoveryService
             return Result<EaClubRosterResponse>.Failure(ErrorType.Validation, "ea.club_roster_failed", response.Error ?? "EA club roster lookup failed.");
         }
 
-        var players = ParseClubRoster(response.RawBody).ToArray();
+        var activeRosterKeys = ExtractActiveRosterKeys(response.RawBody);
+        var players = ParseClubRoster(response.RawBody, activeRosterKeys).ToArray();
+        for (var index = 0; index < players.Length; index++)
+        {
+            var appUser = await _users.GetByEaIdentityAsync(players[index].EaPlayerId, players[index].PlayerName, cancellationToken);
+            if (appUser is not null)
+            {
+                players[index] = players[index] with
+                {
+                    IsInApplication = true,
+                    ApplicationUserId = appUser.Id,
+                    ApplicationDisplayName = appUser.DisplayName
+                };
+            }
+        }
+
         var clubName = TryReadClubName(response.RawBody);
         return Result<EaClubRosterResponse>.Success(new EaClubRosterResponse(clubId, resolvedPlatform, clubName, players));
     }
@@ -307,7 +324,7 @@ public sealed class EaClubDiscoveryService
         return new Dictionary<string, string?>();
     }
 
-    private static IEnumerable<EaClubRosterPlayerResponse> ParseClubRoster(string rawJson)
+    private static IEnumerable<EaClubRosterPlayerResponse> ParseClubRoster(string rawJson, IReadOnlySet<string> activeRosterKeys)
     {
         using var document = JsonDocument.Parse(rawJson);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -321,7 +338,7 @@ public sealed class EaClubDiscoveryService
                 continue;
             }
 
-            if (!HasAnyPlayerStat(item) || !seen.Add(eaPlayerId))
+            if (!HasAnyPlayerStat(item) || !IsInActiveRoster(item, eaPlayerId, playerName, activeRosterKeys) || !seen.Add(eaPlayerId))
             {
                 continue;
             }
@@ -333,6 +350,7 @@ public sealed class EaClubDiscoveryService
                 FindString(item, "position", "favoritePosition"),
                 FindInt(item, "overall", "rating"),
                 FindInt(item, "height"),
+                FindInt(item, "weight"),
                 FindInt(item, "matches", "gamesPlayed"),
                 FindInt(item, "goals"),
                 FindInt(item, "assists"),
@@ -342,8 +360,128 @@ public sealed class EaClubDiscoveryService
 
     private static bool HasAnyPlayerStat(JsonElement item)
     {
-        return FindInt(item, "matches", "gamesPlayed", "goals", "assists", "overall", "height") is not null
+        return FindInt(item, "matches", "gamesPlayed", "goals", "assists", "overall", "height", "weight") is not null
             || FindDouble(item, "averageRating", "ratingAve", "rating") is not null;
+    }
+
+    private static IReadOnlySet<string> ExtractActiveRosterKeys(string rawJson)
+    {
+        using var document = JsonDocument.Parse(rawJson);
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in EnumerateActiveRosterObjects(document.RootElement))
+        {
+            AddPlayerIdentityKeys(item, keys);
+        }
+
+        return keys;
+    }
+
+    private static IEnumerable<JsonElement> EnumerateActiveRosterObjects(JsonElement root)
+    {
+        if (root.TryGetProperty("memberStats", out var memberStats) &&
+            memberStats.ValueKind == JsonValueKind.Object &&
+            memberStats.TryGetProperty("members", out var members) &&
+            members.ValueKind == JsonValueKind.Array)
+        {
+            return members.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object);
+        }
+
+        if (root.TryGetProperty("members", out var rootMembers) && rootMembers.ValueKind == JsonValueKind.Array)
+        {
+            return rootMembers.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.Object);
+        }
+
+        return EnumerateRosterArrays(root).SelectMany(array => array.EnumerateArray()).Where(item => item.ValueKind == JsonValueKind.Object);
+    }
+
+    private static IEnumerable<JsonElement> EnumerateRosterArrays(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.Value.ValueKind == JsonValueKind.Array &&
+                    IsRosterPropertyName(property.Name) &&
+                    property.Value.EnumerateArray().Any(item => item.ValueKind == JsonValueKind.Object))
+                {
+                    yield return property.Value;
+                }
+
+                foreach (var child in EnumerateRosterArrays(property.Value))
+                {
+                    yield return child;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                foreach (var child in EnumerateRosterArrays(item))
+                {
+                    yield return child;
+                }
+            }
+        }
+    }
+
+    private static bool IsRosterPropertyName(string propertyName)
+    {
+        return propertyName.Equals("members", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("roster", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("currentMembers", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Equals("clubMembers", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AddPlayerIdentityKeys(JsonElement item, HashSet<string> keys)
+    {
+        AddKey(keys, FindString(item, "playerId"));
+        AddKey(keys, FindString(item, "personaId"));
+        AddKey(keys, FindString(item, "eaPlayerId"));
+        AddKey(keys, FindString(item, "id"));
+        AddKey(keys, FindString(item, "personaName"));
+        AddKey(keys, FindString(item, "eaSportsId"));
+        AddKey(keys, FindString(item, "gamertag"));
+        AddKey(keys, FindString(item, "playername"));
+        AddKey(keys, FindString(item, "name"));
+        AddKey(keys, FindString(item, "displayName"));
+        AddKey(keys, FindString(item, "proName"));
+    }
+
+    private static bool IsInActiveRoster(JsonElement item, string? eaPlayerId, string? playerName, IReadOnlySet<string> activeRosterKeys)
+    {
+        if (activeRosterKeys.Count == 0)
+        {
+            return true;
+        }
+
+        var candidates = new[]
+        {
+            eaPlayerId,
+            playerName,
+            FindString(item, "playerId"),
+            FindString(item, "personaId"),
+            FindString(item, "eaPlayerId"),
+            FindString(item, "id"),
+            FindString(item, "personaName"),
+            FindString(item, "eaSportsId"),
+            FindString(item, "gamertag"),
+            FindString(item, "playername"),
+            FindString(item, "name"),
+            FindString(item, "displayName"),
+            FindString(item, "proName")
+        };
+
+        return candidates.Any(candidate => !string.IsNullOrWhiteSpace(candidate) && activeRosterKeys.Contains(candidate.Trim()));
+    }
+
+    private static void AddKey(HashSet<string> keys, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            keys.Add(value.Trim());
+        }
     }
 
     private static string? TryReadClubName(string rawJson)
