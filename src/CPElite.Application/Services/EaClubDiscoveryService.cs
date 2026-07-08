@@ -358,8 +358,8 @@ public sealed class EaClubDiscoveryService
                 FindString(item, "proName", "clubName"),
                 FindString(item, "position", "favoritePosition"),
                 FindInt(item, "overall", "rating"),
-                FindInt(item, "height"),
-                FindInt(item, "weight"),
+                ReadHeightCm(item),
+                ReadWeightKg(item),
                 FindInt(item, "matches", "gamesPlayed"),
                 FindInt(item, "goals"),
                 FindInt(item, "assists"),
@@ -369,8 +369,42 @@ public sealed class EaClubDiscoveryService
 
     private static bool HasAnyPlayerStat(JsonElement item)
     {
-        return FindInt(item, "matches", "gamesPlayed", "goals", "assists", "overall", "height", "weight") is not null
+        return FindInt(item, "matches", "gamesPlayed", "goals", "assists", "overall", "height", "proHeight", "weight", "proWeight") is not null
             || FindDouble(item, "averageRating", "ratingAve", "rating") is not null;
+    }
+
+    private static int? ReadHeightCm(JsonElement item)
+    {
+        var value = FindInt(item, "proHeight", "height", "playerHeight", "avatarHeight", "virtualProHeight");
+        if (value is null)
+        {
+            return null;
+        }
+
+        // Some sources expose height in inches; EA/FC UI expects centimeters.
+        if (value is >= 55 and <= 90)
+        {
+            return (int)Math.Round(value.Value * 2.54);
+        }
+
+        return value is >= 120 and <= 230 ? value : null;
+    }
+
+    private static int? ReadWeightKg(JsonElement item)
+    {
+        var value = FindInt(item, "proWeight", "weight", "playerWeight", "avatarWeight", "virtualProWeight");
+        if (value is null)
+        {
+            return null;
+        }
+
+        // Some sources expose weight in pounds; EA/FC UI expects kilograms.
+        if (value is > 110 and <= 260)
+        {
+            return (int)Math.Round(value.Value * 0.45359237);
+        }
+
+        return value is >= 45 and <= 120 ? value : null;
     }
 
     private static IReadOnlySet<string> ExtractActiveRosterKeys(string rawJson)

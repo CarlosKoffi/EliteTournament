@@ -173,7 +173,7 @@
                         <span class="player-photo-ring">@GetInitials(player.PlayerName)</span>
                         <span>
                             <strong>@player.PlayerName</strong>
-                            <small>@(player.Position ?? "Poste ?") - @(player.Height?.ToString() ?? "-") cm - @(player.Weight?.ToString() ?? "-") kg - @(player.Overall?.ToString() ?? "-") OVR</small>
+                            <small>@(player.Position ?? "Poste ?") - @GetRosterPhysicalStatus(player) - @(player.Overall?.ToString() ?? "-") OVR</small>
                             <em class="app-status @(player.IsInApplication ? "is-linked" : "is-unlinked")">
                                 @GetApplicationPlayerStatus(player)
                             </em>
@@ -212,8 +212,12 @@
                         </div>
                         <small>Temps restant: @ClaimTimeLeftLabel</small>
                     }
+                    else
+                    {
+                        <p class="verification-warning">Verification automatique indisponible : la source EA actuelle renvoie bien le joueur, ses matchs et ses stats, mais pas sa taille et son poids. On ne peut donc pas prouver l'identite avec le challenge taille/poids pour ce joueur.</p>
+                    }
                 </div>
-                <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified)">Verifier EA</button>
+                <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified || ClaimChallenge is null)">Verifier EA</button>
             </div>
         }
         <EditForm Model="Register" OnValidSubmit="RegisterAsync">
@@ -243,7 +247,7 @@
             }
             else if (!PlayerClaimVerified)
             {
-                <p class="form-hint">La creation du compte sera activee apres verification EA taille/poids.</p>
+                <p class="form-hint">La creation du compte sera activee apres verification EA. Si EA ne fournit pas taille/poids pour ce joueur, la verification automatique reste bloquee et il faudra utiliser une validation owner/admin.</p>
             }
         </EditForm>
     </article>
@@ -415,7 +419,9 @@ else
         Register.EaSportsId = player.EaPlayerId;
         PlayerClaimVerified = false;
         ClaimChallenge = CreatePlayerClaimChallenge(player);
-        Message = $"{player.PlayerName} selectionne. Fais la verification EA taille/poids avant de creer ton compte.";
+        Message = ClaimChallenge is null
+            ? $"{player.PlayerName} selectionne. Joueur trouve dans EA, mais taille/poids absents dans la reponse actuelle. Verification automatique impossible avec cette source."
+            : $"{player.PlayerName} selectionne. Fais la verification EA taille/poids avant de creer ton compte.";
     }
 
     private async Task VerifyPlayerClaimAsync()
@@ -429,6 +435,12 @@ else
         if (DateTimeOffset.UtcNow > ClaimChallenge.ExpiresAt)
         {
             ClaimChallenge = CreatePlayerClaimChallenge(SelectedRegistrationPlayer);
+            if (ClaimChallenge is null)
+            {
+                Message = "EA renvoie le joueur, mais pas sa taille et son poids. Verification automatique impossible avec cette source.";
+                return;
+            }
+
             Message = "Le delai de 5 minutes est depasse. Un nouveau challenge a ete genere.";
             return;
         }
@@ -613,10 +625,15 @@ else
         PlayerClaimVerified = false;
     }
 
-    private static PlayerClaimChallenge CreatePlayerClaimChallenge(EaClubRosterPlayerResponse player)
+    private static PlayerClaimChallenge? CreatePlayerClaimChallenge(EaClubRosterPlayerResponse player)
     {
-        var currentHeight = player.Height ?? 180;
-        var currentWeight = player.Weight ?? 76;
+        if (player.Height is null || player.Weight is null)
+        {
+            return null;
+        }
+
+        var currentHeight = player.Height.Value;
+        var currentWeight = player.Weight.Value;
         var seed = HashCode.Combine(player.EaPlayerId, DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 300);
         var random = new Random(seed);
         var targetHeight = NextDifferent(random, currentHeight, 165, 199);
@@ -648,6 +665,26 @@ else
     private static string FormatMetric(int? value, string unit)
     {
         return value is null ? "-" : $"{value} {unit}";
+    }
+
+    private static string GetRosterPhysicalStatus(EaClubRosterPlayerResponse player)
+    {
+        if (player.Height is not null && player.Weight is not null)
+        {
+            return $"{player.Height} cm - {player.Weight} kg";
+        }
+
+        if (player.Height is not null)
+        {
+            return $"{player.Height} cm - poids non fourni";
+        }
+
+        if (player.Weight is not null)
+        {
+            return $"taille non fournie - {player.Weight} kg";
+        }
+
+        return "taille/poids non fournis par EA";
     }
 
     private static string FormatNumber(int? value)

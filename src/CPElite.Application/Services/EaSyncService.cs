@@ -338,8 +338,8 @@ public sealed class EaSyncService
                 goals,
                 assists,
                 rating,
-                GetInt(item, "proHeight") ?? GetInt(item, "height"),
-                GetInt(item, "weight"),
+                ReadHeightCm(item),
+                ReadWeightKg(item),
                 GetInt(item, "proOverall") ?? GetInt(item, "overall"),
                 GetInt(item, "shots"),
                 GetInt(item, "shotSuccessRate"),
@@ -371,6 +371,48 @@ public sealed class EaSyncService
         }
 
         return keys;
+    }
+
+    private static int? ReadHeightCm(JsonElement item)
+    {
+        var value = GetInt(item, "proHeight")
+            ?? GetInt(item, "height")
+            ?? GetInt(item, "playerHeight")
+            ?? GetInt(item, "avatarHeight")
+            ?? GetInt(item, "virtualProHeight");
+
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is >= 55 and <= 90)
+        {
+            return (int)Math.Round(value.Value * 2.54);
+        }
+
+        return value is >= 120 and <= 230 ? value : null;
+    }
+
+    private static int? ReadWeightKg(JsonElement item)
+    {
+        var value = GetInt(item, "proWeight")
+            ?? GetInt(item, "weight")
+            ?? GetInt(item, "playerWeight")
+            ?? GetInt(item, "avatarWeight")
+            ?? GetInt(item, "virtualProWeight");
+
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is > 110 and <= 260)
+        {
+            return (int)Math.Round(value.Value * 0.45359237);
+        }
+
+        return value is >= 45 and <= 120 ? value : null;
     }
 
     private static IEnumerable<JsonElement> EnumerateActiveRosterObjects(JsonElement root)
