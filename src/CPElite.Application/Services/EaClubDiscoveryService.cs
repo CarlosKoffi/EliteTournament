@@ -152,14 +152,16 @@ public sealed class EaClubDiscoveryService
         var players = ParseClubRoster(response.RawBody, activeRosterKeys).ToArray();
         for (var index = 0; index < players.Length; index++)
         {
-            var appUser = await _users.GetByEaIdentityAsync(players[index].EaPlayerId, players[index].PlayerName, cancellationToken);
+            var appUser = await _users.GetByEaIdentityAsync(players[index].EaPlayerId, players[index].PlayerName, players[index].ProName, cancellationToken);
             if (appUser is not null)
             {
                 players[index] = players[index] with
                 {
                     IsInApplication = true,
                     ApplicationUserId = appUser.Id,
-                    ApplicationDisplayName = appUser.DisplayName
+                    ApplicationDisplayName = appUser.DisplayName,
+                    ApplicationEaClubId = appUser.EaClubId,
+                    ApplicationEaClubName = appUser.EaClubName
                 };
             }
         }
@@ -328,17 +330,24 @@ public sealed class EaClubDiscoveryService
     {
         using var document = JsonDocument.Parse(rawJson);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var activeObjects = EnumerateActiveRosterObjects(document.RootElement).ToArray();
+        var sourceObjects = activeObjects.Length > 0 ? activeObjects : EnumerateObjects(document.RootElement);
 
-        foreach (var item in EnumerateObjects(document.RootElement))
+        foreach (var item in sourceObjects)
         {
-            var playerName = FindString(item, "playername", "name", "displayName", "personaName");
+            var playerName = FindString(item, "playername", "name", "displayName", "personaName", "gamertag", "proName");
             var eaPlayerId = FindString(item, "eaPlayerId", "playerId", "personaId", "id") ?? playerName;
             if (string.IsNullOrWhiteSpace(playerName) || string.IsNullOrWhiteSpace(eaPlayerId))
             {
                 continue;
             }
 
-            if (!HasAnyPlayerStat(item) || !IsInActiveRoster(item, eaPlayerId, playerName, activeRosterKeys) || !seen.Add(eaPlayerId))
+            if (activeObjects.Length == 0 && !HasAnyPlayerStat(item))
+            {
+                continue;
+            }
+
+            if (!IsInActiveRoster(item, eaPlayerId, playerName, activeRosterKeys) || !seen.Add(eaPlayerId))
             {
                 continue;
             }

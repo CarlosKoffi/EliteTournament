@@ -61,11 +61,11 @@ public sealed class AuthServiceTests
             return Task.FromResult(_users.FirstOrDefault(user => user.NormalizedEmail == normalizedEmail));
         }
 
-        public Task<User?> GetByEaIdentityAsync(string eaPlayerId, string playerName, CancellationToken cancellationToken = default)
+        public Task<User?> GetByEaIdentityAsync(string eaPlayerId, string playerName, string? proName = null, CancellationToken cancellationToken = default)
         {
-            var candidates = new[] { eaPlayerId, playerName }
+            var candidates = new[] { eaPlayerId, playerName, proName }
                 .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim())
+                .Select(value => value!.Trim())
                 .ToArray();
 
             return Task.FromResult(_users.FirstOrDefault(user =>

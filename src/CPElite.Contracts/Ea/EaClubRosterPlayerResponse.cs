@@ -14,4 +14,6 @@ public sealed record EaClubRosterPlayerResponse(
     double? AverageRating,
     bool IsInApplication = false,
     Guid? ApplicationUserId = null,
-    string? ApplicationDisplayName = null);
+    string? ApplicationDisplayName = null,
+    long? ApplicationEaClubId = null,
+    string? ApplicationEaClubName = null);

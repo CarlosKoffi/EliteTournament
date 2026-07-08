@@ -24,11 +24,11 @@ public sealed class UserRepository : IUserRepository
         return await _dbContext.Users.FirstOrDefaultAsync(user => user.NormalizedEmail == normalizedEmail, cancellationToken);
     }
 
-    public async Task<User?> GetByEaIdentityAsync(string eaPlayerId, string playerName, CancellationToken cancellationToken = default)
+    public async Task<User?> GetByEaIdentityAsync(string eaPlayerId, string playerName, string? proName = null, CancellationToken cancellationToken = default)
     {
-        var candidates = new[] { eaPlayerId, playerName }
+        var candidates = new[] { eaPlayerId, playerName, proName }
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim().ToUpperInvariant())
+            .Select(value => value!.Trim().ToUpperInvariant())
             .Distinct()
             .ToArray();
 

@@ -55,18 +55,20 @@
                     <h2>@PlayerName</h2>
                     <span>@PlayerEaId - @PlayerClubName - @PlayerRole</span>
                 </div>
-                <strong class="player-rating">@DemoEaProfile.AverageRating.ToString("0.0")</strong>
+                <strong class="player-rating">@FormatRating(PlayerEaProfile?.AverageRating)</strong>
             </div>
             <div class="player-skill-grid">
-                <div><span>Poste EA</span><strong>@DemoEaProfile.Position</strong></div>
-                <div><span>Taille</span><strong>@DemoEaProfile.HeightCm cm</strong></div>
-                <div><span>Matchs EA</span><strong>@DemoEaProfile.Matches</strong></div>
-                <div><span>Win rate</span><strong>@DemoEaProfile.WinRate%</strong></div>
-                <div><span>Buts</span><strong>@DemoEaProfile.Goals</strong></div>
-                <div><span>Assists</span><strong>@DemoEaProfile.Assists</strong></div>
-                <div><span>Passes</span><strong>@DemoEaProfile.PassSuccessRate%</strong></div>
-                <div><span>Homme du match</span><strong>@DemoEaProfile.PlayerOfTheMatch</strong></div>
+                <div><span>Poste EA</span><strong>@ValueOrMissing(PlayerEaProfile?.Position)</strong></div>
+                <div><span>Taille</span><strong>@FormatMetric(PlayerEaProfile?.Height, "cm")</strong></div>
+                <div><span>Poids</span><strong>@FormatMetric(PlayerEaProfile?.Weight, "kg")</strong></div>
+                <div><span>Matchs EA</span><strong>@FormatNumber(PlayerEaProfile?.Matches)</strong></div>
+                <div><span>Win rate</span><strong>@FormatPercent(PlayerEaProfile?.WinRate)</strong></div>
+                <div><span>Buts</span><strong>@FormatNumber(PlayerEaProfile?.Goals)</strong></div>
+                <div><span>Assists</span><strong>@FormatNumber(PlayerEaProfile?.Assists)</strong></div>
+                <div><span>Passes</span><strong>@FormatPercent(PlayerEaProfile?.PassSuccessRate)</strong></div>
+                <div><span>Homme du match</span><strong>@FormatNumber(PlayerEaProfile?.PlayerOfTheMatch)</strong></div>
             </div>
+            <p class="form-hint">@PlayerEaProfileStatus</p>
         </article>
 
         <article class="panel">
@@ -102,6 +104,15 @@
                         <b>@item.Assists A</b>
                         <b>@item.Rating.ToString("0.0") note</b>
                         <b>@item.Status</b>
+                    </div>
+                </article>
+            }
+            @if (TournamentHistory.Count == 0)
+            {
+                <article>
+                    <div>
+                        <strong>Aucune performance tournoi stockee</strong>
+                        <span>Les donnees apparaitront quand les matchs EA seront rattaches a un tournoi TS.</span>
                     </div>
                 </article>
             }
@@ -164,7 +175,7 @@
                             <strong>@player.PlayerName</strong>
                             <small>@(player.Position ?? "Poste ?") - @(player.Height?.ToString() ?? "-") cm - @(player.Weight?.ToString() ?? "-") kg - @(player.Overall?.ToString() ?? "-") OVR</small>
                             <em class="app-status @(player.IsInApplication ? "is-linked" : "is-unlinked")">
-                                @(player.IsInApplication ? $"Deja pris par {player.ApplicationDisplayName}" : "Disponible dans l'app")
+                                @GetApplicationPlayerStatus(player)
                             </em>
                         </span>
                     </button>
@@ -216,14 +227,14 @@
                 <label>EA Sports ID <InputText @bind-Value="Register.EaSportsId" disabled /></label>
                 <label>Discord / PSN ID <InputText @bind-Value="Register.DiscordUserId" /></label>
                 <label>Platform
-                    <InputSelect @bind-Value="Register.Platform">
+                    <InputSelect @bind-Value="Register.Platform" disabled>
                         <option value="@Platform.CrossPlay">CrossPlay</option>
                         <option value="@Platform.PlayStation">PlayStation</option>
                         <option value="@Platform.Xbox">Xbox</option>
                         <option value="@Platform.Pc">PC</option>
                     </InputSelect>
                 </label>
-                <label>Time zone <InputText @bind-Value="Register.TimeZone" /></label>
+                <label>Time zone <InputText @bind-Value="Register.TimeZone" disabled /></label>
             </div>
             <button class="primary-action" disabled="@(Busy || SelectedRegistrationClub is null || SelectedRegistrationPlayer is null || !PlayerClaimVerified)">Creer le compte</button>
             @if (SelectedRegistrationPlayer is null)
@@ -266,6 +277,9 @@ else
     private string ClubSearchTerm { get; set; } = "TheSurvivors";
     private PlayerClaimChallenge? ClaimChallenge;
     private bool PlayerClaimVerified;
+    private TeamMemberResponse? ActiveMembership;
+    private EaPlayerProfileSnapshotResponse? PlayerEaProfile;
+    private bool EaProfileLoadAttempted;
     private bool Busy;
     private string? Message;
     private string? ProfilePhotoDataUrl;
@@ -277,22 +291,28 @@ else
     private string PlayerTimeZone => ValueOrMissing(AuthState.User?.TimeZone);
     private string PlayerInitials => string.Join("", PlayerName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
     private string? ProfilePhotoUrl => ProfilePhotoDataUrl ?? AuthState.User?.ProfileImageUrl;
-    private string PlayerClubName => ValueOrMissing(AuthState.User?.EaClubName ?? "TheSurvivors");
+    private string PlayerClubName => ValueOrMissing(ActiveMembership?.TeamName ?? AuthState.User?.EaClubName);
     private string SelectedClubApplicationStatus => SelectedRegistrationClub is null
         ? ""
         : SelectedRegistrationClub.IsInApplication
             ? $"Club deja present dans TS Tournament - EA ID {SelectedRegistrationClub.EaClubId}."
             : $"Club pas encore cree dans l'app - EA ID {SelectedRegistrationClub.EaClubId}. Tu peux quand meme te positionner dessus.";
-    private string PlayerRole => "Owner";
-    private EaProfileDemo DemoEaProfile { get; } = new("Milieu", 182, 742, 52, 404, 311, 7.8, 79, 93);
-    private TournamentTotalsDemo TournamentTotals { get; } = new(9, 6, 5, 7.7);
-    private IReadOnlyCollection<TournamentPerformanceDemo> TournamentHistory { get; } =
-    [
-        new("Friday Goodies Cup", "TheSurvivors 3 - 1 FC Toho", "Poule B", "3-1", 2, 1, 8.6, "Verifie EA"),
-        new("Friday Goodies Cup", "TheSurvivors 2 - 2 Royal XI", "Poule B", "2-2", 1, 0, 7.4, "Valide owner"),
-        new("Friday Goodies Cup", "TheSurvivors 1 - 0 KM Chimera", "Poule B", "1-0", 0, 1, 7.8, "Verifie EA"),
-        new("Friday Goodies Cup", "TheSurvivors 2 - 1 HOF 221", "Quart", "2-1", 1, 1, 8.1, "Verifie EA")
-    ];
+    private string PlayerRole => ActiveMembership?.Role.ToString() ?? "User";
+    private TournamentTotalsDemo TournamentTotals { get; } = new(0, 0, 0, 0);
+    private IReadOnlyCollection<TournamentPerformanceDemo> TournamentHistory { get; } = [];
+    private string PlayerEaProfileStatus => PlayerEaProfile is null
+        ? EaProfileLoadAttempted
+            ? "Aucun profil EA stocke trouve pour ce joueur. Rafraichis les donnees EA depuis Mon equipe si le club est deja cree."
+            : "Chargement du profil EA stocke..."
+        : $"Derniere synchro EA: {PlayerEaProfile.SyncedAt.LocalDateTime:g}.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState.IsAuthenticated)
+        {
+            await LoadRealAccountDataAsync();
+        }
+    }
 
     private async Task RegisterAsync()
     {
@@ -354,13 +374,9 @@ else
             ClubSearchResults.AddRange(result.Value.Results);
         }
 
-        if (ClubSearchResults.Count == 0 || ClubSearchTerm.Contains("TheSurvivors", StringComparison.OrdinalIgnoreCase))
-        {
-            ClubSearchResults.Clear();
-            ClubSearchResults.Add(CreateDemoClubSearchResult());
-        }
-
-        Message = ClubSearchResults.Count == 0 ? "Aucun club EA trouve." : "Choisis ton club dans la liste.";
+        Message = ClubSearchResults.Count == 0
+            ? result.Error ?? "Aucun club EA trouve via l'appel reel."
+            : $"Choisis ton club dans la liste. {ClubSearchResults.Count} resultat(s) EA.";
     }
 
     private async Task SelectRegistrationClubAsync(EaClubSearchResultResponse club)
@@ -371,6 +387,7 @@ else
         ResetPlayerClaim();
         RegistrationRoster.Clear();
         ClubSearchTerm = club.Name;
+        Register.Platform = ResolvePlatform(club.Platform);
 
         var roster = await Api.GetEaClubRosterAsync(club.EaClubId, club.Platform);
         Busy = false;
@@ -379,22 +396,16 @@ else
             RegistrationRoster.AddRange(roster.Value.Players);
         }
 
-        if (RegistrationRoster.Count == 0 || club.Name.Contains("TheSurvivors", StringComparison.OrdinalIgnoreCase))
-        {
-            RegistrationRoster.Clear();
-            RegistrationRoster.AddRange(CreateDemoRoster());
-        }
-
         Message = RegistrationRoster.Count == 0
-            ? "Club trouve, mais aucun joueur exploitable dans le roster EA pour le moment."
-            : "Club trouve. Selectionne maintenant le joueur que tu es.";
+            ? roster.Error ?? "Club trouve, mais aucun joueur actif n'a ete retourne par l'appel EA reel."
+            : $"Club trouve. {RegistrationRoster.Count} joueur(s) actif(s) retourne(s) par EA.";
     }
 
     private void SelectRegistrationPlayer(EaClubRosterPlayerResponse player)
     {
         if (player.IsInApplication)
         {
-            Message = $"{player.PlayerName} est deja rattache a un compte TS Tournament.";
+            Message = $"{player.PlayerName} est deja rattache a un compte TS Tournament. {GetApplicationPlayerStatus(player)}";
             return;
         }
 
@@ -473,6 +484,7 @@ else
         }
 
         await AuthState.SetSessionAsync(result.Value);
+        await LoadRealAccountDataAsync();
         Message = $"Connecte comme {result.Value.User.DisplayName}.";
     }
 
@@ -480,6 +492,44 @@ else
     {
         await AuthState.SignOutAsync();
         Message = "Session fermee.";
+    }
+
+    private async Task LoadRealAccountDataAsync()
+    {
+        EaProfileLoadAttempted = false;
+        PlayerEaProfile = null;
+        ActiveMembership = null;
+
+        var me = await Api.GetMeAsync();
+        if (me.Value is null)
+        {
+            EaProfileLoadAttempted = true;
+            Message = me.Error ?? "Impossible de charger les donnees du compte depuis la base.";
+            return;
+        }
+
+        await AuthState.UpdateUserAsync(me.Value.User);
+        ActiveMembership = me.Value.Memberships
+            .OrderByDescending(member => member.Role is TeamRole.Owner or TeamRole.Manager)
+            .ThenByDescending(member => member.JoinedAt)
+            .FirstOrDefault();
+
+        if (ActiveMembership?.TeamId is null)
+        {
+            EaProfileLoadAttempted = true;
+            return;
+        }
+
+        await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
+        var players = await Api.GetTeamEaPlayersAsync(ActiveMembership.TeamId.Value);
+        EaProfileLoadAttempted = true;
+        if (players.Value is null)
+        {
+            Message = players.Error ?? "Impossible de charger les profils EA stockes.";
+            return;
+        }
+
+        PlayerEaProfile = players.Value.FirstOrDefault(IsCurrentUserEaProfile);
     }
 
     private async Task UploadProfilePhotoAsync(InputFileChangeEventArgs args)
@@ -557,39 +607,6 @@ else
         return parts.Length == 0 ? "TS" : string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
     }
 
-    private static EaClubSearchResultResponse CreateDemoClubSearchResult()
-    {
-        return new EaClubSearchResultResponse(
-            2148207,
-            "TheSurvivors",
-            "TS",
-            "common-gen5",
-            8,
-            17,
-            "Demo EA",
-            true,
-            null,
-            "TheSurvivors");
-    }
-
-    private static IReadOnlyCollection<EaClubRosterPlayerResponse> CreateDemoRoster()
-    {
-        return
-        [
-            new("1001", "KoffiMarvelous", "Marvelous", "Milieu", 91, 182, 79, 742, 404, 311, 7.8, true, Guid.Parse("8d74f6df-5f67-46ab-8f6b-0412513f0001"), "KoffiMarvelous"),
-            new("1002", "ginga_blaze", "Ginga", "Attaquant", 89, 180, 76, 520, 318, 129, 7.4),
-            new("1003", "caboss_238", "Caboss", "Ailier", 87, 176, 73, 488, 201, 174, 7.1),
-            new("1004", "MomoControl", "Momo", "MDC", 88, 181, 78, 610, 64, 221, 7.3),
-            new("1005", "YanisTempo", "Tempo", "MC", 86, 179, 74, 450, 83, 188, 7.0),
-            new("1006", "NicoVitesse", "Vitesse", "Ailier", 85, 174, 70, 390, 142, 97, 6.9),
-            new("1007", "Tchollismo", "Tcholli", "Defenseur", 88, 187, 84, 555, 18, 34, 7.2),
-            new("1008", "MikaStopper", "Stopper", "Defenseur", 86, 184, 82, 501, 10, 22, 6.9),
-            new("1009", "RayanLock", "Lock", "Defenseur", 84, 181, 80, 360, 8, 19, 6.8),
-            new("1010", "DjoLateral", "Djo", "Lateral", 83, 178, 75, 330, 16, 61, 6.7),
-            new("1011", "lil84330", "Lil", "Gardien", 90, 188, 86, 690, 0, 3, 7.5)
-        ];
-    }
-
     private void ResetPlayerClaim()
     {
         ClaimChallenge = null;
@@ -633,6 +650,98 @@ else
         return value is null ? "-" : $"{value} {unit}";
     }
 
+    private static string FormatNumber(int? value)
+    {
+        return value?.ToString() ?? "-";
+    }
+
+    private static string FormatPercent(int? value)
+    {
+        return value is null ? "-" : $"{value}%";
+    }
+
+    private static string FormatPercent(double? value)
+    {
+        return value is null ? "-" : $"{value:0.#}%";
+    }
+
+    private static string FormatRating(double? value)
+    {
+        return value is null ? "-" : value.Value.ToString("0.0");
+    }
+
+    private bool IsCurrentUserEaProfile(EaPlayerProfileSnapshotResponse profile)
+    {
+        var user = AuthState.User;
+        if (user is null)
+        {
+            return false;
+        }
+
+        return IsSameIdentity(profile.EaPlayerId, user.EaSportsId)
+            || IsSameIdentity(profile.PlayerName, user.Gamertag)
+            || IsSameIdentity(profile.PlayerName, user.DisplayName)
+            || IsSameIdentity(profile.ProName, user.Gamertag)
+            || IsSameIdentity(profile.ProName, user.DisplayName);
+    }
+
+    private static bool IsSameIdentity(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+            && !string.IsNullOrWhiteSpace(right)
+            && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetApplicationPlayerStatus(EaClubRosterPlayerResponse player)
+    {
+        if (!player.IsInApplication)
+        {
+            return "Disponible dans l'app";
+        }
+
+        var owner = string.IsNullOrWhiteSpace(player.ApplicationDisplayName)
+            ? "un compte existant"
+            : player.ApplicationDisplayName;
+
+        if (!string.IsNullOrWhiteSpace(player.ApplicationEaClubName))
+        {
+            return $"Deja pris par {owner} - club lie: {player.ApplicationEaClubName}";
+        }
+
+        if (player.ApplicationEaClubId is not null)
+        {
+            return $"Deja pris par {owner} - club EA lie: {player.ApplicationEaClubId}";
+        }
+
+        return $"Deja pris par {owner} - aucun club actif lie";
+    }
+
+    private static Platform ResolvePlatform(string? platform)
+    {
+        if (string.IsNullOrWhiteSpace(platform))
+        {
+            return Platform.CrossPlay;
+        }
+
+        if (platform.Contains("ps", StringComparison.OrdinalIgnoreCase) ||
+            platform.Contains("playstation", StringComparison.OrdinalIgnoreCase))
+        {
+            return Platform.PlayStation;
+        }
+
+        if (platform.Contains("xbox", StringComparison.OrdinalIgnoreCase))
+        {
+            return Platform.Xbox;
+        }
+
+        if (platform.Contains("pc", StringComparison.OrdinalIgnoreCase))
+        {
+            return Platform.Pc;
+        }
+
+        return Platform.CrossPlay;
+    }
+
     private sealed class RegisterModel
     {
         public string Email { get; set; } = "";
@@ -652,7 +761,6 @@ else
         public string Password { get; set; } = "Password123";
     }
 
-    private sealed record EaProfileDemo(string Position, int HeightCm, int Matches, int WinRate, int Goals, int Assists, double AverageRating, int PassSuccessRate, int PlayerOfTheMatch);
     private sealed record TournamentTotalsDemo(int Matches, int Goals, int Assists, double Rating);
     private sealed record TournamentPerformanceDemo(string Tournament, string Match, string Stage, string Score, int Goals, int Assists, double Rating, string Status);
     private sealed record PlayerClaimChallenge(int CurrentHeight, int CurrentWeight, int TargetHeight, int TargetWeight, DateTimeOffset ExpiresAt);
