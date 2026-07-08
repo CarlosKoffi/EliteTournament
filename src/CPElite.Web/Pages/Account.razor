@@ -164,6 +164,14 @@
             </div>
         }
 
+        @if (RosterLoading)
+        {
+            <div class="roster-loading">
+                <span>Chargement des joueurs EA...</span>
+                <div><i></i></div>
+            </div>
+        }
+
         @if (RegistrationRoster.Count > 0)
         {
             <div class="registration-roster">
@@ -206,15 +214,15 @@
                         <p>Dans FC, change temporairement ton pro avec ces valeurs exactes, puis clique sur verifier.</p>
                         <div class="claim-targets">
                             <div><span>Taille actuelle</span><strong>@FormatMetric(ClaimChallenge.CurrentHeight, "cm")</strong></div>
-                            <div><span>Poids actuel</span><strong>@FormatMetric(ClaimChallenge.CurrentWeight, "kg")</strong></div>
+                            <div><span>Poste actuel</span><strong>@FormatPosition(ClaimChallenge.CurrentPosition)</strong></div>
                             <div><span>Taille demandee</span><strong>@ClaimChallenge.TargetHeight cm</strong></div>
-                            <div><span>Poids demande</span><strong>@ClaimChallenge.TargetWeight kg</strong></div>
+                            <div><span>Poste demande</span><strong>@FormatPosition(ClaimChallenge.TargetPosition)</strong></div>
                         </div>
                         <small>Temps restant: @ClaimTimeLeftLabel</small>
                     }
                     else
                     {
-                        <p class="verification-warning">Verification automatique indisponible : la source EA actuelle renvoie bien le joueur, ses matchs et ses stats, mais pas sa taille et son poids. On ne peut donc pas prouver l'identite avec le challenge taille/poids pour ce joueur.</p>
+                        <p class="verification-warning">Verification automatique indisponible : la source EA actuelle doit renvoyer au minimum une taille et un poste pour ce joueur. Sans ces deux champs, on ne peut pas prouver l'identite automatiquement.</p>
                     }
                 </div>
                 <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified || ClaimChallenge is null)">Verifier EA</button>
@@ -247,7 +255,7 @@
             }
             else if (!PlayerClaimVerified)
             {
-                <p class="form-hint">La creation du compte sera activee apres verification EA. Si EA ne fournit pas taille/poids pour ce joueur, la verification automatique reste bloquee et il faudra utiliser une validation owner/admin.</p>
+                <p class="form-hint">La creation du compte sera activee apres verification EA. Si EA ne fournit pas taille/poste pour ce joueur, la verification automatique reste bloquee et il faudra utiliser une validation owner/admin.</p>
             }
         </EditForm>
     </article>
@@ -281,6 +289,7 @@ else
     private string ClubSearchTerm { get; set; } = "TheSurvivors";
     private PlayerClaimChallenge? ClaimChallenge;
     private bool PlayerClaimVerified;
+    private bool RosterLoading;
     private TeamMemberResponse? ActiveMembership;
     private EaPlayerProfileSnapshotResponse? PlayerEaProfile;
     private bool EaProfileLoadAttempted;
@@ -392,8 +401,10 @@ else
         RegistrationRoster.Clear();
         ClubSearchTerm = club.Name;
         Register.Platform = ResolvePlatform(club.Platform);
+        RosterLoading = true;
 
         var roster = await Api.GetEaClubRosterAsync(club.EaClubId, club.Platform);
+        RosterLoading = false;
         Busy = false;
         if (roster.Value is not null)
         {
@@ -420,8 +431,8 @@ else
         PlayerClaimVerified = false;
         ClaimChallenge = CreatePlayerClaimChallenge(player);
         Message = ClaimChallenge is null
-            ? $"{player.PlayerName} selectionne. Joueur trouve dans EA, mais taille/poids absents dans la reponse actuelle. Verification automatique impossible avec cette source."
-            : $"{player.PlayerName} selectionne. Fais la verification EA taille/poids avant de creer ton compte.";
+            ? $"{player.PlayerName} selectionne. Joueur trouve dans EA, mais taille ou poste absent dans la reponse actuelle. Verification automatique impossible avec cette source."
+            : $"{player.PlayerName} selectionne. Fais la verification EA taille/poste avant de creer ton compte.";
     }
 
     private async Task VerifyPlayerClaimAsync()
@@ -437,7 +448,7 @@ else
             ClaimChallenge = CreatePlayerClaimChallenge(SelectedRegistrationPlayer);
             if (ClaimChallenge is null)
             {
-                Message = "EA renvoie le joueur, mais pas sa taille et son poids. Verification automatique impossible avec cette source.";
+                Message = "EA renvoie le joueur, mais pas sa taille et son poste. Verification automatique impossible avec cette source.";
                 return;
             }
 
@@ -466,8 +477,8 @@ else
         }
 
         var heightOk = refreshed.Height == ClaimChallenge.TargetHeight;
-        var weightOk = refreshed.Weight == ClaimChallenge.TargetWeight;
-        if (heightOk && weightOk)
+        var positionOk = SamePosition(refreshed.Position, ClaimChallenge.TargetPosition);
+        if (heightOk && positionOk)
         {
             SelectedRegistrationPlayer = refreshed;
             PlayerClaimVerified = true;
@@ -475,7 +486,7 @@ else
             return;
         }
 
-        Message = $"Verification non validee. EA renvoie taille {FormatMetric(refreshed.Height, "cm")} et poids {FormatMetric(refreshed.Weight, "kg")}.";
+        Message = $"Verification non validee. EA renvoie taille {FormatMetric(refreshed.Height, "cm")} et poste {FormatPosition(refreshed.Position)}.";
     }
 
     private async Task LoginAsync()
@@ -627,19 +638,24 @@ else
 
     private static PlayerClaimChallenge? CreatePlayerClaimChallenge(EaClubRosterPlayerResponse player)
     {
-        if (player.Height is null || player.Weight is null)
+        if (player.Height is null || string.IsNullOrWhiteSpace(player.Position))
         {
             return null;
         }
 
         var currentHeight = player.Height.Value;
-        var currentWeight = player.Weight.Value;
+        var currentPosition = NormalizePosition(player.Position);
+        if (currentPosition is null)
+        {
+            return null;
+        }
+
         var seed = HashCode.Combine(player.EaPlayerId, DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 300);
         var random = new Random(seed);
         var targetHeight = NextDifferent(random, currentHeight, 165, 199);
-        var targetWeight = NextDifferent(random, currentWeight, 60, 95);
+        var targetPosition = NextDifferentPosition(random, currentPosition);
 
-        return new PlayerClaimChallenge(currentHeight, currentWeight, targetHeight, targetWeight, DateTimeOffset.UtcNow.AddMinutes(5));
+        return new PlayerClaimChallenge(currentHeight, currentPosition, targetHeight, targetPosition, DateTimeOffset.UtcNow.AddMinutes(5));
     }
 
     private static int NextDifferent(Random random, int current, int min, int max)
@@ -665,6 +681,63 @@ else
     private static string FormatMetric(int? value, string unit)
     {
         return value is null ? "-" : $"{value} {unit}";
+    }
+
+    private static string FormatPosition(string? value)
+    {
+        return NormalizePosition(value) switch
+        {
+            "goalkeeper" => "Gardien",
+            "defender" => "Defenseur",
+            "midfielder" => "Milieu",
+            "forward" => "Attaquant",
+            _ => string.IsNullOrWhiteSpace(value) ? "-" : value
+        };
+    }
+
+    private static string? NormalizePosition(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Contains("goal") || normalized.Contains("keeper") || normalized is "gk" or "gardien")
+        {
+            return "goalkeeper";
+        }
+
+        if (normalized.Contains("def") || normalized.Contains("back") || normalized.Contains("dc") || normalized.Contains("dd") || normalized.Contains("dg") || normalized.Contains("defenseur"))
+        {
+            return "defender";
+        }
+
+        if (normalized.Contains("mid") || normalized.Contains("mil") || normalized is "cm" or "cam" or "cdm" or "mc" or "moc" or "mdc")
+        {
+            return "midfielder";
+        }
+
+        if (normalized.Contains("for") || normalized.Contains("striker") || normalized.Contains("attack") || normalized.Contains("att") || normalized is "st" or "lw" or "rw" or "bu" or "ailier")
+        {
+            return "forward";
+        }
+
+        return normalized;
+    }
+
+    private static string NextDifferentPosition(Random random, string currentPosition)
+    {
+        var positions = new[] { "goalkeeper", "defender", "midfielder", "forward" }
+            .Where(position => !string.Equals(position, currentPosition, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        return positions[random.Next(positions.Length)];
+    }
+
+    private static bool SamePosition(string? actual, string expected)
+    {
+        return string.Equals(NormalizePosition(actual), expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetRosterPhysicalStatus(EaClubRosterPlayerResponse player)
@@ -800,6 +873,6 @@ else
 
     private sealed record TournamentTotalsDemo(int Matches, int Goals, int Assists, double Rating);
     private sealed record TournamentPerformanceDemo(string Tournament, string Match, string Stage, string Score, int Goals, int Assists, double Rating, string Status);
-    private sealed record PlayerClaimChallenge(int CurrentHeight, int CurrentWeight, int TargetHeight, int TargetWeight, DateTimeOffset ExpiresAt);
+    private sealed record PlayerClaimChallenge(int CurrentHeight, string CurrentPosition, int TargetHeight, string TargetPosition, DateTimeOffset ExpiresAt);
 }
 

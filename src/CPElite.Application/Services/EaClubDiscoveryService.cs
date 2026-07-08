@@ -60,7 +60,10 @@ public sealed class EaClubDiscoveryService
             return Result<EaClubSearchResponse>.Failure(ErrorType.Validation, "ea.club_search_failed", response.Error ?? "EA club search failed.");
         }
 
-        var results = ParseClubResults(response.RawBody, resolvedPlatform).ToArray();
+        var results = ParseClubResults(response.RawBody, resolvedPlatform)
+            .GroupBy(result => result.EaClubId)
+            .Select(group => group.OrderByDescending(ClubSearchDataScore).First())
+            .ToArray();
         for (var index = 0; index < results.Length; index++)
         {
             var appTeam = await _teams.GetByEaClubIdAsync(results[index].EaClubId, cancellationToken);
@@ -191,6 +194,27 @@ public sealed class EaClubDiscoveryService
                 FindInt(item, "membersCount", "memberCount", "members"),
                 "Pro Clubs Tracker");
         }
+    }
+
+    private static int ClubSearchDataScore(EaClubSearchResultResponse result)
+    {
+        var score = 0;
+        if (!string.IsNullOrWhiteSpace(result.Abbreviation))
+        {
+            score += 1;
+        }
+
+        if (result.Division is not null)
+        {
+            score += 2;
+        }
+
+        if (result.MembersCount is not null)
+        {
+            score += 2;
+        }
+
+        return score;
     }
 
     private static IEnumerable<JsonElement> EnumerateObjects(JsonElement element)
