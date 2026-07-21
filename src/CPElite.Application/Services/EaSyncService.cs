@@ -355,6 +355,23 @@ public sealed class EaSyncService
                 GetInt(item, "mom") ?? GetInt(item, "playerOfTheMatch") ?? GetInt(item, "manOfTheMatch"),
                 GetInt(item, "redCards") ?? GetInt(item, "redcards"),
                 GetInt(item, "prevGoals"),
+                GetDoubleAny(item, "goalsPerMatch", "goalspermatch", "goalspg") ?? PerMatch(goals, matches),
+                GetDoubleAny(item, "assistsPerMatch", "assistspermatch", "assistspg") ?? PerMatch(assists, matches),
+                GetIntAny(item, "goalContributions", "goalsAssists", "goalsAndAssists") ?? SumNullable(goals, assists),
+                GetDoubleAny(item, "goalContributionsPerMatch", "goalsAssistsPerMatch", "goalsAndAssistsPerMatch") ?? PerMatch(SumNullable(goals, assists), matches),
+                GetDoubleAny(item, "passesMadePerMatch", "passesmadepermatch", "passesPerMatch") ?? PerMatch(GetInt(item, "passesmade") ?? GetInt(item, "passesMade"), matches),
+                GetDoubleAny(item, "tacklesMadePerMatch", "tacklesmadepermatch", "tacklesPerMatch") ?? PerMatch(GetInt(item, "tacklesmade") ?? GetInt(item, "tacklesMade"), matches),
+                GetDoubleAny(item, "playerOfTheMatchRate", "manOfTheMatchRate", "momRate") ?? Rate(GetInt(item, "mom") ?? GetInt(item, "playerOfTheMatch") ?? GetInt(item, "manOfTheMatch"), matches),
+                GetDoubleAny(item, "cleanSheetsDefRate", "cleansheetsdefrate") ?? Rate(GetInt(item, "cleanSheetsDef") ?? GetInt(item, "cleansheetsdef") ?? GetInt(item, "cleanSheets"), matches),
+                GetDoubleAny(item, "cleanSheetsGkRate", "cleansheetsgkrate") ?? Rate(GetInt(item, "cleanSheetsGK") ?? GetInt(item, "cleansheetsgk"), matches),
+                GetIntAny(item, "allClubsMatches", "allclubsMatches", "allTimeMatches"),
+                GetIntAny(item, "allClubsGoals", "allclubsGoals", "allTimeGoals"),
+                GetIntAny(item, "allClubsAssists", "allclubsAssists", "allTimeAssists"),
+                GetDoubleAny(item, "allClubsAverageRating", "allclubsAverageRating", "allTimeAverageRating"),
+                GetIntAny(item, "allClubsPlayerOfTheMatch", "allclubsPlayerOfTheMatch", "allTimeManOfTheMatch"),
+                GetDoubleAny(item, "allClubsPlayerOfTheMatchRate", "allclubsPlayerOfTheMatchRate", "allTimeManOfTheMatchRate"),
+                GetIntAny(item, "allClubsGoalContributions", "allclubsGoalContributions", "allTimeGoalContributions") ?? SumNullable(GetIntAny(item, "allClubsGoals", "allclubsGoals", "allTimeGoals"), GetIntAny(item, "allClubsAssists", "allclubsAssists", "allTimeAssists")),
+                GetDoubleAny(item, "allClubsGoalContributionsPerMatch", "allclubsGoalContributionsPerMatch", "allTimeGoalContributionsPerMatch") ?? PerMatch(SumNullable(GetIntAny(item, "allClubsGoals", "allclubsGoals", "allTimeGoals"), GetIntAny(item, "allClubsAssists", "allclubsAssists", "allTimeAssists")), GetIntAny(item, "allClubsMatches", "allclubsMatches", "allTimeMatches")),
                 item.GetRawText(),
                 syncedAt);
         }
@@ -371,6 +388,39 @@ public sealed class EaSyncService
         }
 
         return keys;
+    }
+
+    private static int? SumNullable(int? left, int? right) => left is null && right is null ? null : (left ?? 0) + (right ?? 0);
+
+    private static double? PerMatch(int? value, int? matches) => matches > 0 && value is not null ? Math.Round((double)value.Value / matches.Value, 2) : null;
+
+    private static double? Rate(int? value, int? matches) => matches > 0 && value is not null ? Math.Round((double)value.Value / matches.Value * 100, 2) : null;
+    private static int? GetIntAny(JsonElement element, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetInt(element, propertyName);
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static double? GetDoubleAny(JsonElement element, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            var value = GetDouble(element, propertyName);
+            if (value is not null)
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static int? ReadHeightCm(JsonElement item)
@@ -704,7 +754,7 @@ public sealed class EaSyncService
 
     private static EaPlayerProfileSnapshotResponse ToPlayerProfileResponse(EaPlayerProfileSnapshot profile)
     {
-        return new EaPlayerProfileSnapshotResponse(profile.EaPlayerId, profile.PlayerName, profile.ProName, profile.Position, profile.Matches, profile.WinRate, profile.Goals, profile.Assists, profile.AverageRating, profile.Height, profile.Weight, profile.Overall, profile.Shots, profile.ShotSuccessRate, profile.PassesMade, profile.PassAttempts, profile.PassSuccessRate, profile.TacklesMade, profile.TackleAttempts, profile.TackleSuccessRate, profile.Saves, profile.CleanSheets, profile.CleanSheetsGk, profile.PlayerOfTheMatch, profile.RedCards, profile.PrevGoals, profile.SyncedAt);
+        return new EaPlayerProfileSnapshotResponse(profile.EaPlayerId, profile.PlayerName, profile.ProName, profile.Position, profile.Matches, profile.WinRate, profile.Goals, profile.Assists, profile.AverageRating, profile.Height, profile.Weight, profile.Overall, profile.Shots, profile.ShotSuccessRate, profile.PassesMade, profile.PassAttempts, profile.PassSuccessRate, profile.TacklesMade, profile.TackleAttempts, profile.TackleSuccessRate, profile.Saves, profile.CleanSheets, profile.CleanSheetsGk, profile.PlayerOfTheMatch, profile.RedCards, profile.PrevGoals, profile.GoalsPerMatch, profile.AssistsPerMatch, profile.GoalContributions, profile.GoalContributionsPerMatch, profile.PassesMadePerMatch, profile.TacklesMadePerMatch, profile.PlayerOfTheMatchRate, profile.CleanSheetsDefRate, profile.CleanSheetsGkRate, profile.AllClubsMatches, profile.AllClubsGoals, profile.AllClubsAssists, profile.AllClubsAverageRating, profile.AllClubsPlayerOfTheMatch, profile.AllClubsPlayerOfTheMatchRate, profile.AllClubsGoalContributions, profile.AllClubsGoalContributionsPerMatch, profile.SyncedAt);
     }
 
     private static IEnumerable<JsonElement> EnumerateObjects(JsonElement element)

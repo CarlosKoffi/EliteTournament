@@ -403,6 +403,23 @@
                     </div>
                 </article>
             </div>
+            @if (SelectedPlayerSheet.MetricGroups.Count > 0)
+            {
+                <div class="drawer-data-grid player-deep-stats">
+                    @foreach (var group in SelectedPlayerSheet.MetricGroups)
+                    {
+                        <article>
+                            <span class="result-kind">@group.Title</span>
+                            <div class="player-skill-grid">
+                                @foreach (var metric in group.Metrics)
+                                {
+                                    <div><span>@metric.Label</span><strong>@metric.Value</strong></div>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
         </div>
     </section>
 }
@@ -987,9 +1004,12 @@
         int redCards,
         int prevGoals)
     {
-        return new EaPlayerProfileSnapshotResponse(eaPlayerId, playerName, proName, position, matches, winRate, goals, assists, rating, height, null, overall, null, shotRate, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, cleanSheets, cleanSheetsGk, motm, redCards, prevGoals, DateTimeOffset.UtcNow.AddMinutes(-12));
+        return new EaPlayerProfileSnapshotResponse(eaPlayerId, playerName, proName, position, matches, winRate, goals, assists, rating, height, null, overall, null, shotRate, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, cleanSheets, cleanSheetsGk, motm, redCards, prevGoals, PerMatch(goals, matches), PerMatch(assists, matches), goals + assists, PerMatch(goals + assists, matches), PerMatch(passesMade, matches), PerMatch(tacklesMade, matches), Rate(motm, matches), Rate(cleanSheets, matches), Rate(cleanSheetsGk, matches), matches * 2, goals + prevGoals, assists + 30, Math.Round(rating + 0.1, 1), motm + 4, Rate(motm + 4, matches * 2), goals + prevGoals + assists + 30, PerMatch(goals + prevGoals + assists + 30, matches * 2), DateTimeOffset.UtcNow.AddMinutes(-12));
     }
 
+    private static double? PerMatch(int value, int matches) => matches > 0 ? Math.Round((double)value / matches, 2) : null;
+
+    private static double? Rate(int value, int matches) => matches > 0 ? Math.Round((double)value / matches * 100, 2) : null;
     private static EaFriendlyMatchResponse DemoMatch(string id, DateTimeOffset playedAt, string homeName, int homeScore, string awayName, int awayScore, int playerStats)
     {
         var awayClubId = awayName == "HOF 221" ? 40142 : 702221;
@@ -1118,6 +1138,10 @@
 
     private sealed record DemoTournamentTeamStats(int TournamentsPlayed, string Record, string BestRun, string KeyPlayer);
 
+    private sealed record PlayerMetricGroup(string Title, IReadOnlyCollection<PlayerMetric> Metrics);
+
+    private sealed record PlayerMetric(string Label, string Value);
+
     private sealed record PlayerSheetModel(
         string Name,
         string EaPlayerId,
@@ -1134,7 +1158,8 @@
         string PlayerOfTheMatchLabel,
         string PassRateLabel,
         string TackleRateLabel,
-        string ShotRateLabel)
+        string ShotRateLabel,
+        IReadOnlyCollection<PlayerMetricGroup> MetricGroups)
     {
         public static PlayerSheetModel FromProfile(EaPlayerProfileSnapshotResponse player, bool hasApp)
         {
@@ -1154,7 +1179,8 @@
                 player.PlayerOfTheMatch?.ToString() ?? "-",
                 player.PassSuccessRate?.ToString("0") is { } pass ? $"{pass}%" : "-",
                 player.TackleSuccessRate?.ToString("0") is { } tackle ? $"{tackle}%" : "-",
-                player.ShotSuccessRate?.ToString() is { } shot ? $"{shot}%" : "-");
+                player.ShotSuccessRate?.ToString() is { } shot ? $"{shot}%" : "-",
+                BuildProfileMetricGroups(player));
         }
 
         public static PlayerSheetModel FromMatchStat(EaMatchPlayerStatResponse stat, EaPlayerProfileSnapshotResponse? profile, bool hasApp)
@@ -1175,9 +1201,91 @@
                 stat.PlayerOfTheMatch ? "Oui" : profile?.PlayerOfTheMatch?.ToString() ?? "-",
                 stat.PassSuccessRate?.ToString("0") is { } pass ? $"{pass}%" : "-",
                 stat.TackleSuccessRate?.ToString("0") is { } tackle ? $"{tackle}%" : "-",
-                stat.Shots?.ToString() ?? "-");
+                stat.Shots?.ToString() ?? "-",
+                profile is null ? BuildMatchMetricGroups(stat) : BuildProfileMetricGroups(profile));
         }
 
+        private static IReadOnlyCollection<PlayerMetricGroup> BuildProfileMetricGroups(EaPlayerProfileSnapshotResponse player)
+        {
+            return new[]
+            {
+                new PlayerMetricGroup("Current club", new[]
+                {
+                    Metric("Matchs", player.Matches),
+                    Metric("Win rate", Percent(player.WinRate)),
+                    Metric("Buts / match", Decimal(player.GoalsPerMatch)),
+                    Metric("Assists / match", Decimal(player.AssistsPerMatch)),
+                    Metric("G+A", player.GoalContributions),
+                    Metric("G+A / match", Decimal(player.GoalContributionsPerMatch)),
+                    Metric("MOTM rate", Percent(player.PlayerOfTheMatchRate))
+                }),
+                new PlayerMetricGroup("Attaque", new[]
+                {
+                    Metric("Buts", player.Goals),
+                    Metric("Assists", player.Assists),
+                    Metric("Tirs", player.Shots),
+                    Metric("Reussite tirs", Percent(player.ShotSuccessRate)),
+                    Metric("Prev goals", player.PrevGoals)
+                }),
+                new PlayerMetricGroup("Jeu collectif", new[]
+                {
+                    Metric("Passes reussies", player.PassesMade),
+                    Metric("Passes tentees", player.PassAttempts),
+                    Metric("Passes / match", Decimal(player.PassesMadePerMatch)),
+                    Metric("Reussite passes", Percent(player.PassSuccessRate))
+                }),
+                new PlayerMetricGroup("Defense & gardien", new[]
+                {
+                    Metric("Tacles reussis", player.TacklesMade),
+                    Metric("Tacles tentes", player.TackleAttempts),
+                    Metric("Tacles / match", Decimal(player.TacklesMadePerMatch)),
+                    Metric("Reussite tacles", Percent(player.TackleSuccessRate)),
+                    Metric("Saves", player.Saves),
+                    Metric("Clean sheets DEF", player.CleanSheets),
+                    Metric("Clean sheets DEF rate", Percent(player.CleanSheetsDefRate)),
+                    Metric("Clean sheets GK", player.CleanSheetsGk),
+                    Metric("Clean sheets GK rate", Percent(player.CleanSheetsGkRate)),
+                    Metric("Cartons rouges", player.RedCards)
+                }),
+                new PlayerMetricGroup("All clubs", new[]
+                {
+                    Metric("Matchs", player.AllClubsMatches),
+                    Metric("Note", Decimal(player.AllClubsAverageRating)),
+                    Metric("Buts", player.AllClubsGoals),
+                    Metric("Assists", player.AllClubsAssists),
+                    Metric("G+A", player.AllClubsGoalContributions),
+                    Metric("G+A / match", Decimal(player.AllClubsGoalContributionsPerMatch)),
+                    Metric("MOTM", player.AllClubsPlayerOfTheMatch),
+                    Metric("MOTM rate", Percent(player.AllClubsPlayerOfTheMatchRate))
+                })
+            };
+        }
+
+        private static IReadOnlyCollection<PlayerMetricGroup> BuildMatchMetricGroups(EaMatchPlayerStatResponse stat)
+        {
+            return new[]
+            {
+                new PlayerMetricGroup("Match selectionne", new[]
+                {
+                    Metric("Buts", stat.Goals),
+                    Metric("Assists", stat.Assists),
+                    Metric("Note", Decimal(stat.Rating)),
+                    Metric("Tirs", stat.Shots),
+                    Metric("Passes", $"{stat.PassesMade?.ToString() ?? "-"}/{stat.PassAttempts?.ToString() ?? "-"}"),
+                    Metric("Tacles", $"{stat.TacklesMade?.ToString() ?? "-"}/{stat.TackleAttempts?.ToString() ?? "-"}"),
+                    Metric("Saves", stat.Saves),
+                    Metric("Carton rouge", stat.RedCards)
+                })
+            };
+        }
+
+        private static PlayerMetric Metric(string label, int? value) => new(label, value?.ToString() ?? "-");
+
+        private static PlayerMetric Metric(string label, string value) => new(label, string.IsNullOrWhiteSpace(value) ? "-" : value);
+
+        private static string Decimal(double? value) => value?.ToString("0.##") ?? "-";
+
+        private static string Percent(double? value) => value?.ToString("0.#") is { } percent ? $"{percent}%" : "-";
         public static PlayerSheetModel FromMember(TeamMemberResponse member)
         {
             return new PlayerSheetModel(
@@ -1196,12 +1304,13 @@
                 "-",
                 "-",
                 "-",
-                "-");
+                "-",
+                Array.Empty<PlayerMetricGroup>());
         }
 
         public static PlayerSheetModel FromName(string playerName)
         {
-            return new PlayerSheetModel(playerName, playerName, playerName, "A synchroniser", "Profil a completer", false, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-");
+            return new PlayerSheetModel(playerName, playerName, playerName, "A synchroniser", "Profil a completer", false, "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", Array.Empty<PlayerMetricGroup>());
         }
     }
 }

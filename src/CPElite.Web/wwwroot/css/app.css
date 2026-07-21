@@ -6253,3 +6253,33 @@ body {
         width: 100%;
     }
 }
+
+.player-deep-stats {
+    margin-top: 16px;
+}
+
+.player-deep-stats article {
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid var(--app-border);
+}
+
+.player-deep-stats .player-skill-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.player-deep-stats .player-skill-grid div {
+    min-height: 74px;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid var(--app-border);
+}
+
+.player-deep-stats .player-skill-grid span,
+.player-deep-stats .player-skill-grid strong {
+    color: #050505;
+}
+
+.player-deep-stats article:first-child {
+    border-left: 6px solid var(--app-pitch);
+}
