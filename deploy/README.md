@@ -108,27 +108,23 @@ It removes:
 
 If `Seed__AdminEmail` and `Seed__AdminPassword` are configured, the API will recreate an admin user at startup. Remove those variables if the launch must contain zero users.
 
-## 7. One-shot cleanup during Coolify deployment
+## 7. Manual cleanup only
 
-If old test accounts still appear as "already registered", the deployed API is still reading users from the production database.
+The API never deletes users, teams, tournaments or EA data automatically at startup.
 
-For one deployment only, add one of these variables in Coolify:
-
-```text
-StartupCleanup__RegisteredUsers=true
-```
-
-This removes registered users and user-owned data, but keeps teams, tournaments and website texts.
-
-For a full public launch reset, use:
+If old test accounts still appear as "already registered", the deployed API is reading those rows from the production database. Run a cleanup SQL script manually from the PostgreSQL SQL editor only when you intentionally want to erase that data:
 
 ```text
-StartupCleanup__ContentOnlyReset=true
+deploy/cleanup-registered-users.sql
 ```
 
-This removes users, teams, tournaments and EA cached data, while keeping `LocalizedContents` and EF migrations.
+or, for a full public launch reset:
 
-After the deployment logs show the cleanup completed, remove the variable from Coolify before the next deploy. If the variable stays enabled, the app will clean the same data again on every restart.
+```text
+deploy/production-content-only-reset.sql
+```
+
+Do not use `StartupCleanup__RegisteredUsers` or `StartupCleanup__ContentOnlyReset`. They are intentionally ignored by the application so a restart or redeploy cannot wipe real accounts.
 ## 8. Seed real EA friendly matches for TheSurvivors
 
 After EF migrations have been applied and the TheSurvivors team exists with EA club ID `2148207`, run this SQL once from the Coolify/Supabase PostgreSQL SQL editor:
