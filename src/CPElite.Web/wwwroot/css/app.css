@@ -6854,3 +6854,188 @@ body {
     color: #050505;
     border: 1px solid rgba(5, 5, 5, .12);
 }
+
+/* Account EA card v2: compact, readable general-player stats. */
+.account-ea-card-v2 {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+    background: #050505 !important;
+    color: #ffffff !important;
+    overflow: hidden;
+}
+
+.account-ea-card-v2 * {
+    letter-spacing: 0;
+}
+
+.account-ea-card-v2 .account-ea-profile-hero {
+    min-height: auto;
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 76px;
+    gap: 16px;
+    align-items: center;
+    padding: 16px;
+    background: #050505 !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-left: 6px solid var(--app-pitch);
+}
+
+.account-ea-card-v2 .club-avatar.large {
+    width: 72px;
+    height: 72px;
+    min-width: 72px;
+    background: var(--app-pitch);
+    color: #050505;
+    box-shadow: none;
+}
+
+.account-ea-card-v2 .account-ea-profile-hero .eyebrow,
+.account-ea-card-v2 .account-ea-profile-hero h2,
+.account-ea-card-v2 .account-ea-profile-hero span,
+.account-ea-card-v2 .account-ea-profile-hero small {
+    display: block;
+    color: #ffffff !important;
+    opacity: 1;
+    text-shadow: none;
+}
+
+.account-ea-card-v2 .account-ea-profile-hero .eyebrow {
+    color: var(--app-pitch) !important;
+}
+
+.account-ea-card-v2 .account-ea-profile-hero h2 {
+    margin: 2px 0 4px;
+    font-size: clamp(26px, 3vw, 42px);
+    line-height: 1;
+    overflow-wrap: anywhere;
+}
+
+.account-ea-card-v2 .account-ea-profile-hero span,
+.account-ea-card-v2 .account-ea-profile-hero small {
+    color: rgba(255, 255, 255, .78) !important;
+    font-weight: 850;
+}
+
+.account-ea-card-v2 .player-rating {
+    width: 76px;
+    height: 76px;
+    min-width: 76px;
+    display: grid;
+    place-items: center;
+    background: var(--app-pitch) !important;
+    color: #050505 !important;
+    border-radius: 8px;
+    font-size: 28px;
+    font-weight: 950;
+}
+
+.account-ea-card-v2 .account-ea-sync-panel,
+.account-ea-card-v2 .player-position-panel,
+.account-ea-card-v2 .ea-profile-empty-state,
+.account-ea-card-v2 .account-section-title,
+.account-ea-card-v2 .account-player-deep-stats article {
+    background: #ffffff !important;
+    color: #050505 !important;
+    border: 1px solid rgba(5, 5, 5, .16);
+}
+
+.account-ea-card-v2 .account-section-title {
+    display: grid;
+    gap: 4px;
+    padding: 14px;
+    border-left: 6px solid var(--app-pitch);
+}
+
+.account-ea-card-v2 .account-section-title h3,
+.account-ea-card-v2 .account-section-title p,
+.account-ea-card-v2 .account-section-title span,
+.account-ea-card-v2 .account-ea-sync-panel h3,
+.account-ea-card-v2 .account-ea-sync-panel p,
+.account-ea-card-v2 .player-position-panel h3,
+.account-ea-card-v2 .ea-profile-empty-state strong,
+.account-ea-card-v2 .ea-profile-empty-state p {
+    margin: 0;
+    color: #050505 !important;
+}
+
+.account-ea-card-v2 .account-section-title .eyebrow,
+.account-ea-card-v2 .account-ea-sync-panel .eyebrow,
+.account-ea-card-v2 .player-position-panel .eyebrow {
+    color: #007a4d !important;
+}
+
+.account-ea-card-v2 .account-section-title span,
+.account-ea-card-v2 .account-ea-sync-panel p {
+    color: #4b5563 !important;
+    font-weight: 800;
+}
+
+.account-ea-card-v2 .account-ea-main-grid,
+.account-ea-card-v2 .account-player-deep-stats .player-skill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.account-ea-card-v2 .account-ea-main-grid div,
+.account-ea-card-v2 .account-player-deep-stats .player-skill-grid div,
+.account-ea-card-v2 .stored-player-fallback-grid div {
+    min-height: 84px;
+    display: grid;
+    gap: 6px;
+    align-content: center;
+    padding: 12px;
+    background: #f4f4f1 !important;
+    color: #050505 !important;
+    border: 1px solid rgba(5, 5, 5, .14);
+}
+
+.account-ea-card-v2 .account-ea-main-grid span,
+.account-ea-card-v2 .account-player-deep-stats .player-skill-grid span,
+.account-ea-card-v2 .stored-player-fallback-grid span {
+    color: #5b6470 !important;
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.account-ea-card-v2 .account-ea-main-grid strong,
+.account-ea-card-v2 .account-player-deep-stats .player-skill-grid strong,
+.account-ea-card-v2 .stored-player-fallback-grid strong {
+    color: #050505 !important;
+    font-size: 22px;
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+}
+
+.account-ea-card-v2 .account-player-deep-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+}
+
+.account-ea-card-v2 .account-player-deep-stats article {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+}
+
+.account-ea-card-v2 .account-player-deep-stats .result-kind {
+    margin: 0;
+    background: #e8f3ef !important;
+    color: #050505 !important;
+    border: 1px solid rgba(5, 5, 5, .12);
+}
+
+@media (max-width: 760px) {
+    .account-ea-card-v2 .account-ea-profile-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .account-ea-card-v2 .player-rating,
+    .account-ea-card-v2 .club-avatar.large {
+        width: 100%;
+    }
+}

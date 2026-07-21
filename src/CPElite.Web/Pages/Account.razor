@@ -77,7 +77,7 @@
     }
 
     <section class="player-account-grid">
-        <article class="panel account-player-card">
+        <article class="panel account-player-card account-ea-card-v2">
             <div class="account-ea-profile-hero compact-profile-hero">
                 <div class="club-avatar large">@PlayerInitials</div>
                 <div>
@@ -126,6 +126,12 @@
             }
             else
             {
+                <div class="account-section-title">
+                    <p class="eyebrow">Statistiques generales EA</p>
+                    <h3>Profil joueur stocke</h3>
+                    <span>Ces donnees viennent du snapshot EA du club, pas des matchs de tournoi.</span>
+                </div>
+
                 <div class="player-skill-grid account-ea-main-grid">
                     <div><span>Poste EA</span><strong>@FormatPosition(PlayerEaProfile.Position)</strong></div>
                     <div><span>OVR</span><strong>@FormatNumber(PlayerEaProfile.Overall)</strong></div>
