@@ -6283,3 +6283,78 @@ body {
 .player-deep-stats article:first-child {
     border-left: 6px solid var(--app-pitch);
 }
+
+.account-ea-profile-hero {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    padding: 18px;
+    background: #050505;
+    color: #ffffff;
+    border-left: 6px solid var(--app-pitch);
+}
+
+.account-ea-profile-hero h2,
+.account-ea-profile-hero strong,
+.account-ea-profile-hero span,
+.account-ea-profile-hero small {
+    color: #ffffff;
+}
+
+.account-ea-profile-hero .eyebrow {
+    color: var(--app-pitch);
+}
+
+.account-ea-profile-hero .player-rating {
+    min-width: 72px;
+    min-height: 72px;
+    display: grid;
+    place-items: center;
+    background: var(--app-pitch);
+    color: #050505;
+    font-size: 24px;
+    font-weight: 950;
+}
+
+.ea-profile-empty-state {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 18px;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid var(--app-border);
+}
+
+.ea-profile-empty-state strong,
+.ea-profile-empty-state p {
+    color: #050505;
+}
+
+.account-ea-main-grid,
+.account-player-deep-stats {
+    margin-top: 18px;
+}
+
+.account-ea-main-grid div {
+    min-height: 82px;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid var(--app-border);
+}
+
+.account-ea-main-grid span,
+.account-ea-main-grid strong {
+    color: #050505;
+}
+
+@media (max-width: 760px) {
+    .account-ea-profile-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .account-ea-profile-hero .player-rating {
+        width: 100%;
+    }
+}

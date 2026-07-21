@@ -1,4 +1,4 @@
-﻿@page "/account"
+@page "/account"
 @inject ApiClient Api
 @inject AuthState AuthState
 
@@ -50,26 +50,72 @@
 
     <section class="player-account-grid">
         <article class="panel account-player-card">
-            <div class="player-profile-header">
+            <div class="account-ea-profile-hero">
+                <div class="club-avatar large">@PlayerInitials</div>
                 <div>
                     <p class="eyebrow">Profil EA stocke</p>
-                    <h2>@PlayerName</h2>
+                    <h2>@PlayerEaDisplayName</h2>
                     <span>@PlayerEaId - @PlayerClubName - @PlayerRole</span>
+                    <small>@PlayerEaProfileStatus</small>
                 </div>
                 <strong class="player-rating">@FormatRating(PlayerEaProfile?.AverageRating)</strong>
             </div>
-            <div class="player-skill-grid">
-                <div><span>Poste EA</span><strong>@ValueOrMissing(PlayerEaProfile?.Position)</strong></div>
-                <div><span>Taille</span><strong>@FormatMetric(PlayerEaProfile?.Height, "cm")</strong></div>
-                <div><span>Poids</span><strong>@FormatMetric(PlayerEaProfile?.Weight, "kg")</strong></div>
-                <div><span>Matchs EA</span><strong>@FormatNumber(PlayerEaProfile?.Matches)</strong></div>
-                <div><span>Win rate</span><strong>@FormatPercent(PlayerEaProfile?.WinRate)</strong></div>
-                <div><span>Buts</span><strong>@FormatNumber(PlayerEaProfile?.Goals)</strong></div>
-                <div><span>Assists</span><strong>@FormatNumber(PlayerEaProfile?.Assists)</strong></div>
-                <div><span>Passes</span><strong>@FormatPercent(PlayerEaProfile?.PassSuccessRate)</strong></div>
-                <div><span>Homme du match</span><strong>@FormatNumber(PlayerEaProfile?.PlayerOfTheMatch)</strong></div>
-            </div>
-            <p class="form-hint">@PlayerEaProfileStatus</p>
+
+            @if (PlayerEaProfile is null)
+            {
+                <div class="ea-profile-empty-state">
+                    <strong>Profil EA pas encore charge</strong>
+                    <p>On affiche uniquement les donnees stockees chez nous. Si elles sont absentes, lance un appel EA, on sauvegarde en base, puis on recharge cette fiche depuis la base.</p>
+                    <button class="primary-action" @onclick="SyncActivePlayerProfileAsync" disabled="@(Busy || ActiveMembership?.TeamId is null)">Charger depuis EA</button>
+                </div>
+            }
+            else
+            {
+                <div class="player-skill-grid account-ea-main-grid">
+                    <div><span>Poste EA</span><strong>@FormatPosition(PlayerEaProfile.Position)</strong></div>
+                    <div><span>OVR</span><strong>@FormatNumber(PlayerEaProfile.Overall)</strong></div>
+                    <div><span>Taille</span><strong>@FormatMetric(PlayerEaProfile.Height, "cm")</strong></div>
+                    <div><span>Poids</span><strong>@FormatMetric(PlayerEaProfile.Weight, "kg")</strong></div>
+                    <div><span>Matchs EA</span><strong>@FormatNumber(PlayerEaProfile.Matches)</strong></div>
+                    <div><span>Win rate</span><strong>@FormatPercent(PlayerEaProfile.WinRate)</strong></div>
+                    <div><span>Buts</span><strong>@FormatNumber(PlayerEaProfile.Goals)</strong></div>
+                    <div><span>Assists</span><strong>@FormatNumber(PlayerEaProfile.Assists)</strong></div>
+                    <div><span>G+A</span><strong>@FormatNumber(PlayerEaProfile.GoalContributions)</strong></div>
+                    <div><span>Buts / match</span><strong>@FormatDecimal(PlayerEaProfile.GoalsPerMatch)</strong></div>
+                    <div><span>Assists / match</span><strong>@FormatDecimal(PlayerEaProfile.AssistsPerMatch)</strong></div>
+                    <div><span>MOTM rate</span><strong>@FormatPercent(PlayerEaProfile.PlayerOfTheMatchRate)</strong></div>
+                </div>
+
+                <div class="drawer-data-grid player-deep-stats account-player-deep-stats">
+                    <article>
+                        <span class="result-kind">Jeu collectif</span>
+                        <div class="player-skill-grid">
+                            <div><span>Passes reussies</span><strong>@FormatNumber(PlayerEaProfile.PassesMade)</strong></div>
+                            <div><span>Passes tentees</span><strong>@FormatNumber(PlayerEaProfile.PassAttempts)</strong></div>
+                            <div><span>Passes / match</span><strong>@FormatDecimal(PlayerEaProfile.PassesMadePerMatch)</strong></div>
+                            <div><span>Reussite passes</span><strong>@FormatPercent(PlayerEaProfile.PassSuccessRate)</strong></div>
+                        </div>
+                    </article>
+                    <article>
+                        <span class="result-kind">Defense & gardien</span>
+                        <div class="player-skill-grid">
+                            <div><span>Tacles</span><strong>@FormatNumber(PlayerEaProfile.TacklesMade)</strong></div>
+                            <div><span>Tacles / match</span><strong>@FormatDecimal(PlayerEaProfile.TacklesMadePerMatch)</strong></div>
+                            <div><span>Clean sheets</span><strong>@FormatNumber(PlayerEaProfile.CleanSheets)</strong></div>
+                            <div><span>Saves</span><strong>@FormatNumber(PlayerEaProfile.Saves)</strong></div>
+                        </div>
+                    </article>
+                    <article>
+                        <span class="result-kind">All clubs</span>
+                        <div class="player-skill-grid">
+                            <div><span>Matchs</span><strong>@FormatNumber(PlayerEaProfile.AllClubsMatches)</strong></div>
+                            <div><span>Buts</span><strong>@FormatNumber(PlayerEaProfile.AllClubsGoals)</strong></div>
+                            <div><span>Assists</span><strong>@FormatNumber(PlayerEaProfile.AllClubsAssists)</strong></div>
+                            <div><span>Note</span><strong>@FormatRating(PlayerEaProfile.AllClubsAverageRating)</strong></div>
+                        </div>
+                    </article>
+                </div>
+            }
         </article>
 
         <article class="panel">
@@ -309,6 +355,7 @@ else
     private string PlayerName => ValueOrMissing(AuthState.User?.DisplayName);
     private string PlayerGamertag => ValueOrMissing(AuthState.User?.Gamertag);
     private string PlayerEaId => ValueOrMissing(AuthState.User?.EaSportsId ?? AuthState.User?.Gamertag);
+    private string PlayerEaDisplayName => ValueOrMissing(PlayerEaProfile?.PlayerName ?? PlayerEaProfile?.ProName ?? AuthState.User?.DisplayName);
     private string PlayerDiscordId => ValueOrMissing(AuthState.User?.DiscordUserId);
     private string PlayerPlatform => AuthState.User?.Platform.ToString() ?? "A completer";
     private string PlayerTimeZone => ValueOrMissing(AuthState.User?.TimeZone);
@@ -588,18 +635,54 @@ else
             return;
         }
 
-        await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
-        var players = await Api.GetTeamEaPlayersAsync(ActiveMembership.TeamId.Value);
+        PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
+        if (PlayerEaProfile is null)
+        {
+            Message = "Profil EA absent en base pour ce joueur. Synchronisation EA en cours...";
+            await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
+            PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
+        }
+
         EaProfileLoadAttempted = true;
+    }
+
+    private async Task<EaPlayerProfileSnapshotResponse?> LoadCurrentUserEaProfileFromDatabaseAsync(Guid teamId)
+    {
+        var players = await Api.GetTeamEaPlayersAsync(teamId);
         if (players.Value is null)
         {
             Message = players.Error ?? "Impossible de charger les profils EA stockes.";
+            return null;
+        }
+
+        return players.Value.FirstOrDefault(IsCurrentUserEaProfile)
+            ?? players.Value.FirstOrDefault(IsLooseCurrentUserEaProfile);
+    }
+
+    private async Task SyncActivePlayerProfileAsync()
+    {
+        if (ActiveMembership?.TeamId is null)
+        {
+            Message = "Aucun club actif trouve pour synchroniser ton profil EA.";
             return;
         }
 
-        PlayerEaProfile = players.Value.FirstOrDefault(IsCurrentUserEaProfile);
-    }
+        Busy = true;
+        Message = "Appel EA en cours. Les donnees seront sauvegardees puis rechargees depuis la base.";
+        var sync = await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
+        Busy = false;
 
+        if (!sync.Success)
+        {
+            Message = sync.Error;
+            return;
+        }
+
+        PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
+        Message = PlayerEaProfile is null
+            ? "Synchro terminee, mais aucun profil EA ne correspond encore a ton compte. Verifie ton EA Sports ID / gamertag."
+            : "Profil EA recharge depuis la base.";
+    }
     private async Task UploadProfilePhotoAsync(InputFileChangeEventArgs args)
     {
         var file = args.File;
@@ -918,6 +1001,20 @@ else
             || IsSameIdentity(profile.ProName, user.DisplayName);
     }
 
+    private bool IsLooseCurrentUserEaProfile(EaPlayerProfileSnapshotResponse profile)
+    {
+        var user = AuthState.User;
+        if (user is null)
+        {
+            return false;
+        }
+
+        return IsSameIdentityLoose(profile.EaPlayerId, user.EaSportsId)
+            || IsSameIdentityLoose(profile.PlayerName, user.Gamertag)
+            || IsSameIdentityLoose(profile.PlayerName, user.DisplayName)
+            || IsSameIdentityLoose(profile.ProName, user.Gamertag)
+            || IsSameIdentityLoose(profile.ProName, user.DisplayName);
+    }
     private static bool IsSameIdentity(string? left, string? right)
     {
         return !string.IsNullOrWhiteSpace(left)
@@ -925,6 +1022,29 @@ else
             && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsSameIdentityLoose(string? left, string? right)
+    {
+        var normalizedLeft = NormalizeIdentity(left);
+        var normalizedRight = NormalizeIdentity(right);
+        return normalizedLeft.Length > 0
+            && normalizedRight.Length > 0
+            && normalizedLeft == normalizedRight;
+    }
+
+    private static string NormalizeIdentity(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+    }
+
+    private static string FormatDecimal(double? value)
+    {
+        return value is null ? "-" : value.Value.ToString("0.##");
+    }
     private static bool IsInvalidStoredSession(string? error)
     {
         if (string.IsNullOrWhiteSpace(error))
