@@ -129,3 +129,19 @@ StartupCleanup__ContentOnlyReset=true
 This removes users, teams, tournaments and EA cached data, while keeping `LocalizedContents` and EF migrations.
 
 After the deployment logs show the cleanup completed, remove the variable from Coolify before the next deploy. If the variable stays enabled, the app will clean the same data again on every restart.
+## 8. Seed real EA friendly matches for TheSurvivors
+
+After EF migrations have been applied and the TheSurvivors team exists with EA club ID `2148207`, run this SQL once from the Coolify/Supabase PostgreSQL SQL editor:
+
+```text
+deploy/seed-thesurvivors-ea-matches.sql
+```
+
+The script embeds the paid `matches.json` payload and converts it into real rows in:
+
+- `EaMatchSnapshots`
+- `EaFriendlyMatches`
+- `EaMatchClubStats`
+- `EaMatchPlayerStats`
+
+It is idempotent. If a match with the same EA `matchId` already exists for TheSurvivors, the script deletes the old match/stat rows and recreates them from the latest JSON, so it can be safely rerun after updating the payload.
