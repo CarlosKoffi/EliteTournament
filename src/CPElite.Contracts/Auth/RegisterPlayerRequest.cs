@@ -13,4 +13,5 @@ public sealed record RegisterPlayerRequest(
     string? TimeZone,
     string? DiscordUserId = null,
     long? EaClubId = null,
-    string? EaClubName = null);
+    string? EaClubName = null,
+    bool IsEaManager = false);

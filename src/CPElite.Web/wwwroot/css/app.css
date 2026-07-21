@@ -1041,6 +1041,57 @@ h3 {
     overflow-wrap: anywhere;
 }
 
+.identity-verification-cell {
+    align-content: start;
+}
+
+.mini-action {
+    width: fit-content;
+    min-height: 30px;
+    margin-top: 8px;
+    padding: 6px 9px;
+    background: #050505;
+    color: #ffffff;
+    border: 1px solid #050505;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 950;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.mini-action:hover,
+.mini-action:focus-visible {
+    background: var(--green);
+    color: #050505;
+}
+
+.account-verification-panel {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+    background: #050505;
+    color: #ffffff;
+    border-left: 6px solid var(--green);
+}
+
+.account-verification-panel h2,
+.account-verification-panel p {
+    color: #ffffff;
+}
+
+.account-verification-panel p {
+    max-width: 980px;
+    color: rgba(255, 255, 255, .76);
+    font-weight: 800;
+    line-height: 1.55;
+}
+
+.account-claim-targets div {
+    background: #ffffff;
+    color: #050505;
+}
+
 .account-player-card {
     background:
         linear-gradient(135deg, rgba(7, 18, 15, .96), rgba(5, 122, 85, .88)),
@@ -6302,6 +6353,13 @@ body {
     color: #ffffff;
 }
 
+.account-ea-profile-hero span,
+.account-ea-profile-hero small {
+    display: block;
+    margin-top: 5px;
+    line-height: 1.35;
+}
+
 .account-ea-profile-hero .eyebrow {
     color: var(--app-pitch);
 }
@@ -6317,12 +6375,57 @@ body {
     font-weight: 950;
 }
 
+.account-ea-sync-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+    padding: 16px;
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid var(--app-border);
+    border-left: 6px solid var(--app-pitch);
+}
+
+.account-ea-sync-panel h3,
+.account-ea-sync-panel p {
+    margin: 0;
+    color: #050505;
+}
+
+.account-ea-sync-panel h3 {
+    font-size: 22px;
+    line-height: 1.1;
+}
+
+.account-ea-sync-panel p {
+    margin-top: 5px;
+    max-width: 620px;
+    color: #4b5563;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.account-ea-sync-panel .primary-action {
+    flex: 0 0 auto;
+    background: #050505;
+    color: #ffffff;
+    border: 1px solid #050505;
+}
+
+.account-ea-sync-panel .primary-action:hover,
+.account-ea-sync-panel .primary-action:focus-visible {
+    background: var(--app-pitch);
+    color: #050505;
+}
+
 .ea-profile-empty-state {
     display: grid;
     gap: 12px;
     margin-top: 18px;
     padding: 18px;
-    background: #f4f4f1;
+    background: #ffffff;
     color: #050505;
     border: 1px solid var(--app-border);
 }
@@ -6330,6 +6433,35 @@ body {
 .ea-profile-empty-state strong,
 .ea-profile-empty-state p {
     color: #050505;
+}
+
+.stored-player-fallback-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.stored-player-fallback-grid div {
+    display: grid;
+    gap: 5px;
+    min-height: 76px;
+    align-content: center;
+    padding: 10px;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid var(--app-border);
+}
+
+.stored-player-fallback-grid span {
+    color: #59616d;
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.stored-player-fallback-grid strong {
+    color: #050505;
+    overflow-wrap: anywhere;
 }
 
 .account-ea-main-grid,
@@ -6356,6 +6488,15 @@ body {
 
     .account-ea-profile-hero .player-rating {
         width: 100%;
+    }
+
+    .account-ea-sync-panel {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .stored-player-fallback-grid {
+        grid-template-columns: 1fr;
     }
 }
 

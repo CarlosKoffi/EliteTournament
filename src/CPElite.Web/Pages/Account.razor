@@ -43,10 +43,38 @@
                 <div><span>Fuseau horaire</span><strong>@PlayerTimeZone</strong></div>
                 <div><span>Club actif</span><strong>@PlayerClubName</strong></div>
                 <div><span>Role</span><strong>@PlayerRole</strong></div>
-                <div><span>Verification EA</span><strong>@PlayerVerificationStatus</strong></div>
+                <div class="identity-verification-cell">
+                    <span>Verification EA</span>
+                    <strong>@PlayerVerificationStatus</strong>
+                    @if (AuthState.User?.EaIdentityVerified != true)
+                    {
+                        <button type="button" class="mini-action" @onclick="OpenAccountVerificationInfo">Verifier</button>
+                    }
+                </div>
             </div>
         </div>
     </section>
+
+    @if (ShowAccountVerificationInfo)
+    {
+        <section class="panel account-verification-panel">
+            <div>
+                <p class="eyebrow">Verification EA</p>
+                <h2>Prouver que ce joueur EA est bien toi</h2>
+                <p>Ce n'est pas bloquant pour utiliser ton compte maintenant. Quand tu veux verifier ton identite EA, change temporairement ton pro dans FC avec les valeurs ci-dessous, joue un match de championnat pour que EA publie les nouvelles donnees, puis clique sur verifier maintenant.</p>
+            </div>
+            <div class="claim-targets account-claim-targets">
+                <div><span>Taille actuelle</span><strong>@FormatMetric(PlayerEaProfile?.Height, "cm")</strong></div>
+                <div><span>Poste actuel</span><strong>@FormatPosition(PlayerEaProfile?.Position)</strong></div>
+                <div><span>Taille demandee</span><strong>@FormatMetric(AccountVerificationTargetHeight, "cm")</strong></div>
+                <div><span>Poste demande</span><strong>@FormatPosition(AccountVerificationTargetPosition)</strong></div>
+            </div>
+            <div class="row-actions">
+                <button type="button" class="primary-action" @onclick="VerifyAccountEaIdentityAsync" disabled="@(Busy || ActiveMembership?.TeamId is null)">Verifier maintenant</button>
+                <button type="button" class="ghost-action" @onclick="CloseAccountVerificationInfo">Fermer</button>
+            </div>
+        </section>
+    }
 
     <section class="player-account-grid">
         <article class="panel account-player-card">
@@ -59,6 +87,17 @@
                     <small>@PlayerEaProfileStatus</small>
                 </div>
                 <strong class="player-rating">@FormatRating(PlayerEaProfile?.AverageRating)</strong>
+            </div>
+
+            <div class="account-ea-sync-panel">
+                <div>
+                    <p class="eyebrow">Donnees EA club</p>
+                    <h3>@PlayerClubName</h3>
+                    <p>@EaSyncHelpText</p>
+                </div>
+                <button class="primary-action" @onclick="SyncActivePlayerProfileAsync" disabled="@(Busy || ActiveMembership?.TeamId is null)">
+                    @(Busy ? "Chargement EA..." : "Charger / rafraichir EA")
+                </button>
             </div>
 
             @if (PlayerEaProfile is not null)
@@ -75,9 +114,14 @@
             @if (PlayerEaProfile is null)
             {
                 <div class="ea-profile-empty-state">
-                    <strong>Profil EA pas encore charge</strong>
-                    <p>On affiche uniquement les donnees stockees chez nous. Si elles sont absentes, lance un appel EA, on sauvegarde en base, puis on recharge cette fiche depuis la base.</p>
-                    <button class="primary-action" @onclick="SyncActivePlayerProfileAsync" disabled="@(Busy || ActiveMembership?.TeamId is null)">Charger depuis EA</button>
+                    <strong>Profil EA detaille pas encore charge</strong>
+                    <p>Le compte et le club sont bien connus, mais aucun snapshot EA joueur n'a encore ete retrouve en base pour cette fiche. Clique sur le bouton au-dessus : l'application appelle EA pour ton club, sauvegarde les donnees en base, puis recharge uniquement les donnees stockees.</p>
+                    <div class="stored-player-fallback-grid">
+                        <div><span>Joueur</span><strong>@PlayerName</strong></div>
+                        <div><span>Gamertag / EA ID</span><strong>@PlayerEaId</strong></div>
+                        <div><span>Club</span><strong>@PlayerClubName</strong></div>
+                        <div><span>Role app</span><strong>@PlayerRole</strong></div>
+                    </div>
                 </div>
             }
             else
@@ -360,6 +404,9 @@ else
     private TeamMemberResponse? ActiveMembership;
     private EaPlayerProfileSnapshotResponse? PlayerEaProfile;
     private bool EaProfileLoadAttempted;
+    private bool ShowAccountVerificationInfo;
+    private int? AccountVerificationTargetHeight;
+    private string? AccountVerificationTargetPosition;
     private bool Busy;
     private string? Message;
     private string? ProfilePhotoDataUrl;
@@ -384,9 +431,14 @@ else
     private IReadOnlyCollection<TournamentPerformanceDemo> TournamentHistory { get; } = [];
     private string PlayerEaProfileStatus => PlayerEaProfile is null
         ? EaProfileLoadAttempted
-            ? "Aucun profil EA stocke trouve pour ce joueur. Rafraichis les donnees EA depuis Mon equipe si le club est deja cree."
+            ? "Aucun snapshot EA joueur trouve en base pour cette fiche."
             : "Chargement du profil EA stocke..."
         : $"Derniere synchro EA: {PlayerEaProfile.SyncedAt.LocalDateTime:g}.";
+    private string EaSyncHelpText => ActiveMembership?.TeamId is null
+        ? "Aucun club actif n'est rattache a ton compte, donc l'appel EA ne peut pas encore etre lance depuis cette page."
+        : PlayerEaProfile is null
+            ? "On va appeler EA pour le club actif, sauvegarder le roster et les stats joueur, puis rechercher ton profil dans la base."
+            : "Tu peux relancer un appel EA pour mettre a jour les stats stockees de ton joueur et du club.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -429,7 +481,8 @@ else
             Register.TimeZone,
             Register.DiscordUserId,
             SelectedRegistrationClub.EaClubId,
-            SelectedRegistrationClub.Name));
+            SelectedRegistrationClub.Name,
+            SelectedRegistrationPlayer.IsManager));
         await FinishAuthAsync(result);
         if (result.Success)
         {
@@ -614,6 +667,44 @@ else
         Message = "Session fermee.";
     }
 
+    private void OpenAccountVerificationInfo()
+    {
+        var currentHeight = PlayerEaProfile?.Height ?? 180;
+        var currentPosition = NormalizePosition(PlayerEaProfile?.Position) ?? "midfielder";
+        var seed = HashCode.Combine(NormalizeIdentity(PlayerEaId), NormalizeIdentity(PlayerName), currentHeight, currentPosition);
+        var random = new Random(seed);
+
+        AccountVerificationTargetHeight = NextDifferent(random, currentHeight, 165, 199);
+        AccountVerificationTargetPosition = NextDifferentPosition(random, currentPosition);
+        ShowAccountVerificationInfo = true;
+    }
+
+    private void CloseAccountVerificationInfo()
+    {
+        ShowAccountVerificationInfo = false;
+    }
+
+    private async Task VerifyAccountEaIdentityAsync()
+    {
+        if (AccountVerificationTargetHeight is null || string.IsNullOrWhiteSpace(AccountVerificationTargetPosition))
+        {
+            OpenAccountVerificationInfo();
+        }
+
+        await SyncActivePlayerProfileAsync();
+        if (PlayerEaProfile is null || AccountVerificationTargetHeight is null || string.IsNullOrWhiteSpace(AccountVerificationTargetPosition))
+        {
+            Message = "Verification EA impossible pour l'instant: les donnees joueur n'ont pas encore ete retrouvees apres rafraichissement.";
+            return;
+        }
+
+        var heightOk = PlayerEaProfile.Height == AccountVerificationTargetHeight;
+        var positionOk = SamePosition(PlayerEaProfile.Position, AccountVerificationTargetPosition);
+        Message = heightOk && positionOk
+            ? "EA renvoie bien la taille et le poste demandes. Verification techniquement validee; le statut sera marque verifie quand le backend de validation finale sera branche."
+            : $"Pas encore valide: EA renvoie taille {FormatMetric(PlayerEaProfile.Height, "cm")} et poste {FormatPosition(PlayerEaProfile.Position)}.";
+    }
+
     private async Task LoadRealAccountDataAsync()
     {
         EaProfileLoadAttempted = false;
@@ -643,15 +734,26 @@ else
         if (ActiveMembership?.TeamId is null)
         {
             EaProfileLoadAttempted = true;
+            Message = "Aucun club actif n'est rattache a ton compte. Rejoins ou cree ton club avant de charger les donnees EA joueur.";
             return;
         }
 
         PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
         if (PlayerEaProfile is null)
         {
-            Message = "Profil EA absent en base pour ce joueur. Synchronisation EA en cours...";
-            await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
+            Message = "Profil EA absent en base pour ce joueur. Premier appel EA en cours...";
+            var sync = await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
+            if (!sync.Success)
+            {
+                Message = $"Impossible de charger EA pour ce club: {sync.Error}";
+                EaProfileLoadAttempted = true;
+                return;
+            }
+
             PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
+            Message = PlayerEaProfile is null
+                ? "Les donnees EA du club ont ete sauvegardees, mais aucun joueur ne correspond encore a ton compte. Verifie que ton EA Sports ID ou ton gamertag correspond au joueur EA."
+                : "Profil EA charge et sauvegarde en base.";
         }
 
         EaProfileLoadAttempted = true;
@@ -691,7 +793,7 @@ else
 
         PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
         Message = PlayerEaProfile is null
-            ? "Synchro terminee, mais aucun profil EA ne correspond encore a ton compte. Verifie ton EA Sports ID / gamertag."
+            ? "Synchro terminee et sauvegardee, mais aucun profil EA ne correspond encore a ton compte. Verifie ton EA Sports ID / gamertag et le club actif."
             : "Profil EA recharge depuis la base.";
     }
     private async Task UploadProfilePhotoAsync(InputFileChangeEventArgs args)

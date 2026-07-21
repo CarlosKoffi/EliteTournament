@@ -4,6 +4,7 @@ using CPElite.Contracts.Common;
 using CPElite.Contracts.Users;
 using CPElite.Domain.Entities;
 using DomainPlatform = CPElite.Domain.Enums.Platform;
+using DomainTeamRole = CPElite.Domain.Enums.TeamRole;
 
 namespace CPElite.Application.Services;
 
@@ -66,6 +67,7 @@ public sealed class AuthService
             eaClubName: string.IsNullOrWhiteSpace(request.EaClubName) ? null : request.EaClubName.Trim());
 
         await _users.AddAsync(user, cancellationToken);
+        await AttachUserToSelectedEaClubAsync(user, request, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result<AuthResponse>.Success(CreateAuthResponse(user));
@@ -135,6 +137,40 @@ public sealed class AuthService
         return new AuthResponse(token.AccessToken, token.ExpiresAt, Mapping.ToSummary(user));
     }
 
+    private async Task AttachUserToSelectedEaClubAsync(User user, RegisterPlayerRequest request, CancellationToken cancellationToken)
+    {
+        if (request.EaClubId is null || string.IsNullOrWhiteSpace(request.EaClubName))
+        {
+            return;
+        }
+
+        var team = await _teams.GetByEaClubIdAsync(request.EaClubId.Value, cancellationToken)
+            ?? await _teams.GetByNormalizedNameAsync(Normalize(request.EaClubName), cancellationToken);
+
+        if (team is null)
+        {
+            team = new Team(
+                Guid.NewGuid(),
+                request.EaClubName.Trim(),
+                Normalize(request.EaClubName),
+                null,
+                (DomainPlatform)(int)request.Platform,
+                null,
+                CreateInviteCode(),
+                user.Id,
+                _clock.UtcNow);
+
+            team.UpdateProfile(team.Name, team.NormalizedName, team.ShortName, team.Platform, team.Region, description: null, request.EaClubId, logoUrl: null, bannerUrl: null);
+            await _teams.AddAsync(team, cancellationToken);
+        }
+
+        var role = request.IsEaManager
+            ? team.CreatedByUserId == user.Id ? DomainTeamRole.Owner : DomainTeamRole.Manager
+            : DomainTeamRole.Player;
+
+        await _teams.AddMemberAsync(TeamMember.Create(team.Id, user.Id, role, _clock.UtcNow), cancellationToken);
+    }
+
     private static string? ValidateRegistration(RegisterPlayerRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
@@ -161,4 +197,9 @@ public sealed class AuthService
     }
 
     private static string Normalize(string value) => value.Trim().ToUpperInvariant();
+
+    private static string CreateInviteCode()
+    {
+        return Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Replace("+", string.Empty).Replace("/", string.Empty).Replace("=", string.Empty)[..10].ToUpperInvariant();
+    }
 }
