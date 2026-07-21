@@ -761,6 +761,22 @@ else
                 ? "Les donnees EA du club ont ete sauvegardees, mais aucun joueur ne correspond encore a ton compte. Verifie que ton EA Sports ID ou ton gamertag correspond au joueur EA."
                 : "Profil EA charge et sauvegarde en base.";
         }
+        else if (!LooksLikeGeneralEaProfile(PlayerEaProfile))
+        {
+            Message = "Le profil stocke ressemble a une ligne de match, pas a des statistiques generales. Resynchronisation EA en cours...";
+            var sync = await Api.SyncTeamEaAsync(ActiveMembership.TeamId.Value, forceRefresh: true);
+            if (sync.Success)
+            {
+                PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
+                Message = LooksLikeGeneralEaProfile(PlayerEaProfile)
+                    ? "Profil EA general recharge depuis la base."
+                    : "EA ne renvoie pas encore assez de statistiques generales pour ce joueur. On garde uniquement les champs fiables.";
+            }
+            else
+            {
+                Message = $"Impossible de resynchroniser le profil general EA: {sync.Error}";
+            }
+        }
 
         EaProfileLoadAttempted = true;
     }
@@ -880,6 +896,11 @@ else
 
     private static string BuildAccountPositionSmartLine(EaPlayerProfileSnapshotResponse profile)
     {
+        if (!LooksLikeGeneralEaProfile(profile))
+        {
+            return "Profil general EA incomplet - les stats de match ne sont pas affichees ici.";
+        }
+
         return NormalizePosition(profile.Position) switch
         {
             "goalkeeper" => $"{FormatNumber(profile.Saves)} arrets - {FormatNumber(profile.CleanSheetsGk)} clean sheets GK - {FormatRating(profile.AverageRating)} note moyenne",
@@ -888,6 +909,31 @@ else
             "forward" => $"{FormatNumber(profile.Goals)} buts - {FormatNumber(profile.Assists)} assists - {FormatPercent(profile.ShotSuccessRate)} tirs - {FormatRating(profile.AverageRating)} note",
             _ => $"{FormatNumber(profile.Goals)} buts - {FormatNumber(profile.Assists)} assists - {FormatRating(profile.AverageRating)} note"
         };
+    }
+
+    private static bool LooksLikeGeneralEaProfile(EaPlayerProfileSnapshotResponse? profile)
+    {
+        if (profile is null)
+        {
+            return false;
+        }
+
+        if (profile.Matches is > 0 || profile.AllClubsMatches is > 0)
+        {
+            return true;
+        }
+
+        if (profile.Height is not null || profile.Weight is not null || profile.Overall is not null)
+        {
+            return true;
+        }
+
+        if (profile.WinRate is not null || profile.GoalsPerMatch is not null || profile.AssistsPerMatch is not null || profile.PlayerOfTheMatchRate is not null)
+        {
+            return true;
+        }
+
+        return profile.PassesMade is > 300 || profile.PassAttempts is > 300 || profile.Shots is > 80 || profile.TacklesMade is > 80;
     }
 
     private static string ValueOrMissing(string? value)

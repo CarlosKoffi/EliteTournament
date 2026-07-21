@@ -375,6 +375,11 @@ public sealed class EaSyncService
                 continue;
             }
 
+            if (!LooksLikeGeneralPlayerProfile(item, matches))
+            {
+                continue;
+            }
+
             var eaPlayerId = GetString(item, "playerId") ?? GetString(item, "personaName") ?? GetString(item, "eaSportsId") ?? name;
             if (!IsInActiveRoster(item, eaPlayerId, name, activeRosterKeys) || !seen.Add(eaPlayerId))
             {
@@ -434,6 +439,61 @@ public sealed class EaSyncService
         }
     }
 
+    private static bool LooksLikeGeneralPlayerProfile(JsonElement item, int? matches)
+    {
+        if (matches is > 0)
+        {
+            return true;
+        }
+
+        if (ReadHeightCm(item) is not null || ReadWeightKg(item) is not null || GetInt(item, "proOverall") is not null || GetInt(item, "overall") is not null)
+        {
+            return true;
+        }
+
+        if (GetIntAny(item, "allClubsMatches", "allclubsMatches", "allTimeMatches") is > 0)
+        {
+            return true;
+        }
+
+        if (HasAnyProperty(item,
+                "goalsPerMatch",
+                "assistsPerMatch",
+                "goalContributionsPerMatch",
+                "passesMadePerMatch",
+                "tacklesMadePerMatch",
+                "playerOfTheMatchRate",
+                "cleanSheetsDefRate",
+                "cleanSheetsGkRate",
+                "winRate",
+                "prevGoals"))
+        {
+            return true;
+        }
+
+        var passes = GetInt(item, "passesmade") ?? GetInt(item, "passesMade");
+        var passAttempts = GetInt(item, "passattempts") ?? GetInt(item, "passAttempts");
+        var shots = GetInt(item, "shots");
+        var tackles = GetInt(item, "tacklesmade") ?? GetInt(item, "tacklesMade");
+        var singleMatchSignals = HasAnyProperty(item,
+            "secondsPlayed",
+            "gameTime",
+            "realtimegame",
+            "realtimeidle",
+            "goalsconceded",
+            "vproattr",
+            "archetypeid",
+            "match_event_aggregate_0",
+            "match_event_aggregate_1");
+
+        if (singleMatchSignals)
+        {
+            return false;
+        }
+
+        return (passes is > 300 || passAttempts is > 300 || shots is > 80 || tackles is > 80);
+    }
+
     private static IReadOnlySet<string> ExtractActiveRosterKeys(string rawJson)
     {
         using var document = JsonDocument.Parse(rawJson);
@@ -478,6 +538,24 @@ public sealed class EaSyncService
         }
 
         return null;
+    }
+
+    private static bool HasAnyProperty(JsonElement element, params string[] propertyNames)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        foreach (var propertyName in propertyNames)
+        {
+            if (element.TryGetProperty(propertyName, out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int? ReadHeightCm(JsonElement item)
