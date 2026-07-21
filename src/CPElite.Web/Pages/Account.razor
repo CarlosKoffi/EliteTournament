@@ -839,7 +839,7 @@ else
             ProfilePhotoDataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}";
 
             await using var uploadStream = new MemoryStream(bytes);
-            var upload = await Api.UploadTeamAssetAsync(uploadStream, file.Name, file.ContentType);
+            var upload = await Api.UploadProfilePhotoAsync(uploadStream, file.Name, file.ContentType);
             if (upload.Value is null)
             {
                 Message = upload.Error;

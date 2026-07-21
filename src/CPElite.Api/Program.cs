@@ -15,6 +15,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddCPEliteInfrastructure(builder.Configuration);
+builder.Services.AddScoped<UploadedImageStorage>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("WebClient", policy =>

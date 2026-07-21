@@ -50,6 +50,9 @@ public sealed class ApiClient
     public Task<ApiResult<UserSummaryResponse>> UpdatePlayerProfileAsync(UpdatePlayerProfileRequest request) =>
         SendAsync<UserSummaryResponse>(HttpMethod.Patch, "api/me/profile", request);
 
+    public Task<ApiResult<TeamAssetUploadResponse>> UploadProfilePhotoAsync(Stream stream, string fileName, string contentType) =>
+        UploadImageAsync("api/me/profile-photo", stream, fileName, contentType);
+
     public Task<ApiResult<TeamResponse>> CreateTeamAsync(CreateTeamRequest request) =>
         SendAsync<TeamResponse>(HttpMethod.Post, "api/teams", request);
 
@@ -69,7 +72,12 @@ public sealed class ApiClient
 
     public async Task<ApiResult<TeamAssetUploadResponse>> UploadTeamAssetAsync(Stream stream, string fileName, string contentType)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "api/team-assets/upload");
+        return await UploadImageAsync("api/team-assets/upload", stream, fileName, contentType);
+    }
+
+    private async Task<ApiResult<TeamAssetUploadResponse>> UploadImageAsync(string path, Stream stream, string fileName, string contentType)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
         if (!string.IsNullOrWhiteSpace(Token))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
