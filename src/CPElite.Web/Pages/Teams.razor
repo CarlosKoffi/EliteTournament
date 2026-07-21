@@ -318,10 +318,16 @@
                             @if (teamSection.ClubStats is not null)
                             {
                                 <div class="friendly-club-metrics">
+                                    <span>@(teamSection.ClubStats.Score?.ToString() ?? teamSection.Score.ToString()) score</span>
                                     <span>@(teamSection.ClubStats.Rating?.ToString("0.0") ?? "-") note</span>
                                     <span>@(teamSection.ClubStats.Shots?.ToString() ?? "-") tirs</span>
                                     <span>@(teamSection.ClubStats.PassSuccessRate?.ToString("0") ?? "-")% passes</span>
                                     <span>@(teamSection.ClubStats.TackleSuccessRate?.ToString("0") ?? "-")% tacles</span>
+                                    <span>@(teamSection.ClubStats.GoalsConceded?.ToString() ?? "-") buts encaisses</span>
+                                    @if (!string.IsNullOrWhiteSpace(teamSection.ClubStats.StadiumName))
+                                    {
+                                        <span>@teamSection.ClubStats.StadiumName</span>
+                                    }
                                 </div>
                             }
 
@@ -1102,8 +1108,8 @@
         var awayWon = match.AwayScore > match.HomeScore;
         var clubStats = new[]
         {
-            new EaMatchClubStatResponse(match.HomeEaClubId, match.HomeScore, Math.Max(match.HomeScore - 1, 0), 72.0, 4 + match.HomeScore, 96, 136, 70.6, 4, 41, 9.8, 6, match.AwayScore, 0, awayWon ? 0 : 1),
-            new EaMatchClubStatResponse(match.AwayEaClubId, match.AwayScore, Math.Max(match.AwayScore - 1, 0), 75.8, 8 + match.AwayScore, 135, 164, 82.3, 4, 10, 40.0, 2, match.HomeScore, 0, awayWon ? 1 : 0)
+            new EaMatchClubStatResponse(match.HomeEaClubId, match.HomeScore, Math.Max(match.HomeScore - 1, 0), 72.0, 4 + match.HomeScore, 96, 136, 70.6, 4, 41, 9.8, 6, match.AwayScore, 0, awayWon ? 0 : 1, match.HomeScore, null, null, null, null, null, null, null, null, null, null, null, null, null),
+            new EaMatchClubStatResponse(match.AwayEaClubId, match.AwayScore, Math.Max(match.AwayScore - 1, 0), 75.8, 8 + match.AwayScore, 135, 164, 82.3, 4, 10, 40.0, 2, match.HomeScore, 0, awayWon ? 1 : 0, match.AwayScore, null, null, null, null, null, null, null, null, null, null, null, null, null)
         };
 
         var playerStats = new[]

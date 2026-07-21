@@ -4,7 +4,7 @@ public sealed class EaMatchClubStat
 {
     private EaMatchClubStat() { }
 
-    public EaMatchClubStat(Guid id, Guid eaFriendlyMatchId, Guid teamId, long eaClubId, int? goals, int? assists, double? rating, int? shots, int? passesMade, int? passAttempts, int? tacklesMade, int? tackleAttempts, int? saves, int? goalsConceded, int? redCards, int? playerOfTheMatch, string rawJson)
+    public EaMatchClubStat(Guid id, Guid eaFriendlyMatchId, Guid teamId, long eaClubId, int? goals, int? assists, double? rating, int? shots, int? passesMade, int? passAttempts, int? tacklesMade, int? tackleAttempts, int? saves, int? goalsConceded, int? redCards, int? playerOfTheMatch, int? score, string? result, int? wins, int? losses, int? ties, bool? winnerByDnf, int? regionId, int? eaTeamId, string? stadiumName, string? crestAssetId, string? kitColor1, string? kitColor2, string? kitColor3, string? kitColor4, string rawJson)
     {
         Id = id;
         EaFriendlyMatchId = eaFriendlyMatchId;
@@ -22,6 +22,20 @@ public sealed class EaMatchClubStat
         GoalsConceded = goalsConceded;
         RedCards = redCards;
         PlayerOfTheMatch = playerOfTheMatch;
+        Score = score;
+        Result = result;
+        Wins = wins;
+        Losses = losses;
+        Ties = ties;
+        WinnerByDnf = winnerByDnf;
+        RegionId = regionId;
+        EaTeamId = eaTeamId;
+        StadiumName = stadiumName;
+        CrestAssetId = crestAssetId;
+        KitColor1 = kitColor1;
+        KitColor2 = kitColor2;
+        KitColor3 = kitColor3;
+        KitColor4 = kitColor4;
         RawJson = rawJson;
     }
 
@@ -41,6 +55,20 @@ public sealed class EaMatchClubStat
     public int? GoalsConceded { get; private set; }
     public int? RedCards { get; private set; }
     public int? PlayerOfTheMatch { get; private set; }
+    public int? Score { get; private set; }
+    public string? Result { get; private set; }
+    public int? Wins { get; private set; }
+    public int? Losses { get; private set; }
+    public int? Ties { get; private set; }
+    public bool? WinnerByDnf { get; private set; }
+    public int? RegionId { get; private set; }
+    public int? EaTeamId { get; private set; }
+    public string? StadiumName { get; private set; }
+    public string? CrestAssetId { get; private set; }
+    public string? KitColor1 { get; private set; }
+    public string? KitColor2 { get; private set; }
+    public string? KitColor3 { get; private set; }
+    public string? KitColor4 { get; private set; }
     public string RawJson { get; private set; } = "{}";
     public EaFriendlyMatch? Match { get; private set; }
 

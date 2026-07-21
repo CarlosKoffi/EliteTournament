@@ -33,7 +33,21 @@ public sealed record EaMatchClubStatResponse(
     int? Saves,
     int? GoalsConceded,
     int? RedCards,
-    int? PlayerOfTheMatch);
+    int? PlayerOfTheMatch,
+    int? Score,
+    string? Result,
+    int? Wins,
+    int? Losses,
+    int? Ties,
+    bool? WinnerByDnf,
+    int? RegionId,
+    int? EaTeamId,
+    string? StadiumName,
+    string? CrestAssetId,
+    string? KitColor1,
+    string? KitColor2,
+    string? KitColor3,
+    string? KitColor4);
 
 public sealed record EaMatchPlayerStatResponse(
     long EaClubId,

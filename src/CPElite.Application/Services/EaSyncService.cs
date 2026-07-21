@@ -252,6 +252,47 @@ public sealed class EaSyncService
             match.PlayerStats.OrderByDescending(stat => stat.Goals ?? 0).ThenByDescending(stat => stat.Assists ?? 0).Select(ToMatchPlayerStatResponse).ToArray(),
             match.RawJson));
     }
+    public async Task<Result<EaSyncResponse>> ImportFriendlyMatchesJsonAsync(Guid teamId, string rawJson, string? platform = null, CancellationToken cancellationToken = default)
+    {
+        var team = await _teams.GetByIdAsync(teamId, cancellationToken);
+        if (team is null || team.IsArchived)
+        {
+            return Result<EaSyncResponse>.Failure(ErrorType.NotFound, "team.not_found", "Team was not found.");
+        }
+
+        if (team.EaClubId is null)
+        {
+            return Result<EaSyncResponse>.Failure(ErrorType.Validation, "team.ea_club_id_required", "Team is not linked to an EA club.");
+        }
+
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            return Result<EaSyncResponse>.Failure(ErrorType.Validation, "ea.import_empty", "No match JSON was provided.");
+        }
+
+        var resolvedPlatform = string.IsNullOrWhiteSpace(platform) ? ResolveEaPlatform(team) : platform.Trim();
+        var syncedAt = _clock.UtcNow;
+        ParsedFriendlyMatches parsed;
+        try
+        {
+            parsed = ParseFriendlyMatches(rawJson, team.Id, team.EaClubId.Value, resolvedPlatform, syncedAt);
+        }
+        catch (JsonException)
+        {
+            return Result<EaSyncResponse>.Failure(ErrorType.Validation, "ea.import_invalid_json", "The match JSON is not valid.");
+        }
+
+        if (parsed.Matches.Count == 0)
+        {
+            return Result<EaSyncResponse>.Failure(ErrorType.Validation, "ea.import_no_matches", "No friendly match with a valid matchId was found in the JSON.");
+        }
+
+        await _snapshots.UpsertMatchSnapshotAsync(new EaMatchSnapshot(Guid.NewGuid(), team.Id, team.EaClubId.Value, resolvedPlatform, "friendlyMatch", rawJson, syncedAt), cancellationToken);
+        await _snapshots.UpsertFriendlyMatchesAsync(team.Id, parsed.Matches, parsed.PlayerStats, parsed.ClubStats, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<EaSyncResponse>.Success(new EaSyncResponse(team.Id, team.EaClubId.Value, resolvedPlatform, syncedAt, false, false, 1));
+    }
 
     private static IEnumerable<EaPlayerStatsResponse> ParseMemberStats(string rawJson, IReadOnlySet<string> activeRosterKeys)
     {
@@ -584,15 +625,13 @@ public sealed class EaSyncService
         var playerStats = new List<EaMatchPlayerStat>();
         var clubStats = new List<EaMatchClubStat>();
 
-        if (!document.RootElement.TryGetProperty("matches", out var matchGroups) ||
-            matchGroups.ValueKind != JsonValueKind.Object ||
-            !matchGroups.TryGetProperty("friendly", out var friendlies) ||
-            friendlies.ValueKind != JsonValueKind.Array)
+        var friendlies = ResolveFriendlyMatchArray(document.RootElement);
+        if (friendlies is null)
         {
             return new ParsedFriendlyMatches(matches, playerStats, clubStats);
         }
 
-        foreach (var item in friendlies.EnumerateArray())
+        foreach (var item in friendlies.Value.EnumerateArray())
         {
             var matchId = GetString(item, "matchId");
             var playedAt = GetUnixDate(item, "timestamp");
@@ -627,24 +666,19 @@ public sealed class EaSyncService
                         continue;
                     }
 
-                    clubStats.Add(new EaMatchClubStat(
-                        Guid.NewGuid(),
-                        match.Id,
-                        teamId,
-                        aggregateClubId,
-                        GetInt(clubAggregate.Value, "goals") ?? GetInt(clubAggregate.Value, "SCORE"),
-                        GetInt(clubAggregate.Value, "assists"),
-                        GetDouble(clubAggregate.Value, "rating"),
-                        GetInt(clubAggregate.Value, "shots"),
-                        GetInt(clubAggregate.Value, "passesmade"),
-                        GetInt(clubAggregate.Value, "passattempts"),
-                        GetInt(clubAggregate.Value, "tacklesmade"),
-                        GetInt(clubAggregate.Value, "tackleattempts"),
-                        GetInt(clubAggregate.Value, "saves"),
-                        GetInt(clubAggregate.Value, "goalsconceded"),
-                        GetInt(clubAggregate.Value, "redcards"),
-                        GetInt(clubAggregate.Value, "mom"),
-                        clubAggregate.Value.GetRawText()));
+                    var clubEntry = TryGetObjectProperty(clubs, aggregateClubId.ToString());
+                    clubStats.Add(BuildClubStat(match.Id, teamId, aggregateClubId, clubEntry, clubAggregate.Value));
+                }
+            }
+
+            if (clubStats.All(stat => stat.EaFriendlyMatchId != match.Id))
+            {
+                foreach (var clubEntry in clubs.EnumerateObject())
+                {
+                    if (long.TryParse(clubEntry.Name, out var clubEntryId) && clubEntry.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        clubStats.Add(BuildClubStat(match.Id, teamId, clubEntryId, clubEntry.Value, null));
+                    }
                 }
             }
 
@@ -720,6 +754,104 @@ public sealed class EaSyncService
         return new ParsedFriendlyMatches(matches, playerStats, clubStats);
     }
 
+    private static JsonElement? ResolveFriendlyMatchArray(JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            return root;
+        }
+
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("matches", out var matchGroups) &&
+            matchGroups.ValueKind == JsonValueKind.Object &&
+            matchGroups.TryGetProperty("friendly", out var friendlies) &&
+            friendlies.ValueKind == JsonValueKind.Array)
+        {
+            return friendlies;
+        }
+
+        return null;
+    }
+
+    private static EaMatchClubStat BuildClubStat(Guid matchId, Guid teamId, long clubId, JsonElement? clubEntry, JsonElement? aggregate)
+    {
+        var details = clubEntry is { ValueKind: JsonValueKind.Object } entry && entry.TryGetProperty("details", out var rawDetails) && rawDetails.ValueKind == JsonValueKind.Object
+            ? rawDetails
+            : (JsonElement?)null;
+        var kit = details is { ValueKind: JsonValueKind.Object } detailObject && detailObject.TryGetProperty("customKit", out var rawKit) && rawKit.ValueKind == JsonValueKind.Object
+            ? rawKit
+            : (JsonElement?)null;
+        var rawJson = MergeClubRawJson(clubEntry, aggregate);
+
+        return new EaMatchClubStat(
+            Guid.NewGuid(),
+            matchId,
+            teamId,
+            clubId,
+            ReadInt(aggregate, "goals") ?? ReadInt(clubEntry, "goals") ?? ReadInt(aggregate, "SCORE") ?? ReadInt(clubEntry, "score"),
+            ReadInt(aggregate, "assists"),
+            ReadDouble(aggregate, "rating"),
+            ReadInt(aggregate, "shots"),
+            ReadInt(aggregate, "passesmade"),
+            ReadInt(aggregate, "passattempts"),
+            ReadInt(aggregate, "tacklesmade"),
+            ReadInt(aggregate, "tackleattempts"),
+            ReadInt(aggregate, "saves"),
+            ReadInt(aggregate, "goalsconceded") ?? ReadInt(clubEntry, "goalsAgainst"),
+            ReadInt(aggregate, "redcards"),
+            ReadInt(aggregate, "mom"),
+            ReadInt(clubEntry, "score"),
+            ReadString(clubEntry, "result"),
+            ReadInt(clubEntry, "wins"),
+            ReadInt(clubEntry, "losses"),
+            ReadInt(clubEntry, "ties"),
+            ReadBool(clubEntry, "winnerByDnf"),
+            ReadInt(details, "regionId"),
+            ReadInt(details, "teamId") ?? ReadInt(clubEntry, "TEAM"),
+            ReadString(kit, "stadName"),
+            ReadString(kit, "crestAssetId"),
+            ReadString(kit, "kitColor1"),
+            ReadString(kit, "kitColor2"),
+            ReadString(kit, "kitColor3"),
+            ReadString(kit, "kitColor4"),
+            rawJson);
+    }
+
+    private static string MergeClubRawJson(JsonElement? clubEntry, JsonElement? aggregate)
+    {
+        return $"{{\"club\":{(clubEntry is null ? "null" : clubEntry.Value.GetRawText())},\"aggregate\":{(aggregate is null ? "null" : aggregate.Value.GetRawText())}}}";
+    }
+
+    private static JsonElement? TryGetObjectProperty(JsonElement element, string propertyName)
+    {
+        return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.Object
+            ? value
+            : null;
+    }
+
+    private static int? ReadInt(JsonElement? element, string propertyName) => element is { ValueKind: JsonValueKind.Object } value ? GetInt(value, propertyName) : null;
+
+    private static double? ReadDouble(JsonElement? element, string propertyName) => element is { ValueKind: JsonValueKind.Object } value ? GetDouble(value, propertyName) : null;
+
+    private static string? ReadString(JsonElement? element, string propertyName) => element is { ValueKind: JsonValueKind.Object } value ? GetString(value, propertyName) : null;
+
+    private static bool? ReadBool(JsonElement? element, string propertyName)
+    {
+        if (element is not { ValueKind: JsonValueKind.Object } value || !value.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Number when property.TryGetInt32(out var number) => number != 0,
+            JsonValueKind.String when bool.TryParse(property.GetString(), out var boolean) => boolean,
+            JsonValueKind.String when int.TryParse(property.GetString(), out var number) => number != 0,
+            _ => null
+        };
+    }
     private static ClubParticipant? ExtractClubParticipant(string clubIdKey, JsonElement club)
     {
         if (!long.TryParse(clubIdKey, out var clubId))
@@ -749,7 +881,7 @@ public sealed class EaSyncService
 
     private static EaMatchClubStatResponse ToMatchClubStatResponse(EaMatchClubStat stat)
     {
-        return new EaMatchClubStatResponse(stat.EaClubId, stat.Goals, stat.Assists, stat.Rating, stat.Shots, stat.PassesMade, stat.PassAttempts, stat.PassSuccessRate, stat.TacklesMade, stat.TackleAttempts, stat.TackleSuccessRate, stat.Saves, stat.GoalsConceded, stat.RedCards, stat.PlayerOfTheMatch);
+        return new EaMatchClubStatResponse(stat.EaClubId, stat.Goals, stat.Assists, stat.Rating, stat.Shots, stat.PassesMade, stat.PassAttempts, stat.PassSuccessRate, stat.TacklesMade, stat.TackleAttempts, stat.TackleSuccessRate, stat.Saves, stat.GoalsConceded, stat.RedCards, stat.PlayerOfTheMatch, stat.Score, stat.Result, stat.Wins, stat.Losses, stat.Ties, stat.WinnerByDnf, stat.RegionId, stat.EaTeamId, stat.StadiumName, stat.CrestAssetId, stat.KitColor1, stat.KitColor2, stat.KitColor3, stat.KitColor4);
     }
 
     private static EaPlayerProfileSnapshotResponse ToPlayerProfileResponse(EaPlayerProfileSnapshot profile)

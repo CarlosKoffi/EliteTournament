@@ -266,6 +266,13 @@ public sealed class CPEliteDbContext : DbContext
         {
             entity.HasKey(stat => stat.Id);
             entity.HasIndex(stat => new { stat.EaFriendlyMatchId, stat.EaClubId }).IsUnique();
+            entity.Property(stat => stat.Result).HasMaxLength(40);
+            entity.Property(stat => stat.StadiumName).HasMaxLength(160);
+            entity.Property(stat => stat.CrestAssetId).HasMaxLength(80);
+            entity.Property(stat => stat.KitColor1).HasMaxLength(40);
+            entity.Property(stat => stat.KitColor2).HasMaxLength(40);
+            entity.Property(stat => stat.KitColor3).HasMaxLength(40);
+            entity.Property(stat => stat.KitColor4).HasMaxLength(40);
             entity.Property(stat => stat.RawJson).HasColumnType("jsonb");
             entity.HasOne(stat => stat.Match)
                 .WithMany(match => match.ClubStats)

@@ -370,7 +370,7 @@ public sealed class EaDiagnosticsService
                 FindInt(club.Value, "saves"),
                 FindInt(club.Value, "goalsconceded"),
                 FindInt(club.Value, "redcards"),
-                FindInt(club.Value, "mom")));
+                FindInt(club.Value, "mom"), null, null, null, null, null, null, null, null, null, null, null, null, null, null));
         }
 
         return stats;
