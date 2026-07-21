@@ -7040,22 +7040,35 @@ body {
     }
 }
 
-/* Final account readability guard: the account profile card is a light surface. */
-.account-ea-card-v2,
-.account-ea-card-v2 p,
-.account-ea-card-v2 h2,
-.account-ea-card-v2 h3,
-.account-ea-card-v2 span,
-.account-ea-card-v2 small,
-.account-ea-card-v2 strong,
-.account-ea-card-v2 .eyebrow,
-.account-ea-card-v2 .result-kind,
+/* Final account readability guard: light account blocks stay dark text. */
+.account-ea-card-v2 .account-ea-sync-panel,
+.account-ea-card-v2 .account-ea-sync-panel p,
+.account-ea-card-v2 .account-ea-sync-panel h3,
+.account-ea-card-v2 .player-position-panel,
+.account-ea-card-v2 .player-position-panel h3,
+.account-ea-card-v2 .account-section-title,
+.account-ea-card-v2 .account-section-title p,
+.account-ea-card-v2 .account-section-title h3,
+.account-ea-card-v2 .account-section-title span,
+.account-ea-card-v2 .ea-profile-empty-state,
+.account-ea-card-v2 .ea-profile-empty-state p,
+.account-ea-card-v2 .ea-profile-empty-state strong,
+.account-ea-card-v2 .account-ea-main-grid span,
+.account-ea-card-v2 .account-ea-main-grid strong,
+.account-ea-card-v2 .account-player-deep-stats span,
+.account-ea-card-v2 .account-player-deep-stats strong,
+.account-ea-card-v2 .stored-player-fallback-grid span,
+.account-ea-card-v2 .stored-player-fallback-grid strong {
+    color: #050505 !important;
+    text-shadow: none !important;
+}
+
 .account-ea-card-v2 .account-ea-profile-hero,
 .account-ea-card-v2 .account-ea-profile-hero .eyebrow,
 .account-ea-card-v2 .account-ea-profile-hero h2,
 .account-ea-card-v2 .account-ea-profile-hero span,
 .account-ea-card-v2 .account-ea-profile-hero small {
-    color: #050505 !important;
+    color: #ffffff !important;
     text-shadow: none !important;
 }
 
