@@ -7039,3 +7039,27 @@ body {
         width: 100%;
     }
 }
+
+/* Final account readability guard: the account profile card is a light surface. */
+.account-ea-card-v2,
+.account-ea-card-v2 p,
+.account-ea-card-v2 h2,
+.account-ea-card-v2 h3,
+.account-ea-card-v2 span,
+.account-ea-card-v2 small,
+.account-ea-card-v2 strong,
+.account-ea-card-v2 .eyebrow,
+.account-ea-card-v2 .result-kind,
+.account-ea-card-v2 .account-ea-profile-hero,
+.account-ea-card-v2 .account-ea-profile-hero .eyebrow,
+.account-ea-card-v2 .account-ea-profile-hero h2,
+.account-ea-card-v2 .account-ea-profile-hero span,
+.account-ea-card-v2 .account-ea-profile-hero small {
+    color: #050505 !important;
+    text-shadow: none !important;
+}
+
+.account-ea-card-v2 .club-avatar,
+.account-ea-card-v2 .player-rating {
+    color: #050505 !important;
+}
