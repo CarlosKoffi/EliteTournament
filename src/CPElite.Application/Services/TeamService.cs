@@ -568,9 +568,9 @@ public sealed class TeamService
     private async Task<Result<TeamAuthorization>> EnsureCanManageTeamAsync(Guid actorUserId, Guid teamId, CancellationToken cancellationToken)
     {
         var membership = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
-        if (membership is null || !membership.CanManageRoles())
+        if (membership is null || !membership.CanManageTeamAccess())
         {
-            return Result<TeamAuthorization>.Failure(ErrorType.Forbidden, "team.manage_forbidden", "Only team owners can manage this team.");
+            return Result<TeamAuthorization>.Failure(ErrorType.Forbidden, "team.manage_forbidden", "Only team owners and managers can manage this team.");
         }
 
         var team = membership.Team ?? await _teams.GetByIdAsync(teamId, cancellationToken);

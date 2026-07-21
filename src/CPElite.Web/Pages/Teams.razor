@@ -56,13 +56,13 @@
         <div class="upload-grid">
             <label class="upload-card">
                 <span>Logo equipe</span>
-                <InputFile OnChange="UploadLogoAsync" accept="image/png,image/jpeg,image/webp,image/gif" />
-                <small>@(string.IsNullOrWhiteSpace(Team.LogoUrl) ? "PNG, JPG ou WebP" : "Logo uploade")</small>
+                <InputFile OnChange="UploadLogoAsync" accept="image/png,image/jpeg,image/webp,image/gif" disabled="@(!CanEditSelectedTeamAssets)" />
+                <small>@BuildAssetUploadHint(Team.LogoUrl, "Logo uploade")</small>
             </label>
             <label class="upload-card banner-upload">
                 <span>Banniere equipe</span>
-                <InputFile OnChange="UploadBannerAsync" accept="image/png,image/jpeg,image/webp,image/gif" />
-                <small>@(string.IsNullOrWhiteSpace(Team.BannerUrl) ? "Image large recommandee" : "Banniere uploadee")</small>
+                <InputFile OnChange="UploadBannerAsync" accept="image/png,image/jpeg,image/webp,image/gif" disabled="@(!CanEditSelectedTeamAssets)" />
+                <small>@BuildAssetUploadHint(Team.BannerUrl, "Banniere uploadee")</small>
             </label>
         </div>
     </article>
@@ -510,6 +510,11 @@
         .ToArray();
     private TeamMemberResponse? CurrentMembership => Memberships.FirstOrDefault(member => member.TeamId == SelectedTeamId);
     private bool CanInvitePlayers => DemoMode || CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager;
+    private bool CanEditSelectedTeamAssets => !AuthState.IsAuthenticated
+        ? false
+        : !SelectedTeamId.HasValue
+            ? true
+            : DemoMode || CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager;
     private string EaRefreshButtonLabel => EaSyncBusy ? "Synchro EA..." : "Rafraichir donnees EA";
     private string FriendlyRefreshButtonLabel => EaSyncBusy ? "Actualisation..." : "Rafraichir amicaux EA";
     private const int FriendlyPageSize = 2;
@@ -678,8 +683,16 @@
             return;
         }
 
+        if (!CanEditSelectedTeamAssets)
+        {
+            Message = "Seul le owner ou co-GM du club peut modifier le logo et la banniere.";
+            return;
+        }
+
         Busy = true;
         var file = args.File;
+        var previousLogoUrl = Team.LogoUrl;
+        var previousBannerUrl = Team.BannerUrl;
         await using var stream = file.OpenReadStream(5_000_000);
         var result = await Api.UploadTeamAssetAsync(stream, file.Name, file.ContentType);
         Busy = false;
@@ -692,19 +705,25 @@
         applyUrl(result.Value.Url);
         if (SelectedTeamId.HasValue && !DemoMode)
         {
-            await SaveSelectedTeamProfileAsync(successMessage);
+            var saved = await SaveSelectedTeamProfileAsync(successMessage);
+            if (!saved)
+            {
+                Team.LogoUrl = previousLogoUrl;
+                Team.BannerUrl = previousBannerUrl;
+            }
+
             return;
         }
 
         Message = successMessage;
     }
 
-    private async Task SaveSelectedTeamProfileAsync(string successMessage)
+    private async Task<bool> SaveSelectedTeamProfileAsync(string successMessage)
     {
         if (!SelectedTeamId.HasValue)
         {
             Message = successMessage;
-            return;
+            return true;
         }
 
         var request = new UpdateTeamProfileRequest(
@@ -720,12 +739,23 @@
         var update = await Api.UpdateTeamProfileAsync(SelectedTeamId.Value, request);
         if (update.Value is null)
         {
-            Message = update.Error;
-            return;
+            Message = $"Image uploadee, mais non rattachee au club: {update.Error}";
+            return false;
         }
 
         ApplyTeamProfile(update.Value);
         Message = successMessage;
+        return true;
+    }
+
+    private string BuildAssetUploadHint(string? url, string uploadedText)
+    {
+        if (!CanEditSelectedTeamAssets)
+        {
+            return "Reserve owner / co-GM";
+        }
+
+        return string.IsNullOrWhiteSpace(url) ? "PNG, JPG, WebP ou GIF" : $"{uploadedText} et stocke en base";
     }
 
     private void ApplyTeamProfile(TeamResponse team)

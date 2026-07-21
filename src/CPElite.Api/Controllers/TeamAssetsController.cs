@@ -67,7 +67,7 @@ public sealed class TeamAssetsController : ControllerBase
             await file.CopyToAsync(stream, cancellationToken);
         }
 
-        var url = $"{Request.Scheme}://{Request.Host}/uploads/team-assets/{fileName}";
+        var url = $"/uploads/team-assets/{fileName}";
         return Ok(new TeamAssetUploadResponse(url, fileName, file.Length, file.ContentType));
     }
 }
