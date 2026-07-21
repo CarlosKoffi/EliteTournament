@@ -262,22 +262,26 @@
             <div class="panel-heading compact">
                 <div>
                     <p class="eyebrow">Matchs amicaux EA</p>
-                    <h3>5 derniers matchs</h3>
+                    <h3>Matchs stockes</h3>
                 </div>
                 <button class="ghost-action" @onclick="SyncSelectedTeamAsync" disabled="@Busy">@FriendlyRefreshButtonLabel</button>
             </div>
-            <div class="friendly-select-card">
-                <label>
-                    Match a consulter
-                    <select @onchange="LoadFriendlyFromSelectAsync">
-                        <option value="">Selectionner un match</option>
-                        @foreach (var match in EaFriendlies.Take(5))
-                        {
-                            <option value="@match.EaMatchId">@FormatFriendlyOption(match)</option>
-                        }
-                    </select>
-                </label>
-                <small>Affichage limite aux 5 derniers matchs a consulter.</small>
+            <div class="friendly-match-pager">
+                <div class="friendly-match-list">
+                    @foreach (var match in PagedFriendlies)
+                    {
+                        <button type="button" class="friendly-match-card @(SelectedFriendlyDetails?.Match.EaMatchId == match.EaMatchId ? "selected" : "")" @onclick="() => SelectFriendlyMatchAsync(match)">
+                            <span>@match.PlayedAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
+                            <strong>@match.HomeClubName @match.HomeScore - @match.AwayScore @match.AwayClubName</strong>
+                            <small>@match.PlayerStatCount stats joueurs - ID @match.EaMatchId</small>
+                        </button>
+                    }
+                </div>
+                <div class="pager-actions">
+                    <button type="button" class="ghost-action" @onclick="PreviousFriendlyPage" disabled="@(FriendlyPage <= 0)">Precedent</button>
+                    <span>Page @(FriendlyPage + 1) / @FriendlyTotalPages</span>
+                    <button type="button" class="ghost-action" @onclick="NextFriendlyPage" disabled="@(FriendlyPage >= FriendlyTotalPages - 1)">Suivant</button>
+                </div>
             </div>
         }
         else
@@ -300,7 +304,25 @@
                     <span>@SelectedFriendlyDetails.Match.PlayedAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
                 </div>
 
-                <div class="friendly-team-sections">
+                <div class="friendly-match-body">
+                    <aside class="friendly-match-aside">
+                        <p class="eyebrow">Match selectionne</p>
+                        <h4>@SelectedFriendlyDetails.Match.HomeClubName vs @SelectedFriendlyDetails.Match.AwayClubName</h4>
+                        <div class="match-side-score">
+                            <span>@SelectedFriendlyDetails.Match.HomeClubName</span>
+                            <strong>@SelectedFriendlyDetails.Match.HomeScore - @SelectedFriendlyDetails.Match.AwayScore</strong>
+                            <span>@SelectedFriendlyDetails.Match.AwayClubName</span>
+                        </div>
+                        <div class="match-side-grid">
+                            <div><span>ID match</span><strong>@SelectedFriendlyDetails.Match.EaMatchId</strong></div>
+                            <div><span>Date</span><strong>@SelectedFriendlyDetails.Match.PlayedAt.LocalDateTime.ToString("dd/MM HH:mm")</strong></div>
+                            <div><span>Joueurs stats</span><strong>@SelectedFriendlyDetails.Match.PlayerStatCount</strong></div>
+                            <div><span>Type</span><strong>Amical EA</strong></div>
+                        </div>
+                        <small>Les joueurs du match sont ranges par club. Clique un joueur pour ouvrir sa fiche detaillee.</small>
+                    </aside>
+
+                    <div class="friendly-team-sections">
                     @foreach (var teamSection in FriendlyTeamSections)
                     {
                         <section class="friendly-team-section @(teamSection.IsCurrentTeam ? "current-team" : "opponent-team")">
@@ -347,6 +369,7 @@
                                             <span class="team-player-badge">@teamSection.ClubName</span>
                                             <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(stat)">@stat.PlayerName</button>
                                             <span>@(stat.Position ?? "poste ?") @(stat.PlayerOfTheMatch ? "- Homme du match" : "")</span>
+                                            <p class="position-smart-line">@BuildMatchPlayerSmartLine(stat)</p>
                                             <div class="ea-data-strip">
                                                 <b>@(stat.Goals?.ToString() ?? "0") B</b>
                                                 <b>@(stat.Assists?.ToString() ?? "0") A</b>
@@ -360,6 +383,7 @@
                             }
                         </section>
                     }
+                    </div>
                 </div>
             </div>
         }
@@ -379,23 +403,37 @@
                 <button class="ghost-action" @onclick="ClosePlayerSheet">Fermer</button>
             </div>
 
-            <div class="player-profile-header">
-                <div class="club-avatar large">@GetInitials(SelectedPlayerSheet.Name)</div>
+            <div class="player-focus-card">
+                <div class="player-focus-main">
+                    <div class="club-avatar large">@GetInitials(SelectedPlayerSheet.Name)</div>
+                    <div>
+                        <span class="result-kind">@SelectedPlayerSheet.Source</span>
+                        <h3>@SelectedPlayerSheet.ProName</h3>
+                        <p>EA Sports ID @SelectedPlayerSheet.EaPlayerId - @SelectedPlayerSheet.Position - @(SelectedPlayerSheet.HasApp ? "compte app actif" : "hors app")</p>
+                    </div>
+                </div>
+                <div class="player-focus-rating">
+                    <span>Note</span>
+                    <strong>@SelectedPlayerSheet.RatingLabel</strong>
+                </div>
+            </div>
+
+            <div class="player-position-panel">
                 <div>
-                    <span class="result-kind">@SelectedPlayerSheet.Source</span>
-                    <strong>@SelectedPlayerSheet.ProName</strong>
-                    <small>EA Sports ID: @SelectedPlayerSheet.EaPlayerId - Poste: @SelectedPlayerSheet.Position - @(SelectedPlayerSheet.HasApp ? "compte app actif" : "hors app")</small>
+                    <p class="eyebrow">@SelectedPlayerSheet.PositionFocusTitle</p>
+                    <h3>@SelectedPlayerSheet.PositionFocusText</h3>
                 </div>
                 <span class="presence-pill @(SelectedPlayerSheet.HasApp ? "confirmed" : "pending")">@(SelectedPlayerSheet.HasApp ? "Dans l'app" : "A inviter")</span>
             </div>
 
-            <div class="drawer-metrics">
-                <div><span>Matchs</span><strong>@SelectedPlayerSheet.Matches</strong></div>
-                <div><span>Buts</span><strong>@SelectedPlayerSheet.Goals</strong></div>
-                <div><span>Assists</span><strong>@SelectedPlayerSheet.Assists</strong></div>
+            <div class="drawer-metrics player-priority-metrics">
+                @foreach (var metric in SelectedPlayerSheet.PriorityMetrics)
+                {
+                    <div><span>@metric.Label</span><strong>@metric.Value</strong></div>
+                }
             </div>
 
-            <div class="drawer-data-grid">
+            <div class="drawer-data-grid player-identity-stats">
                 <article>
                     <span class="result-kind">Donnees EA stockees</span>
                     <dl>
@@ -403,17 +441,17 @@
                         <div><dt>Poste</dt><dd>@SelectedPlayerSheet.Position</dd></div>
                         <div><dt>Taille</dt><dd>@SelectedPlayerSheet.HeightLabel</dd></div>
                         <div><dt>OVR</dt><dd>@SelectedPlayerSheet.OverallLabel</dd></div>
-                        <div><dt>Note</dt><dd>@SelectedPlayerSheet.RatingLabel</dd></div>
+                        <div><dt>Matchs</dt><dd>@SelectedPlayerSheet.Matches</dd></div>
                         <div><dt>Homme du match</dt><dd>@SelectedPlayerSheet.PlayerOfTheMatchLabel</dd></div>
                     </dl>
                 </article>
                 <article>
                     <span class="result-kind">Impact sportif</span>
                     <div class="player-skill-grid">
+                        <div><span>Buts</span><strong>@SelectedPlayerSheet.Goals</strong></div>
+                        <div><span>Assists</span><strong>@SelectedPlayerSheet.Assists</strong></div>
                         <div><span>Passes</span><strong>@SelectedPlayerSheet.PassRateLabel</strong></div>
                         <div><span>Tacles</span><strong>@SelectedPlayerSheet.TackleRateLabel</strong></div>
-                        <div><span>Tirs</span><strong>@SelectedPlayerSheet.ShotRateLabel</strong></div>
-                        <div><span>Club</span><strong>@(SelectedTeamName ?? "TheSurvivors")</strong></div>
                     </div>
                 </article>
             </div>
@@ -474,6 +512,14 @@
     private bool CanInvitePlayers => DemoMode || CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager;
     private string EaRefreshButtonLabel => EaSyncBusy ? "Synchro EA..." : "Rafraichir donnees EA";
     private string FriendlyRefreshButtonLabel => EaSyncBusy ? "Actualisation..." : "Rafraichir amicaux EA";
+    private const int FriendlyPageSize = 2;
+    private int FriendlyPage;
+    private IReadOnlyList<EaFriendlyMatchResponse> PagedFriendlies => EaFriendlies
+        .OrderByDescending(match => match.PlayedAt)
+        .Skip(FriendlyPage * FriendlyPageSize)
+        .Take(FriendlyPageSize)
+        .ToArray();
+    private int FriendlyTotalPages => Math.Max(1, (int)Math.Ceiling((double)EaFriendlies.Count / FriendlyPageSize));
     private IReadOnlyList<FriendlyTeamSectionModel> FriendlyTeamSections => SelectedFriendlyDetails is null
         ? Array.Empty<FriendlyTeamSectionModel>()
         : BuildFriendlyTeamSections(SelectedFriendlyDetails);
@@ -866,25 +912,54 @@
         Message = result.Success ? "Detail match EA charge." : result.Error;
     }
 
-    private async Task LoadFriendlyFromSelectAsync(ChangeEventArgs args)
+    private async Task SelectFriendlyMatchAsync(EaFriendlyMatchResponse match)
     {
-        var eaMatchId = args.Value?.ToString();
-        if (string.IsNullOrWhiteSpace(eaMatchId))
-        {
-            SelectedFriendlyDetails = null;
-            return;
-        }
-
-        var match = EaFriendlies.FirstOrDefault(item => item.EaMatchId == eaMatchId);
-        if (match is not null)
-        {
-            await LoadFriendlyDetailsAsync(match);
-        }
+        await LoadFriendlyDetailsAsync(match);
     }
 
-    private static string FormatFriendlyOption(EaFriendlyMatchResponse match)
+    private void PreviousFriendlyPage()
     {
-        return $"{match.PlayedAt.LocalDateTime:dd/MM HH:mm} - {match.HomeClubName} {match.HomeScore}-{match.AwayScore} {match.AwayClubName}";
+        FriendlyPage = Math.Max(0, FriendlyPage - 1);
+    }
+
+    private void NextFriendlyPage()
+    {
+        FriendlyPage = Math.Min(FriendlyTotalPages - 1, FriendlyPage + 1);
+    }
+
+    private static string BuildMatchPlayerSmartLine(EaMatchPlayerStatResponse stat)
+    {
+        return NormalizeMatchPosition(stat.Position) switch
+        {
+            "goalkeeper" => $"{FormatMatchNumber(stat.Saves)} arrets - {FormatMatchNumber(stat.GoalsConceded)} but(s) encaisse(s) - {CleanSheetLabel(stat.CleanSheetsGk)} - {FormatMatchRating(stat.Rating)} note",
+            "defender" => $"{FormatMatchNumber(stat.TacklesMade)} tacles - {FormatMatchPercent(stat.TackleSuccessRate)} tacles - {CleanSheetLabel(stat.CleanSheetsDef)} - {FormatMatchRating(stat.Rating)} note",
+            "midfielder" => $"{FormatMatchPercent(stat.PassSuccessRate)} passes - {FormatMatchNumber(stat.PassesMade)} passes reussies - {FormatMatchNumber(stat.TacklesMade)} tacles - {FormatMatchNumber(stat.Assists)} assist",
+            "forward" => $"{FormatMatchNumber(stat.Goals)} but(s) - {FormatMatchNumber(stat.Assists)} assist - {FormatMatchNumber(stat.Shots)} tirs - {FormatMatchRating(stat.Rating)} note",
+            _ => $"{FormatMatchNumber(stat.Goals)} B - {FormatMatchNumber(stat.Assists)} A - {FormatMatchPercent(stat.PassSuccessRate)} passes - {FormatMatchRating(stat.Rating)} note"
+        };
+    }
+
+    private static string CleanSheetLabel(int? value) => value.GetValueOrDefault() > 0 ? "clean sheet" : "pas de clean sheet";
+
+    private static string FormatMatchNumber(int? value) => value?.ToString() ?? "-";
+
+    private static string FormatMatchRating(double? value) => value?.ToString("0.0") ?? "-";
+
+    private static string FormatMatchPercent(double? value) => value is null ? "-" : $"{value:0.#}%";
+
+    private static string NormalizeMatchPosition(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Contains("goal") || normalized.Contains("keeper") || normalized.Contains("gardien")) return "goalkeeper";
+        if (normalized.Contains("def") || normalized.Contains("back") || normalized.Contains("dc") || normalized.Contains("dd") || normalized.Contains("dg")) return "defender";
+        if (normalized.Contains("mid") || normalized.Contains("mil") || normalized.Contains("moc") || normalized.Contains("mdc") || normalized.Contains("mc")) return "midfielder";
+        if (normalized.Contains("for") || normalized.Contains("att") || normalized.Contains("ailier") || normalized.Contains("buteur") || normalized.Contains("striker")) return "forward";
+        return normalized;
     }
 
     private bool IsPlayerInApp(EaPlayerProfileSnapshotResponse player)
@@ -1248,6 +1323,48 @@
         string ShotRateLabel,
         IReadOnlyCollection<PlayerMetricGroup> MetricGroups)
     {
+        public string PositionFocusTitle => NormalizeSheetPosition(Position) switch
+        {
+            "goalkeeper" => "Lecture gardien",
+            "defender" => "Lecture defenseur",
+            "midfielder" => "Lecture milieu",
+            "forward" => "Lecture offensif",
+            _ => "Lecture joueur"
+        };
+
+        public string PositionFocusText => NormalizeSheetPosition(Position) switch
+        {
+            "goalkeeper" => "Priorite aux arrets, buts encaisses et clean sheets.",
+            "defender" => "Priorite aux tacles, clean sheets, relance et discipline.",
+            "midfielder" => "Priorite aux passes, assists, recuperation et volume de jeu.",
+            "forward" => "Priorite aux buts, assists, tirs et note du match.",
+            _ => "Priorite aux actions decisives et a l'impact global."
+        };
+
+        public IReadOnlyCollection<PlayerMetric> PriorityMetrics => NormalizeSheetPosition(Position) switch
+        {
+            "goalkeeper" => new[] { new PlayerMetric("Note", RatingLabel), new PlayerMetric("Matchs", Matches), new PlayerMetric("MOTM", PlayerOfTheMatchLabel), new PlayerMetric("Passes", PassRateLabel) },
+            "defender" => new[] { new PlayerMetric("Tacles", TackleRateLabel), new PlayerMetric("Note", RatingLabel), new PlayerMetric("MOTM", PlayerOfTheMatchLabel), new PlayerMetric("Passes", PassRateLabel) },
+            "midfielder" => new[] { new PlayerMetric("Passes", PassRateLabel), new PlayerMetric("Assists", Assists), new PlayerMetric("Tacles", TackleRateLabel), new PlayerMetric("Note", RatingLabel) },
+            "forward" => new[] { new PlayerMetric("Buts", Goals), new PlayerMetric("Assists", Assists), new PlayerMetric("Tirs", ShotRateLabel), new PlayerMetric("Note", RatingLabel) },
+            _ => new[] { new PlayerMetric("Buts", Goals), new PlayerMetric("Assists", Assists), new PlayerMetric("Passes", PassRateLabel), new PlayerMetric("Note", RatingLabel) }
+        };
+
+        private static string NormalizeSheetPosition(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = value.Trim().ToLowerInvariant();
+            if (normalized.Contains("goal") || normalized.Contains("keeper") || normalized.Contains("gardien")) return "goalkeeper";
+            if (normalized.Contains("def") || normalized.Contains("back") || normalized.Contains("dc") || normalized.Contains("dd") || normalized.Contains("dg")) return "defender";
+            if (normalized.Contains("mid") || normalized.Contains("mil") || normalized.Contains("moc") || normalized.Contains("mdc") || normalized.Contains("mc")) return "midfielder";
+            if (normalized.Contains("for") || normalized.Contains("att") || normalized.Contains("ailier") || normalized.Contains("buteur") || normalized.Contains("striker")) return "forward";
+            return normalized;
+        }
+
         public static PlayerSheetModel FromProfile(EaPlayerProfileSnapshotResponse player, bool hasApp)
         {
             return new PlayerSheetModel(
