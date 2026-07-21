@@ -47,16 +47,44 @@
         </article>
     </section>
 }
+else if (PublishedTournaments.Count > 0)
+{
+    <section class="tournament-catalog">
+        @foreach (var tournament in PublishedTournaments)
+        {
+            <article class="tournament-product @(tournament.IsCashPrize ? "goodies" : "simple")" style="@BuildTournamentBannerStyle(tournament.BannerUrl)">
+                <div>
+                    <p class="eyebrow">@(tournament.IsCashPrize ? "Tournoi goodies" : "Tournoi")</p>
+                    <h2>@tournament.Name</h2>
+                    <p>@BuildTournamentSubtitle(tournament)</p>
+                </div>
+                <div class="product-rules">
+                    @if (tournament.IsCashPrize)
+                    {
+                        <strong>Goodies</strong>
+                    }
+                    <span>Date: @FormatTournamentDate(tournament.StartsAt)</span>
+                    <span>Coup d'envoi: @FormatTournamentTime(tournament.StartsAt) @tournament.TimeZone</span>
+                    <strong>@BuildCountdownLabel(tournament.StartsAt)</strong>
+                    <span>Il reste des places</span>
+                </div>
+                <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">
+                    @(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")
+                </a>
+            </article>
+        }
+    </section>
+}
 else
 {
     <section class="panel public-tournament-lock">
         <div>
             <p class="eyebrow">Tournois</p>
             <h2>Aucun tournoi publie pour le moment</h2>
-            <p>Les prochains tournois apparaitront ici des qu'un admin TS Tournament les aura crees et ouverts aux inscriptions.</p>
+            <p>@(AuthState.IsAuthenticated ? "Tu es bien connecte. Les prochains tournois apparaitront ici des qu'un admin TS Tournament les aura crees et ouverts aux inscriptions." : "Les prochains tournois apparaitront ici des qu'un admin TS Tournament les aura crees et ouverts aux inscriptions.")</p>
         </div>
         <div class="public-tournament-actions">
-            <a class="button-link primary" href="account">Creer un compte</a>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Voir mon equipe" : "Creer un compte")</a>
             <a class="button-link" href="/">Retour accueil</a>
         </div>
     </section>
@@ -611,6 +639,7 @@ else
     private Guid? SelectedOwnerTeamId { get; set; }
     private List<OwnerTeamOption> OwnerTeams { get; } = [];
     private List<RosterPlayerModel> Roster { get; } = [];
+    private List<TournamentResponse> PublishedTournaments { get; } = [];
     private bool Busy;
     private string? Message;
     private string? OpenedSheet;
@@ -650,6 +679,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         AuthState.Changed += OnAuthStateChanged;
+        await LoadPublishedTournamentsAsync();
         await LoadOwnerContextAsync();
     }
 
@@ -660,6 +690,63 @@ else
             await LoadOwnerContextAsync();
             StateHasChanged();
         });
+    }
+
+    private async Task LoadPublishedTournamentsAsync()
+    {
+        if (ShowDemoData)
+        {
+            return;
+        }
+
+        var result = await Api.GetTournamentsAsync();
+        PublishedTournaments.Clear();
+        if (result.Value is not null)
+        {
+            PublishedTournaments.AddRange(result.Value
+                .Where(tournament => tournament.Status != TournamentStatus.Cancelled)
+                .OrderBy(tournament => tournament.StartsAt));
+        }
+        else if (!string.IsNullOrWhiteSpace(result.Error))
+        {
+            Message = $"Tournois indisponibles pour le moment: {result.Error}";
+        }
+    }
+
+    private static string BuildTournamentSubtitle(TournamentResponse tournament)
+    {
+        if (tournament.IsCashPrize && !string.IsNullOrWhiteSpace(tournament.GoodiesDescription))
+        {
+            return tournament.GoodiesDescription;
+        }
+
+        return "Tournoi ouvert aux equipes Pro Clubs. Connecte-toi pour inscrire ton club et preparer ton roster.";
+    }
+
+    private static string FormatTournamentDate(DateTimeOffset startsAt)
+    {
+        return startsAt.LocalDateTime.ToString("dd/MM/yyyy");
+    }
+
+    private static string FormatTournamentTime(DateTimeOffset startsAt)
+    {
+        return startsAt.LocalDateTime.ToString("HH:mm");
+    }
+
+    private static string BuildCountdownLabel(DateTimeOffset startsAt)
+    {
+        var remaining = startsAt - DateTimeOffset.UtcNow;
+        if (remaining.TotalDays >= 1)
+        {
+            return $"Dans {(int)Math.Ceiling(remaining.TotalDays)} jours";
+        }
+
+        if (remaining.TotalHours >= 1)
+        {
+            return $"Dans {(int)Math.Ceiling(remaining.TotalHours)} h";
+        }
+
+        return remaining.TotalMinutes > 0 ? "Bientot" : "En cours";
     }
 
     private async Task LoadOwnerContextAsync()

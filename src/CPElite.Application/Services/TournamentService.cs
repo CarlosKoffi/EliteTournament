@@ -34,6 +34,14 @@ public sealed class TournamentService
         _unitOfWork = unitOfWork;
     }
 
+    public async Task<Result<IReadOnlyCollection<TournamentResponse>>> GetTournamentsAsync(CancellationToken cancellationToken = default)
+    {
+        var tournaments = await _tournaments.GetTournamentsAsync(cancellationToken);
+        return Result<IReadOnlyCollection<TournamentResponse>>.Success(tournaments
+            .Select(ToTournamentResponse)
+            .ToArray());
+    }
+
     public async Task<Result<TournamentResponse>> CreateOfficialTournamentAsync(Guid createdByUserId, CreateTournamentRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Name))

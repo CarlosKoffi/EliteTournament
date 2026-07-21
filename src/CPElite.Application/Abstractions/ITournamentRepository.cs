@@ -4,6 +4,7 @@ namespace CPElite.Application.Abstractions;
 
 public interface ITournamentRepository
 {
+    Task<IReadOnlyCollection<Tournament>> GetTournamentsAsync(CancellationToken cancellationToken = default);
     Task<Tournament?> GetTournamentAsync(Guid tournamentId, CancellationToken cancellationToken = default);
     Task<TournamentMatch?> GetMatchAsync(Guid matchId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentMatch>> GetMatchesAsync(Guid tournamentId, CancellationToken cancellationToken = default);

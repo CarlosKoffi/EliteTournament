@@ -14,6 +14,13 @@ public sealed class TournamentRepository : ITournamentRepository
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<Tournament>> GetTournamentsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Tournaments
+            .OrderBy(tournament => tournament.StartsAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task<Tournament?> GetTournamentAsync(Guid tournamentId, CancellationToken cancellationToken = default)
     {
         return _dbContext.Tournaments.FirstOrDefaultAsync(tournament => tournament.Id == tournamentId, cancellationToken);

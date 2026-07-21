@@ -16,6 +16,13 @@ public sealed class TournamentsController : ApiControllerBase
         _tournamentService = tournamentService;
     }
 
+    [AllowAnonymous]
+    [HttpGet]
+    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.GetTournamentsAsync(cancellationToken));
+    }
+
     [HttpPost("official")]
     public async Task<IActionResult> CreateOfficial(CreateTournamentRequest request, CancellationToken cancellationToken)
     {
