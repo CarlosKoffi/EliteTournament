@@ -5808,6 +5808,30 @@ body {
     color: #050505;
 }
 
+.player-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.player-card-title .manager-tag {
+    width: fit-content;
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    border: 1px solid rgba(5, 5, 5, .16);
+    background: #f4f4f1;
+    color: #050505;
+    font-size: 10px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.player-card-title .manager-tag.is-manager {
+    background: var(--app-pitch);
+    color: #050505;
+}
+
 .registration-player-card .app-status {
     margin-top: 7px;
     color: #050505;

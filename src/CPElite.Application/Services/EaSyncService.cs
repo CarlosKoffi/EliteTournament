@@ -540,6 +540,53 @@ public sealed class EaSyncService
         return null;
     }
 
+    private static bool? GetBoolAny(JsonElement element, params string[] propertyNames)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var propertyName in propertyNames)
+        {
+            if (!element.TryGetProperty(propertyName, out var property))
+            {
+                continue;
+            }
+
+            if (property.ValueKind == JsonValueKind.True)
+            {
+                return true;
+            }
+
+            if (property.ValueKind == JsonValueKind.False)
+            {
+                return false;
+            }
+
+            if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var number))
+            {
+                return number != 0;
+            }
+
+            if (property.ValueKind == JsonValueKind.String)
+            {
+                var text = property.GetString();
+                if (bool.TryParse(text, out var parsedBool))
+                {
+                    return parsedBool;
+                }
+
+                if (int.TryParse(text, out var parsedNumber))
+                {
+                    return parsedNumber != 0;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static bool HasAnyProperty(JsonElement element, params string[] propertyNames)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -980,7 +1027,42 @@ public sealed class EaSyncService
 
     private static EaPlayerProfileSnapshotResponse ToPlayerProfileResponse(EaPlayerProfileSnapshot profile)
     {
-        return new EaPlayerProfileSnapshotResponse(profile.EaPlayerId, profile.PlayerName, profile.ProName, profile.Position, profile.Matches, profile.WinRate, profile.Goals, profile.Assists, profile.AverageRating, profile.Height, profile.Weight, profile.Overall, profile.Shots, profile.ShotSuccessRate, profile.PassesMade, profile.PassAttempts, profile.PassSuccessRate, profile.TacklesMade, profile.TackleAttempts, profile.TackleSuccessRate, profile.Saves, profile.CleanSheets, profile.CleanSheetsGk, profile.PlayerOfTheMatch, profile.RedCards, profile.PrevGoals, profile.GoalsPerMatch, profile.AssistsPerMatch, profile.GoalContributions, profile.GoalContributionsPerMatch, profile.PassesMadePerMatch, profile.TacklesMadePerMatch, profile.PlayerOfTheMatchRate, profile.CleanSheetsDefRate, profile.CleanSheetsGkRate, profile.AllClubsMatches, profile.AllClubsGoals, profile.AllClubsAssists, profile.AllClubsAverageRating, profile.AllClubsPlayerOfTheMatch, profile.AllClubsPlayerOfTheMatchRate, profile.AllClubsGoalContributions, profile.AllClubsGoalContributionsPerMatch, profile.SyncedAt);
+        return new EaPlayerProfileSnapshotResponse(profile.EaPlayerId, profile.PlayerName, profile.ProName, profile.Position, profile.Matches, profile.WinRate, profile.Goals, profile.Assists, profile.AverageRating, profile.Height, profile.Weight, profile.Overall, profile.Shots, profile.ShotSuccessRate, profile.PassesMade, profile.PassAttempts, profile.PassSuccessRate, profile.TacklesMade, profile.TackleAttempts, profile.TackleSuccessRate, profile.Saves, profile.CleanSheets, profile.CleanSheetsGk, profile.PlayerOfTheMatch, profile.RedCards, profile.PrevGoals, profile.GoalsPerMatch, profile.AssistsPerMatch, profile.GoalContributions, profile.GoalContributionsPerMatch, profile.PassesMadePerMatch, profile.TacklesMadePerMatch, profile.PlayerOfTheMatchRate, profile.CleanSheetsDefRate, profile.CleanSheetsGkRate, profile.AllClubsMatches, profile.AllClubsGoals, profile.AllClubsAssists, profile.AllClubsAverageRating, profile.AllClubsPlayerOfTheMatch, profile.AllClubsPlayerOfTheMatchRate, profile.AllClubsGoalContributions, profile.AllClubsGoalContributionsPerMatch, profile.SyncedAt, ReadIsManager(profile.RawJson));
+    }
+
+    private static bool ReadIsManager(string rawJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(rawJson);
+            return ReadIsManager(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ReadIsManager(JsonElement item)
+    {
+        if (GetBoolAny(item, "isManager", "manager", "isCaptain", "captain", "isAdmin", "clubAdmin", "isOwner", "owner") is { } flag)
+        {
+            return flag;
+        }
+
+        var role = GetString(item, "role") ?? GetString(item, "clubRole") ?? GetString(item, "memberRole") ?? GetString(item, "memberType") ?? GetString(item, "accessLevel") ?? GetString(item, "title");
+        return !string.IsNullOrWhiteSpace(role) &&
+            (role.Contains("manager", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("owner", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("admin", StringComparison.OrdinalIgnoreCase)
+             || role.Contains("captain", StringComparison.OrdinalIgnoreCase)
+             || role.Equals("gm", StringComparison.OrdinalIgnoreCase)
+             || role.Equals("co-gm", StringComparison.OrdinalIgnoreCase));
     }
 
     private static IEnumerable<JsonElement> EnumerateObjects(JsonElement element)

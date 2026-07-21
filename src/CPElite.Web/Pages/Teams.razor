@@ -238,7 +238,13 @@
                 @foreach (var player in EaProfiles)
                 {
                     <article class="player-stat-card clickable-card" @onclick="() => OpenPlayerSheet(player)">
-                        <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(player)">@player.PlayerName</button>
+                        <div class="player-card-title">
+                            <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(player)">@player.PlayerName</button>
+                            @if (player.IsManager)
+                            {
+                                <b class="manager-tag is-manager">Manager EA</b>
+                            }
+                        </div>
                         <span>@(player.Position ?? "Poste inconnu") · @(player.ProName ?? player.EaPlayerId)</span>
                         <div class="ea-data-strip">
                             <b class="@(IsPlayerInApp(player) ? "app-badge-ok" : "app-badge-missing")">@(IsPlayerInApp(player) ? "Dans l'app" : "Hors app")</b>
@@ -1196,7 +1202,8 @@
         int redCards,
         int prevGoals)
     {
-        return new EaPlayerProfileSnapshotResponse(eaPlayerId, playerName, proName, position, matches, winRate, goals, assists, rating, height, null, overall, null, shotRate, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, cleanSheets, cleanSheetsGk, motm, redCards, prevGoals, PerMatch(goals, matches), PerMatch(assists, matches), goals + assists, PerMatch(goals + assists, matches), PerMatch(passesMade, matches), PerMatch(tacklesMade, matches), Rate(motm, matches), Rate(cleanSheets, matches), Rate(cleanSheetsGk, matches), matches * 2, goals + prevGoals, assists + 30, Math.Round(rating + 0.1, 1), motm + 4, Rate(motm + 4, matches * 2), goals + prevGoals + assists + 30, PerMatch(goals + prevGoals + assists + 30, matches * 2), DateTimeOffset.UtcNow.AddMinutes(-12));
+        var isManager = playerName is "KoffiMarvelous" or "ginga_blaze" or "caboss_238";
+        return new EaPlayerProfileSnapshotResponse(eaPlayerId, playerName, proName, position, matches, winRate, goals, assists, rating, height, null, overall, null, shotRate, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, cleanSheets, cleanSheetsGk, motm, redCards, prevGoals, PerMatch(goals, matches), PerMatch(assists, matches), goals + assists, PerMatch(goals + assists, matches), PerMatch(passesMade, matches), PerMatch(tacklesMade, matches), Rate(motm, matches), Rate(cleanSheets, matches), Rate(cleanSheetsGk, matches), matches * 2, goals + prevGoals, assists + 30, Math.Round(rating + 0.1, 1), motm + 4, Rate(motm + 4, matches * 2), goals + prevGoals + assists + 30, PerMatch(goals + prevGoals + assists + 30, matches * 2), DateTimeOffset.UtcNow.AddMinutes(-12), isManager);
     }
 
     private static double? PerMatch(int value, int matches) => matches > 0 ? Math.Round((double)value / matches, 2) : null;

@@ -132,4 +132,5 @@ public sealed record EaPlayerProfileSnapshotResponse(
     double? AllClubsPlayerOfTheMatchRate,
     int? AllClubsGoalContributions,
     double? AllClubsGoalContributionsPerMatch,
-    DateTimeOffset SyncedAt);
+    DateTimeOffset SyncedAt,
+    bool IsManager = false);
