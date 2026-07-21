@@ -87,15 +87,23 @@
             <div class="ea-result-grid">
                 @foreach (var club in EaSearchResults)
                 {
-                    <button class="ea-result-card @(SelectedEaClub?.EaClubId == club.EaClubId ? "selected" : "")" @onclick="() => SelectEaClub(club)">
+                    <button class="ea-result-card @(SelectedEaClub?.EaClubId == club.EaClubId ? "selected" : "")" @onclick="() => OnEaClubResultClickedAsync(club)">
                         <span>@club.Source</span>
                         <strong>@club.Name</strong>
-                        <small>ID @club.EaClubId</small>
+                        <small>@(club.EaClubId > 0 ? $"ID {club.EaClubId}" : "Club TS existant")</small>
+                        @if (club.IsInApplication)
+                        {
+                            <em class="app-status is-linked">Deja dans l'app: @club.ApplicationTeamName</em>
+                        }
                         <div class="ea-data-strip">
                             <b>DIV @(club.Division?.ToString() ?? "-")</b>
                             <b>@(club.MembersCount?.ToString() ?? "-") joueurs</b>
                             <b>@club.Platform</b>
                         </div>
+                        @if (club.IsInApplication && club.ApplicationTeamId is not null)
+                        {
+                            <span class="mini-action strong join-existing-club-action">Rejoindre ce club</span>
+                        }
                     </button>
                 }
             </div>
@@ -508,6 +516,40 @@
         Message = EaSearchResults.Count == 0 ? "Aucun club trouve avec ce nom." : $"{EaSearchResults.Count} club(s) trouve(s). Selectionne le bon club.";
     }
 
+    private async Task OnEaClubResultClickedAsync(EaClubSearchResultResponse club)
+    {
+        if (club.IsInApplication && club.ApplicationTeamId is not null)
+        {
+            await JoinExistingClubAsync(club);
+            return;
+        }
+
+        SelectEaClub(club);
+    }
+    private async Task JoinExistingClubAsync(EaClubSearchResultResponse club)
+    {
+        if (club.ApplicationTeamId is null)
+        {
+            Message = "Ce club n'est pas encore cree dans TS Tournament.";
+            return;
+        }
+
+        Busy = true;
+        var result = await Api.JoinExistingTeamAsync(club.ApplicationTeamId.Value);
+        Busy = false;
+
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        ApplyTeamProfile(result.Value);
+        SelectedTeamId = result.Value.Id;
+        SelectedTeamName = result.Value.Name;
+        Message = $"Club rejoint: {result.Value.Name}. Les donnees viennent de la base.";
+        await LoadMeAsync();
+    }
     private void SelectEaClub(EaClubSearchResultResponse club)
     {
         SelectedEaClub = club;

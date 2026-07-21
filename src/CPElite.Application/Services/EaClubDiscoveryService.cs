@@ -63,17 +63,25 @@ public sealed class EaClubDiscoveryService
             return Result<EaClubSearchResponse>.Failure(ErrorType.Validation, "ea.club_name_required", "Club name is required.");
         }
 
+        var cleanClubName = clubName.Trim();
         var resolvedPlatform = string.IsNullOrWhiteSpace(platform) ? "common-gen5" : platform.Trim();
-        var endpoint = $"https://proclubstracker.com/api/clubs/search?clubName={Uri.EscapeDataString(clubName.Trim())}&platform={Uri.EscapeDataString(resolvedPlatform)}";
+        var localResults = await SearchLocalClubResultsAsync(cleanClubName, resolvedPlatform, cancellationToken);
+        var endpoint = $"https://proclubstracker.com/api/clubs/search?clubName={Uri.EscapeDataString(cleanClubName)}&platform={Uri.EscapeDataString(resolvedPlatform)}";
         var response = await _client.ProbeAsync(endpoint, cancellationToken);
         if (!response.Success || string.IsNullOrWhiteSpace(response.RawBody))
         {
+            if (localResults.Count > 0)
+            {
+                return Result<EaClubSearchResponse>.Success(new EaClubSearchResponse(cleanClubName, resolvedPlatform, localResults));
+            }
+
             return Result<EaClubSearchResponse>.Failure(ErrorType.Validation, "ea.club_search_failed", response.Error ?? "EA club search failed.");
         }
 
-        var results = ParseClubResults(response.RawBody, resolvedPlatform)
-            .GroupBy(result => result.EaClubId)
-            .Select(group => group.OrderByDescending(ClubSearchDataScore).First())
+        var results = localResults
+            .Concat(ParseClubResults(response.RawBody, resolvedPlatform))
+            .GroupBy(result => result.EaClubId > 0 ? $"ea:{result.EaClubId}" : $"app:{result.ApplicationTeamId}")
+            .Select(group => group.OrderByDescending(result => result.IsInApplication).ThenByDescending(ClubSearchDataScore).First())
             .ToArray();
         for (var index = 0; index < results.Length; index++)
         {
@@ -89,9 +97,35 @@ public sealed class EaClubDiscoveryService
             }
         }
 
-        return Result<EaClubSearchResponse>.Success(new EaClubSearchResponse(clubName.Trim(), resolvedPlatform, results));
+        return Result<EaClubSearchResponse>.Success(new EaClubSearchResponse(cleanClubName, resolvedPlatform, results));
     }
 
+    private async Task<IReadOnlyCollection<EaClubSearchResultResponse>> SearchLocalClubResultsAsync(string clubName, string platform, CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeClubSearch(clubName);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return Array.Empty<EaClubSearchResultResponse>();
+        }
+
+        var teams = await _teams.SearchByNameAsync(normalized, 10, cancellationToken);
+        return teams.Select(team => new EaClubSearchResultResponse(
+            team.EaClubId ?? 0,
+            team.Name,
+            team.ShortName,
+            platform,
+            null,
+            null,
+            "TS Tournament",
+            true,
+            team.Id,
+            team.Name)).ToArray();
+    }
+
+    private static string NormalizeClubSearch(string value)
+    {
+        return new string(value.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+    }
     public async Task<Result<EaPlayerLookupResponse>> SearchPlayerAsync(string eaSportsId, string? platform, long? clubId = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(eaSportsId))

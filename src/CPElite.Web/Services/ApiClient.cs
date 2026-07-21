@@ -59,6 +59,8 @@ public sealed class ApiClient
     public Task<ApiResult<TeamResponse>> UpdateTeamProfileAsync(Guid teamId, UpdateTeamProfileRequest request) =>
         SendAsync<TeamResponse>(HttpMethod.Patch, $"api/teams/{teamId}/profile", request);
 
+    public Task<ApiResult<TeamResponse>> JoinExistingTeamAsync(Guid teamId) =>
+        SendAsync<TeamResponse>(HttpMethod.Post, $"api/teams/{teamId}/join-existing");
     public Task<ApiResult<TeamResponse>> JoinTeamAsync(JoinTeamRequest request) =>
         SendAsync<TeamResponse>(HttpMethod.Post, "api/teams/join", request);
 

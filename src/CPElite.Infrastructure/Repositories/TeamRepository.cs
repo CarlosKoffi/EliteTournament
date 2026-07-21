@@ -34,6 +34,15 @@ public sealed class TeamRepository : ITeamRepository
         return await _dbContext.Teams.FirstOrDefaultAsync(team => team.EaClubId == eaClubId && !team.IsArchived, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<Team>> SearchByNameAsync(string normalizedSearch, int take = 10, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Teams
+            .Where(team => !team.IsArchived && team.NormalizedName.Contains(normalizedSearch))
+            .OrderBy(team => team.NormalizedName == normalizedSearch ? 0 : 1)
+            .ThenBy(team => team.Name)
+            .Take(take)
+            .ToArrayAsync(cancellationToken);
+    }
     public async Task<IReadOnlyCollection<Team>> GetTeamsLinkedToEaAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.Teams

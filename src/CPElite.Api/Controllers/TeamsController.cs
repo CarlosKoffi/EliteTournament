@@ -34,6 +34,11 @@ public sealed class TeamsController : ApiControllerBase
         return ToActionResult(await _teamService.JoinTeamAsync(CurrentUserId, request, cancellationToken));
     }
 
+    [HttpPost("{teamId:guid}/join-existing")]
+    public async Task<IActionResult> JoinExisting(Guid teamId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _teamService.JoinExistingTeamAsync(CurrentUserId, teamId, cancellationToken));
+    }
     [HttpPatch("{teamId:guid}/profile")]
     public async Task<IActionResult> UpdateProfile(Guid teamId, UpdateTeamProfileRequest request, CancellationToken cancellationToken)
     {

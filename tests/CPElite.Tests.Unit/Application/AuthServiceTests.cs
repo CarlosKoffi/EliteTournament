@@ -87,6 +87,7 @@ public sealed class AuthServiceTests
         public Task<Team?> GetByInviteCodeAsync(string inviteCode, CancellationToken cancellationToken = default) => Task.FromResult<Team?>(null);
         public Task<Team?> GetByNormalizedNameAsync(string normalizedName, CancellationToken cancellationToken = default) => Task.FromResult<Team?>(null);
         public Task<Team?> GetByEaClubIdAsync(long eaClubId, CancellationToken cancellationToken = default) => Task.FromResult<Team?>(null);
+        public Task<IReadOnlyCollection<Team>> SearchByNameAsync(string normalizedSearch, int take = 10, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Team>>(Array.Empty<Team>());
         public Task<IReadOnlyCollection<Team>> GetTeamsLinkedToEaAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<Team>>(Array.Empty<Team>());
         public Task<TeamMember?> GetMembershipAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<TeamMember?>(null);
         public Task<TeamMember?> GetActiveMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<TeamMember?>(null);

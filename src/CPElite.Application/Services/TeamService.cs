@@ -101,6 +101,40 @@ public sealed class TeamService
         return Result<TeamResponse>.Success(ToTeamResponse(team, savedMembership!));
     }
 
+    public async Task<Result<TeamResponse>> JoinExistingTeamAsync(Guid userId, Guid teamId, CancellationToken cancellationToken = default)
+    {
+        var user = await _users.GetByIdAsync(userId, cancellationToken);
+        if (user is null)
+        {
+            return Result<TeamResponse>.Failure(ErrorType.NotFound, "user.not_found", "User was not found.");
+        }
+
+        var team = await _teams.GetByIdAsync(teamId, cancellationToken);
+        if (team is null || team.IsArchived)
+        {
+            return Result<TeamResponse>.Failure(ErrorType.NotFound, "team.not_found", "Team was not found.");
+        }
+
+        var existingMembership = await _teams.GetMembershipAsync(team.Id, userId, cancellationToken);
+        if (existingMembership is not null)
+        {
+            return existingMembership.IsActive
+                ? Result<TeamResponse>.Success(ToTeamResponse(team, existingMembership))
+                : Result<TeamResponse>.Failure(ErrorType.Conflict, "team.membership_inactive", "Player already has an inactive membership for this team.");
+        }
+
+        if (await _teams.GetActiveMembershipForUserAsync(userId, cancellationToken) is not null)
+        {
+            return Result<TeamResponse>.Failure(ErrorType.Conflict, "team.user_already_in_team", "A player can only belong to one active team.");
+        }
+
+        var membership = TeamMember.Create(team.Id, userId, DomainTeamRole.Player, _clock.UtcNow);
+        await _teams.AddMemberAsync(membership, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var savedMembership = await _teams.GetMembershipAsync(team.Id, userId, cancellationToken);
+        return Result<TeamResponse>.Success(ToTeamResponse(team, savedMembership!));
+    }
     public async Task<Result<IReadOnlyCollection<TeamMemberResponse>>> GetMembersAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         var members = await _teams.GetTeamMembersAsync(teamId, cancellationToken);

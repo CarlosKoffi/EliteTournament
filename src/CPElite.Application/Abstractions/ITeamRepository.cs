@@ -8,6 +8,7 @@ public interface ITeamRepository
     Task<Team?> GetByInviteCodeAsync(string inviteCode, CancellationToken cancellationToken = default);
     Task<Team?> GetByNormalizedNameAsync(string normalizedName, CancellationToken cancellationToken = default);
     Task<Team?> GetByEaClubIdAsync(long eaClubId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<Team>> SearchByNameAsync(string normalizedSearch, int take = 10, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Team>> GetTeamsLinkedToEaAsync(CancellationToken cancellationToken = default);
     Task<TeamMember?> GetMembershipAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default);
     Task<TeamMember?> GetActiveMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default);
