@@ -721,6 +721,49 @@
             ApplyTeamProfile(profile.Value);
         }
 
+        await LoadStoredEaDataAsync();
+        if (!HasStoredEaData)
+        {
+            await EnsureEaDataAvailableAsync();
+        }
+
+        await LoadLatestFriendlyDetailsAsync();
+
+        Message = HasStoredEaData
+            ? $"Equipe chargee depuis la base: {TeamMembers.Count} membre(s) app, {EaProfiles.Count} profil(s) EA, {EaFriendlies.Count} amical(aux)."
+            : $"Equipe chargee: {TeamMembers.Count} membre(s) app. Aucune donnee EA stockee pour le moment.";
+    }
+
+    private bool HasStoredEaData => ClubSnapshot is not null || EaMembers is not null || EaProfiles.Count > 0 || EaFriendlies.Count > 0;
+
+    private async Task EnsureEaDataAvailableAsync()
+    {
+        if (!SelectedTeamId.HasValue || DemoMode)
+        {
+            return;
+        }
+
+        EaSyncBusy = true;
+        Message = "Aucune donnee EA en base pour ce club. Premiere synchronisation en cours...";
+        var sync = await Api.SyncTeamEaAsync(SelectedTeamId.Value, forceRefresh: false);
+        EaSyncBusy = false;
+
+        if (!sync.Success)
+        {
+            Message = sync.Error;
+            return;
+        }
+
+        await LoadStoredEaDataAsync();
+    }
+
+    private async Task LoadStoredEaDataAsync()
+    {
+        if (!SelectedTeamId.HasValue || DemoMode)
+        {
+            return;
+        }
+
         var club = await Api.GetTeamEaClubAsync(SelectedTeamId.Value);
         ClubSnapshot = club.Value;
 
@@ -740,12 +783,7 @@
         {
             EaFriendlies.AddRange(friendlies.Value);
         }
-
-        await LoadLatestFriendlyDetailsAsync();
-
-        Message = $"Equipe chargee: {TeamMembers.Count} membre(s) app.";
     }
-
     private async Task LoadLatestFriendlyDetailsAsync()
     {
         var latestMatch = EaFriendlies
@@ -852,7 +890,8 @@
         }
 
         var sync = result.Value;
-        await LoadSelectedTeamDataAsync();
+        await LoadStoredEaDataAsync();
+        await LoadLatestFriendlyDetailsAsync();
         Message = EaFriendlies.Count == 0
             ? $"Synchro terminee: club={(sync?.ClubInfoSynced == true ? "ok" : "non")}, membres={(sync?.MemberStatsSynced == true ? "ok" : "non")}, types matchs={sync?.MatchTypesSynced ?? 0}. Aucun amical stocke pour ce club pour le moment."
             : $"Synchro terminee: {EaProfiles.Count} joueur(s), {EaFriendlies.Count} match(s) amicaux stockes, dernier match ouvert.";
