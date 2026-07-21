@@ -11,6 +11,7 @@ public sealed class AuthState
     private readonly ApiClient _api;
     private readonly IJSRuntime _js;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+    private Task? _initializationTask;
 
     public AuthState(ApiClient api, IJSRuntime js)
     {
@@ -20,14 +21,32 @@ public sealed class AuthState
 
     public UserSummaryResponse? User { get; private set; }
 
+    public bool IsInitialized { get; private set; }
+
+    public bool IsInitializing { get; private set; }
+
     public bool IsAuthenticated => !string.IsNullOrWhiteSpace(_api.Token);
 
     public event Action? Changed;
 
     public async Task InitializeAsync()
     {
+        if (IsInitialized)
+        {
+            return;
+        }
+
+        _initializationTask ??= InitializeCoreAsync();
+        await _initializationTask;
+    }
+
+    private async Task InitializeCoreAsync()
+    {
         try
         {
+            IsInitializing = true;
+            NotifyChanged();
+
             var token = await _js.InvokeAsync<string?>("localStorage.getItem", TokenKey);
             var userJson = await _js.InvokeAsync<string?>("localStorage.getItem", UserKey);
             _api.Token = token;
@@ -62,6 +81,11 @@ public sealed class AuthState
             User = null;
             await TryClearStoredSessionAsync();
         }
+        finally
+        {
+            IsInitializing = false;
+            IsInitialized = true;
+        }
 
         NotifyChanged();
     }
@@ -70,6 +94,8 @@ public sealed class AuthState
     {
         _api.Token = response.AccessToken;
         User = response.User;
+        IsInitialized = true;
+        IsInitializing = false;
         try
         {
             await _js.InvokeVoidAsync("localStorage.setItem", TokenKey, response.AccessToken);
@@ -102,6 +128,8 @@ public sealed class AuthState
     {
         _api.Token = null;
         User = null;
+        IsInitialized = true;
+        IsInitializing = false;
         await TryClearStoredSessionAsync();
         NotifyChanged();
     }

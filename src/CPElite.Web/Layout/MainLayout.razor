@@ -11,7 +11,11 @@
         <nav class="league-bar global-league-nav">
             <a href="">Accueil</a>
             <a href="tournaments">Tournois</a>
-            @if (AuthState.IsAuthenticated)
+            @if (!AuthState.IsInitialized)
+            {
+                <span>Session</span>
+            }
+            else if (AuthState.IsAuthenticated)
             {
                 <a href="mercato">Mercato</a>
                 <a href="teams">Mon equipe</a>
@@ -26,7 +30,18 @@
         </nav>
 
         <article class="content">
-            @Body
+            @if (!AuthState.IsInitialized)
+            {
+                <section class="empty-state auth-loading-state" role="status" aria-live="polite">
+                    <p class="eyebrow">Session</p>
+                    <h1>Chargement de ta session</h1>
+                    <p>On verifie ton acces avant d'afficher les pages.</p>
+                </section>
+            }
+            else
+            {
+                @Body
+            }
         </article>
     </main>
 </div>
@@ -44,6 +59,7 @@
             try
             {
                 await AuthState.InitializeAsync();
+                await InvokeAsync(StateHasChanged);
             }
             catch (Exception ex)
             {
