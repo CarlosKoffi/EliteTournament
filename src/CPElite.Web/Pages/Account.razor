@@ -217,24 +217,24 @@
             <div class="claim-verification-card @(PlayerClaimVerified ? "verified" : "")">
                 <div>
                     <p class="eyebrow">Verification EA</p>
-                    <h3>@(PlayerClaimVerified ? "Joueur verifie" : "Statut initial: non verifie")</h3>
+                    <h3>@(PlayerClaimVerified ? "Joueur verifie" : "Verification a faire plus tard")</h3>
                     @if (ClaimChallenge is not null)
                     {
-                        <p>Tu peux creer ton compte maintenant. Plus tard, pour verifier officiellement ton joueur, il faudra faire un match de championnat avec une taille et un poste demandes par l'application afin que les donnees EA soient prises en compte.</p>
+                        <p>Tu peux creer ton compte maintenant. Cette verification ne doit pas etre faite tout de suite : plus tard, l'application te demandera de changer temporairement ta taille et ton poste, puis de jouer un match de championnat pour que les donnees EA soient mises a jour.</p>
                         <div class="claim-targets">
                             <div><span>Taille actuelle</span><strong>@FormatMetric(ClaimChallenge.CurrentHeight, "cm")</strong></div>
                             <div><span>Poste actuel</span><strong>@FormatPosition(ClaimChallenge.CurrentPosition)</strong></div>
-                            <div><span>Future taille test</span><strong>@ClaimChallenge.TargetHeight cm</strong></div>
-                            <div><span>Futur poste test</span><strong>@FormatPosition(ClaimChallenge.TargetPosition)</strong></div>
+                            <div><span>Statut a la creation</span><strong>Non verifie</strong></div>
+                            <div><span>Action future</span><strong>Match championnat</strong></div>
                         </div>
-                        <small>Cette verification ne bloque pas l'inscription. Ton compte sera cree avec le statut EA non verifie.</small>
+                        <small>Pour aujourd'hui, continue simplement l'inscription. Ton compte sera cree avec le statut EA non verifie.</small>
                     }
                     else
                     {
-                        <p class="verification-warning">La source EA actuelle ne renvoie pas assez de donnees pour verifier automatiquement ce joueur. Tu peux quand meme creer ton compte : il sera marque EA non verifie.</p>
+                        <p class="verification-warning">La verification EA sera ajoutee plus tard. Tu peux creer ton compte maintenant : il sera marque EA non verifie.</p>
                     }
                 </div>
-                <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified || ClaimChallenge is null)">Essayer maintenant</button>
+                <span class="presence-pill pending">Pas maintenant</span>
             </div>
         }
         <EditForm Model="Register" OnValidSubmit="RegisterAsync">
@@ -265,7 +265,7 @@
             }
             else if (!PlayerClaimVerified)
             {
-                <p class="form-hint">La verification EA sera finalisee plus tard apres un match de championnat. Pour l'instant le compte sera cree avec le statut non verifie.</p>
+                <p class="form-hint">La verification EA ne se fait pas maintenant. Elle sera finalisee plus tard apres un match de championnat; ton compte sera cree avec le statut non verifie.</p>
             }
         </EditForm>
     </article>
@@ -375,7 +375,7 @@ else
         await FinishAuthAsync(result);
         if (result.Success)
         {
-            Message = "Compte cree. Ton statut EA est non verifie pour le moment; on finalisera la verification apres un match de championnat.";
+            Message = "Compte cree. Ton statut EA est non verifie pour le moment; la verification sera faite plus tard apres un match de championnat.";
         }
     }
 
@@ -449,7 +449,7 @@ else
         ClaimChallenge = CreatePlayerClaimChallenge(enrichedPlayer);
         Message = ClaimChallenge is null
             ? $"{enrichedPlayer.PlayerName} selectionne. Compte creatable maintenant avec statut EA non verifie."
-            : $"{enrichedPlayer.PlayerName} selectionne. Compte creatable maintenant; verification EA optionnelle plus tard via match de championnat.";
+            : $"{enrichedPlayer.PlayerName} selectionne. Cree ton compte maintenant; la verification EA se fera plus tard apres un match de championnat.";
     }
 
     private async Task<EaClubRosterPlayerResponse> TryEnrichRegistrationPlayerAsync(EaClubRosterPlayerResponse player)

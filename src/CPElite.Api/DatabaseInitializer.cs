@@ -22,6 +22,7 @@ public static class DatabaseInitializer
             logger.LogInformation("Applying EF Core migrations.");
             await dbContext.Database.MigrateAsync(cancellationToken);
 
+            await RunStartupCleanupAsync(dbContext, configuration, logger, cancellationToken);
             await SeedAdminUserAsync(dbContext, configuration, passwordHasher, logger, cancellationToken);
             await SeedLocalizedContentAsync(dbContext, logger, cancellationToken);
 
@@ -32,6 +33,69 @@ public static class DatabaseInitializer
             logger.LogCritical(ex, "Database initialization failed. Check the PostgreSQL connection string, credentials, network access and migration permissions.");
             throw;
         }
+    }
+
+    private static async Task RunStartupCleanupAsync(CPEliteDbContext dbContext, IConfiguration configuration, ILogger logger, CancellationToken cancellationToken)
+    {
+        var cleanupRegisteredUsers = configuration.GetValue("StartupCleanup:RegisteredUsers", false);
+        var cleanupContentOnly = configuration.GetValue("StartupCleanup:ContentOnlyReset", false);
+
+        if (cleanupContentOnly)
+        {
+            logger.LogWarning("Startup cleanup ContentOnlyReset is enabled. Users, teams, tournaments and EA cached data will be deleted.");
+            await dbContext.Database.ExecuteSqlRawAsync("""
+                truncate table
+                    "TournamentMoments",
+                    "MatchScoreSubmissions",
+                    "TournamentPlayerConfirmations",
+                    "TournamentMatches",
+                    "TournamentRegistrations",
+                    "ChampionTitles",
+                    "Tournaments",
+                    "UserTournamentAccesses",
+                    "TeamSlotAssignments",
+                    "TeamSlotPackages",
+                    "TeamPlayerDemands",
+                    "TeamScheduleSlots",
+                    "TeamPositions",
+                    "TeamJoinRequests",
+                    "TeamMembers",
+                    "Teams",
+                    "EaMatchPlayerStats",
+                    "EaMatchClubStats",
+                    "EaFriendlyMatches",
+                    "EaPlayerProfileSnapshots",
+                    "EaMatchSnapshots",
+                    "EaMemberStatsSnapshots",
+                    "EaClubSnapshots",
+                    "EaApiCacheEntries",
+                    "EaDiagnosticProbes",
+                    "Users"
+                restart identity cascade;
+                """, cancellationToken);
+            logger.LogWarning("Startup cleanup ContentOnlyReset completed. Remove StartupCleanup__ContentOnlyReset after this deployment.");
+            return;
+        }
+
+        if (!cleanupRegisteredUsers)
+        {
+            return;
+        }
+
+        logger.LogWarning("Startup cleanup RegisteredUsers is enabled. Registered users and user-owned data will be deleted.");
+        await dbContext.Database.ExecuteSqlRawAsync("""
+            truncate table
+                "TournamentPlayerConfirmations",
+                "UserTournamentAccesses",
+                "TeamSlotAssignments",
+                "TeamSlotPackages",
+                "TeamPlayerDemands",
+                "TeamJoinRequests",
+                "TeamMembers",
+                "Users"
+            restart identity cascade;
+            """, cancellationToken);
+        logger.LogWarning("Startup cleanup RegisteredUsers completed. Remove StartupCleanup__RegisteredUsers after this deployment.");
     }
 
     private static async Task SeedAdminUserAsync(CPEliteDbContext dbContext, IConfiguration configuration, IPasswordHasher passwordHasher, ILogger logger, CancellationToken cancellationToken)

@@ -107,3 +107,25 @@ It removes:
 - billing/slot data
 
 If `Seed__AdminEmail` and `Seed__AdminPassword` are configured, the API will recreate an admin user at startup. Remove those variables if the launch must contain zero users.
+
+## 7. One-shot cleanup during Coolify deployment
+
+If old test accounts still appear as "already registered", the deployed API is still reading users from the production database.
+
+For one deployment only, add one of these variables in Coolify:
+
+```text
+StartupCleanup__RegisteredUsers=true
+```
+
+This removes registered users and user-owned data, but keeps teams, tournaments and website texts.
+
+For a full public launch reset, use:
+
+```text
+StartupCleanup__ContentOnlyReset=true
+```
+
+This removes users, teams, tournaments and EA cached data, while keeping `LocalizedContents` and EF migrations.
+
+After the deployment logs show the cleanup completed, remove the variable from Coolify before the next deploy. If the variable stays enabled, the app will clean the same data again on every restart.
