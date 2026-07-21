@@ -39,6 +39,13 @@ public sealed class EaSyncController : ApiControllerBase
         return ToActionResult(await _eaSyncService.GetPlayerProfilesAsync(teamId, cancellationToken));
     }
 
+    [HttpPost("/api/ea/clubs/{eaClubId:long}/friendlies/import")]
+    public async Task<IActionResult> ImportFriendlyMatchesByEaClubId(long eaClubId, [FromQuery] string? platform, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(Request.Body);
+        var rawJson = await reader.ReadToEndAsync(cancellationToken);
+        return ToActionResult(await _eaSyncService.ImportFriendlyMatchesJsonByEaClubIdAsync(eaClubId, rawJson, platform, cancellationToken));
+    }
     [HttpPost("friendlies/import")]
     public async Task<IActionResult> ImportFriendlyMatches(Guid teamId, [FromQuery] string? platform, CancellationToken cancellationToken)
     {

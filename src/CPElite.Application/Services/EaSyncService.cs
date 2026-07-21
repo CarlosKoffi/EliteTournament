@@ -252,6 +252,17 @@ public sealed class EaSyncService
             match.PlayerStats.OrderByDescending(stat => stat.Goals ?? 0).ThenByDescending(stat => stat.Assists ?? 0).Select(ToMatchPlayerStatResponse).ToArray(),
             match.RawJson));
     }
+    public async Task<Result<EaSyncResponse>> ImportFriendlyMatchesJsonByEaClubIdAsync(long eaClubId, string rawJson, string? platform = null, CancellationToken cancellationToken = default)
+    {
+        var team = await _teams.GetByEaClubIdAsync(eaClubId, cancellationToken);
+        if (team is null)
+        {
+            return Result<EaSyncResponse>.Failure(ErrorType.NotFound, "team.ea_club_not_found", "No active team is linked to this EA club ID.");
+        }
+
+        return await ImportFriendlyMatchesJsonForTeamAsync(team, rawJson, platform, cancellationToken);
+    }
+
     public async Task<Result<EaSyncResponse>> ImportFriendlyMatchesJsonAsync(Guid teamId, string rawJson, string? platform = null, CancellationToken cancellationToken = default)
     {
         var team = await _teams.GetByIdAsync(teamId, cancellationToken);
@@ -260,6 +271,11 @@ public sealed class EaSyncService
             return Result<EaSyncResponse>.Failure(ErrorType.NotFound, "team.not_found", "Team was not found.");
         }
 
+        return await ImportFriendlyMatchesJsonForTeamAsync(team, rawJson, platform, cancellationToken);
+    }
+
+    private async Task<Result<EaSyncResponse>> ImportFriendlyMatchesJsonForTeamAsync(Team team, string rawJson, string? platform, CancellationToken cancellationToken)
+    {
         if (team.EaClubId is null)
         {
             return Result<EaSyncResponse>.Failure(ErrorType.Validation, "team.ea_club_id_required", "Team is not linked to an EA club.");
