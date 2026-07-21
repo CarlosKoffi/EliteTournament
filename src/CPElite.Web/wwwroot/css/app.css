@@ -6087,3 +6087,169 @@ body {
     background: #050505;
     color: #ffffff;
 }
+
+/* Friendly match details: keep players readable and grouped by club. */
+.friendly-match-detail {
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid var(--app-border);
+    border-left: 6px solid var(--app-pitch);
+}
+
+.friendly-match-header,
+.friendly-team-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.friendly-match-header h3,
+.friendly-team-heading h4 {
+    margin: 0;
+    color: #050505;
+}
+
+.friendly-match-header > span {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    background: #050505;
+    color: #ffffff;
+    border: 1px solid #050505;
+    font-size: 12px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.friendly-team-sections {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+}
+
+.friendly-team-section {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid var(--app-border);
+    border-left: 6px solid #777777;
+}
+
+.friendly-team-section.current-team {
+    border-left-color: var(--app-pitch);
+    box-shadow: inset 0 0 0 1px rgba(24, 230, 109, .22);
+}
+
+.friendly-team-section.opponent-team {
+    background: #f7f7f4;
+}
+
+.friendly-team-heading .eyebrow,
+.friendly-match-detail .eyebrow {
+    color: #0b5136;
+}
+
+.friendly-team-score {
+    min-width: 74px;
+    padding: 8px 12px;
+    text-align: center;
+    background: #050505;
+    color: #ffffff;
+}
+
+.friendly-team-score span {
+    display: block;
+    color: rgba(255, 255, 255, .72);
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.friendly-team-score strong {
+    display: block;
+    color: #ffffff;
+    font-size: 28px;
+    line-height: 1;
+}
+
+.friendly-club-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.friendly-club-metrics span,
+.team-player-badge {
+    width: fit-content;
+    padding: 6px 9px;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid var(--app-border);
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.friendly-roster-grid {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.player-stat-card.friendly-player-card {
+    display: grid;
+    gap: 10px;
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid var(--app-border);
+}
+
+.player-stat-card.friendly-player-card.current-team {
+    border-color: rgba(24, 230, 109, .7);
+}
+
+.player-stat-card.friendly-player-card.opponent-team {
+    background: #fbfbf8;
+}
+
+.player-stat-card.friendly-player-card.selected {
+    outline: 2px solid var(--app-pitch);
+    outline-offset: 2px;
+}
+
+.player-stat-card.friendly-player-card span,
+.player-stat-card.friendly-player-card small,
+.player-stat-card.friendly-player-card .inline-player-link {
+    color: #050505;
+}
+
+.friendly-match-detail .ea-data-strip b {
+    background: #f4f4f1;
+    color: #050505;
+    border-color: var(--app-border);
+}
+
+.friendly-match-detail .empty-state.compact {
+    margin: 0;
+    padding: 14px;
+    background: #050505;
+    color: #ffffff;
+}
+
+.friendly-match-detail .empty-state.compact p,
+.friendly-match-detail .empty-state.compact strong {
+    color: #ffffff;
+}
+
+@media (max-width: 760px) {
+    .friendly-match-header,
+    .friendly-team-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .friendly-team-score,
+    .friendly-match-header > span {
+        width: 100%;
+    }
+}

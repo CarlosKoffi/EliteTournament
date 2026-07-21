@@ -283,38 +283,68 @@
 
         @if (SelectedFriendlyDetails is not null)
         {
-            <div class="player-detail">
-                <p class="eyebrow">Detail match EA</p>
-                <h3>@SelectedFriendlyDetails.Match.HomeClubName @SelectedFriendlyDetails.Match.HomeScore - @SelectedFriendlyDetails.Match.AwayScore @SelectedFriendlyDetails.Match.AwayClubName</h3>
-
-                @if (SelectedFriendlyDetails.ClubStats.Count > 0)
-                {
-                    <div class="team-data-grid compact">
-                        @foreach (var clubStat in SelectedFriendlyDetails.ClubStats)
-                        {
-                            <div class="stat-tile">
-                                <span>Club @clubStat.EaClubId</span>
-                                <strong>@(clubStat.Rating?.ToString("0.0") ?? "-")</strong>
-                                <small>@(clubStat.Shots?.ToString() ?? "-") tirs · @(clubStat.PassSuccessRate?.ToString("0") ?? "-")% passes · @(clubStat.TackleSuccessRate?.ToString("0") ?? "-")% tacles</small>
-                            </div>
-                        }
+            <div class="player-detail friendly-match-detail">
+                <div class="friendly-match-header">
+                    <div>
+                        <p class="eyebrow">Detail match EA</p>
+                        <h3>@SelectedFriendlyDetails.Match.HomeClubName @SelectedFriendlyDetails.Match.HomeScore - @SelectedFriendlyDetails.Match.AwayScore @SelectedFriendlyDetails.Match.AwayClubName</h3>
                     </div>
-                }
+                    <span>@SelectedFriendlyDetails.Match.PlayedAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
+                </div>
 
-                <div class="roster-grid">
-                    @foreach (var stat in SelectedFriendlyDetails.PlayerStats)
+                <div class="friendly-team-sections">
+                    @foreach (var teamSection in FriendlyTeamSections)
                     {
-                        <article class="player-stat-card clickable-card @(stat.PlayerOfTheMatch ? "selected" : "")" @onclick="() => OpenPlayerSheet(stat)">
-                            <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(stat)">@stat.PlayerName</button>
-                            <span>@(stat.Position ?? "poste ?") @(stat.PlayerOfTheMatch ? "· Homme du match" : "")</span>
-                            <div class="ea-data-strip">
-                                <b>@(stat.Goals?.ToString() ?? "0") B</b>
-                                <b>@(stat.Assists?.ToString() ?? "0") A</b>
-                                <b>@(stat.Rating?.ToString("0.0") ?? "-") note</b>
-                                <b>@(stat.PassSuccessRate?.ToString("0") ?? "-")% passes</b>
-                                <b>@(stat.TackleSuccessRate?.ToString("0") ?? "-")% tacles</b>
+                        <section class="friendly-team-section @(teamSection.IsCurrentTeam ? "current-team" : "opponent-team")">
+                            <div class="friendly-team-heading">
+                                <div>
+                                    <p class="eyebrow">@(teamSection.IsCurrentTeam ? "Mon equipe" : "Adversaire")</p>
+                                    <h4>@teamSection.ClubName</h4>
+                                </div>
+                                <div class="friendly-team-score">
+                                    <span>@(teamSection.IsHome ? "Domicile" : "Exterieur")</span>
+                                    <strong>@teamSection.Score</strong>
+                                </div>
                             </div>
-                        </article>
+
+                            @if (teamSection.ClubStats is not null)
+                            {
+                                <div class="friendly-club-metrics">
+                                    <span>@(teamSection.ClubStats.Rating?.ToString("0.0") ?? "-") note</span>
+                                    <span>@(teamSection.ClubStats.Shots?.ToString() ?? "-") tirs</span>
+                                    <span>@(teamSection.ClubStats.PassSuccessRate?.ToString("0") ?? "-")% passes</span>
+                                    <span>@(teamSection.ClubStats.TackleSuccessRate?.ToString("0") ?? "-")% tacles</span>
+                                </div>
+                            }
+
+                            @if (teamSection.Players.Count == 0)
+                            {
+                                <div class="empty-state compact">
+                                    <strong>Aucun joueur detaille</strong>
+                                    <p>EA n'a pas retourne les stats individuelles pour cette equipe sur ce match.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="roster-grid friendly-roster-grid">
+                                    @foreach (var stat in teamSection.Players)
+                                    {
+                                        <article class="player-stat-card friendly-player-card clickable-card @(teamSection.IsCurrentTeam ? "current-team" : "opponent-team") @(stat.PlayerOfTheMatch ? "selected" : "")" @onclick="() => OpenPlayerSheet(stat)">
+                                            <span class="team-player-badge">@teamSection.ClubName</span>
+                                            <button type="button" class="inline-player-link strong-link" @onclick:stopPropagation @onclick="() => OpenPlayerSheet(stat)">@stat.PlayerName</button>
+                                            <span>@(stat.Position ?? "poste ?") @(stat.PlayerOfTheMatch ? "- Homme du match" : "")</span>
+                                            <div class="ea-data-strip">
+                                                <b>@(stat.Goals?.ToString() ?? "0") B</b>
+                                                <b>@(stat.Assists?.ToString() ?? "0") A</b>
+                                                <b>@(stat.Rating?.ToString("0.0") ?? "-") note</b>
+                                                <b>@(stat.PassSuccessRate?.ToString("0") ?? "-")% passes</b>
+                                                <b>@(stat.TackleSuccessRate?.ToString("0") ?? "-")% tacles</b>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                        </section>
                     }
                 </div>
             </div>
@@ -413,6 +443,9 @@
     private bool CanInvitePlayers => DemoMode || CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager;
     private string EaRefreshButtonLabel => EaSyncBusy ? "Synchro EA..." : "Rafraichir donnees EA";
     private string FriendlyRefreshButtonLabel => EaSyncBusy ? "Actualisation..." : "Rafraichir amicaux EA";
+    private IReadOnlyList<FriendlyTeamSectionModel> FriendlyTeamSections => SelectedFriendlyDetails is null
+        ? Array.Empty<FriendlyTeamSectionModel>()
+        : BuildFriendlyTeamSections(SelectedFriendlyDetails);
     private DemoTournamentTeamStats AppTournamentStats { get; } = new(4, "9V 2N 3D", "Finaliste Friday Goodies Cup #3", "KoffiMarvelous");
     private static readonly Guid DemoTeamId = Guid.Parse("37d9a7d7-8b8b-47d3-9e25-214820700001");
     private const long DemoClubId = 2148207;
@@ -1009,6 +1042,64 @@
         return new EaMatchPlayerStatResponse(clubId, eaPlayerId, playerName, position, goals, assists, rating, motm, shots, passesMade, passAttempts, passRate, tacklesMade, tackleAttempts, tackleRate, saves, conceded, 540, null, 0, 0, position == "Gardien" ? 1 : 0, saves / 2, 0, saves / 2, 0, 0, saves, 0, 540, 540, 0, null, null, null, null, null);
     }
 
+    private IReadOnlyList<FriendlyTeamSectionModel> BuildFriendlyTeamSections(EaFriendlyMatchDetailsResponse details)
+    {
+        var match = details.Match;
+        var sections = new[]
+        {
+            BuildFriendlyTeamSection(details, match.HomeEaClubId, match.HomeClubName, match.HomeScore, isHome: true),
+            BuildFriendlyTeamSection(details, match.AwayEaClubId, match.AwayClubName, match.AwayScore, isHome: false)
+        };
+
+        return sections
+            .OrderByDescending(section => section.IsCurrentTeam)
+            .ThenBy(section => section.IsHome ? 0 : 1)
+            .ToArray();
+    }
+
+    private FriendlyTeamSectionModel BuildFriendlyTeamSection(EaFriendlyMatchDetailsResponse details, long eaClubId, string? clubName, int score, bool isHome)
+    {
+        var players = details.PlayerStats
+            .Where(stat => stat.EaClubId == eaClubId)
+            .OrderByDescending(stat => stat.PlayerOfTheMatch)
+            .ThenByDescending(stat => stat.Rating ?? 0)
+            .ThenBy(stat => stat.PlayerName)
+            .ToArray();
+
+        var clubStats = details.ClubStats.FirstOrDefault(stat => stat.EaClubId == eaClubId);
+        return new FriendlyTeamSectionModel(
+            eaClubId,
+            string.IsNullOrWhiteSpace(clubName) ? $"Club {eaClubId}" : clubName,
+            score,
+            isHome,
+            IsCurrentFriendlyClub(eaClubId),
+            clubStats,
+            players);
+    }
+
+    private bool IsCurrentFriendlyClub(long eaClubId)
+    {
+        if (ClubSnapshot?.EaClubId == eaClubId)
+        {
+            return true;
+        }
+
+        if (Team.EaClubId == eaClubId)
+        {
+            return true;
+        }
+
+        return DemoMode && eaClubId == DemoClubId;
+    }
+
+    private sealed record FriendlyTeamSectionModel(
+        long EaClubId,
+        string ClubName,
+        int Score,
+        bool IsHome,
+        bool IsCurrentTeam,
+        EaMatchClubStatResponse? ClubStats,
+        IReadOnlyCollection<EaMatchPlayerStatResponse> Players);
     private sealed class TeamModel
     {
         public string Name { get; set; } = "";
