@@ -8,7 +8,7 @@ public sealed class User
 
     private User() { }
 
-    public User(Guid id, string email, string normalizedEmail, string passwordHash, string displayName, string? gamertag, string? eaSportsId, string? discordUserId, Platform platform, string preferredLanguage, string timeZone, DateTimeOffset createdAt, string? profileImageUrl = null, long? eaClubId = null, string? eaClubName = null, bool isAdmin = false)
+    public User(Guid id, string email, string normalizedEmail, string passwordHash, string displayName, string? gamertag, string? eaSportsId, string? discordUserId, Platform platform, string preferredLanguage, string timeZone, DateTimeOffset createdAt, string? profileImageUrl = null, long? eaClubId = null, string? eaClubName = null, bool isAdmin = false, bool eaIdentityVerified = false, DateTimeOffset? eaIdentityVerifiedAt = null)
     {
         Id = id;
         Email = email;
@@ -25,6 +25,8 @@ public sealed class User
         EaClubId = eaClubId;
         EaClubName = eaClubName;
         IsAdmin = isAdmin;
+        EaIdentityVerified = eaIdentityVerified;
+        EaIdentityVerifiedAt = eaIdentityVerifiedAt;
         CreatedAt = createdAt;
     }
 
@@ -43,6 +45,8 @@ public sealed class User
     public long? EaClubId { get; private set; }
     public string? EaClubName { get; private set; }
     public bool IsAdmin { get; private set; }
+    public bool EaIdentityVerified { get; private set; }
+    public DateTimeOffset? EaIdentityVerifiedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? LastLoginAt { get; private set; }
     public IReadOnlyCollection<TeamMember> Memberships => _memberships;
@@ -62,5 +66,11 @@ public sealed class User
         PreferredLanguage = preferredLanguage;
         TimeZone = timeZone;
         ProfileImageUrl = profileImageUrl;
+    }
+
+    public void MarkEaIdentityVerified(DateTimeOffset verifiedAt)
+    {
+        EaIdentityVerified = true;
+        EaIdentityVerifiedAt = verifiedAt;
     }
 }

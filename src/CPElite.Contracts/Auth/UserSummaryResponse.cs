@@ -15,4 +15,6 @@ public sealed record UserSummaryResponse(
     string? ProfileImageUrl = null,
     long? EaClubId = null,
     string? EaClubName = null,
-    bool IsAdmin = false);
+    bool IsAdmin = false,
+    bool EaIdentityVerified = false,
+    DateTimeOffset? EaIdentityVerifiedAt = null);

@@ -133,6 +133,12 @@
         }
 
         var result = await Api.GetMeAsync();
+        if (result.Value is null && IsInvalidStoredSession(result.Error))
+        {
+            await AuthState.SignOutAsync();
+            return;
+        }
+
         var membership = result.Value?.Memberships.FirstOrDefault(member => member.TeamId.HasValue);
         TeamName = membership?.TeamName;
         RoleName = membership?.Role.ToString();
@@ -141,5 +147,18 @@
     public void Dispose()
     {
         AuthState.Changed -= OnAuthChanged;
+    }
+
+    private static bool IsInvalidStoredSession(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return false;
+        }
+
+        return error.Contains("User was not found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("user.not_found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("401", StringComparison.OrdinalIgnoreCase);
     }
 }

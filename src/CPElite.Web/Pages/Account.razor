@@ -43,6 +43,7 @@
                 <div><span>Fuseau horaire</span><strong>@PlayerTimeZone</strong></div>
                 <div><span>Club actif</span><strong>@PlayerClubName</strong></div>
                 <div><span>Role</span><strong>@PlayerRole</strong></div>
+                <div><span>Verification EA</span><strong>@PlayerVerificationStatus</strong></div>
             </div>
         </div>
     </section>
@@ -216,24 +217,24 @@
             <div class="claim-verification-card @(PlayerClaimVerified ? "verified" : "")">
                 <div>
                     <p class="eyebrow">Verification EA</p>
-                    <h3>@(PlayerClaimVerified ? "Joueur verifie" : "Prouve que c'est bien ton joueur")</h3>
+                    <h3>@(PlayerClaimVerified ? "Joueur verifie" : "Statut initial: non verifie")</h3>
                     @if (ClaimChallenge is not null)
                     {
-                        <p>Dans FC, change temporairement ton pro avec ces valeurs exactes, puis clique sur verifier.</p>
+                        <p>Tu peux creer ton compte maintenant. Plus tard, pour verifier officiellement ton joueur, il faudra faire un match de championnat avec une taille et un poste demandes par l'application afin que les donnees EA soient prises en compte.</p>
                         <div class="claim-targets">
                             <div><span>Taille actuelle</span><strong>@FormatMetric(ClaimChallenge.CurrentHeight, "cm")</strong></div>
                             <div><span>Poste actuel</span><strong>@FormatPosition(ClaimChallenge.CurrentPosition)</strong></div>
-                            <div><span>Taille demandee</span><strong>@ClaimChallenge.TargetHeight cm</strong></div>
-                            <div><span>Poste demande</span><strong>@FormatPosition(ClaimChallenge.TargetPosition)</strong></div>
+                            <div><span>Future taille test</span><strong>@ClaimChallenge.TargetHeight cm</strong></div>
+                            <div><span>Futur poste test</span><strong>@FormatPosition(ClaimChallenge.TargetPosition)</strong></div>
                         </div>
-                        <small>Temps restant: @ClaimTimeLeftLabel</small>
+                        <small>Cette verification ne bloque pas l'inscription. Ton compte sera cree avec le statut EA non verifie.</small>
                     }
                     else
                     {
-                        <p class="verification-warning">Verification automatique indisponible : la source EA actuelle doit renvoyer au minimum une taille et un poste pour ce joueur. Sans ces deux champs, on ne peut pas prouver l'identite automatiquement.</p>
+                        <p class="verification-warning">La source EA actuelle ne renvoie pas assez de donnees pour verifier automatiquement ce joueur. Tu peux quand meme creer ton compte : il sera marque EA non verifie.</p>
                     }
                 </div>
-                <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified || ClaimChallenge is null)">Verifier EA</button>
+                <button type="button" class="ghost-action" @onclick="VerifyPlayerClaimAsync" disabled="@(Busy || PlayerClaimVerified || ClaimChallenge is null)">Essayer maintenant</button>
             </div>
         }
         <EditForm Model="Register" OnValidSubmit="RegisterAsync">
@@ -257,14 +258,14 @@
                 </label>
                 <label>Time zone <InputText @bind-Value="Register.TimeZone" disabled /></label>
             </div>
-            <button class="primary-action" disabled="@(Busy || SelectedRegistrationClub is null || SelectedRegistrationPlayer is null || !PlayerClaimVerified)">Creer le compte</button>
+            <button class="primary-action" disabled="@(Busy || SelectedRegistrationClub is null || SelectedRegistrationPlayer is null)">Creer le compte</button>
             @if (SelectedRegistrationPlayer is null)
             {
                 <p class="form-hint">Cherche ton club puis selectionne ton joueur EA pour activer la creation du compte.</p>
             }
             else if (!PlayerClaimVerified)
             {
-                <p class="form-hint">La creation du compte sera activee apres verification EA. Si EA ne fournit pas taille/poste pour ce joueur, la verification automatique reste bloquee et il faudra utiliser une validation owner/admin.</p>
+                <p class="form-hint">La verification EA sera finalisee plus tard apres un match de championnat. Pour l'instant le compte sera cree avec le statut non verifie.</p>
             }
         </EditForm>
     </article>
@@ -314,6 +315,7 @@ else
     private string PlayerInitials => string.Join("", PlayerName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
     private string? ProfilePhotoUrl => ProfilePhotoDataUrl ?? AuthState.User?.ProfileImageUrl;
     private string PlayerClubName => ValueOrMissing(ActiveMembership?.TeamName ?? AuthState.User?.EaClubName);
+    private string PlayerVerificationStatus => AuthState.User?.EaIdentityVerified == true ? "Verifie" : "Non verifie";
     private string SelectedClubApplicationStatus => SelectedRegistrationClub is null
         ? ""
         : SelectedRegistrationClub.IsInApplication
@@ -344,12 +346,6 @@ else
             return;
         }
 
-        if (!PlayerClaimVerified)
-        {
-            Message = "Verifie ton joueur avec les valeurs EA demandees avant de creer le compte.";
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(Register.Email) || string.IsNullOrWhiteSpace(Register.Password))
         {
             Message = "Email et password sont obligatoires.";
@@ -377,6 +373,10 @@ else
             SelectedRegistrationClub.EaClubId,
             SelectedRegistrationClub.Name));
         await FinishAuthAsync(result);
+        if (result.Success)
+        {
+            Message = "Compte cree. Ton statut EA est non verifie pour le moment; on finalisera la verification apres un match de championnat.";
+        }
     }
 
     private async Task SearchRegistrationClubAsync()
@@ -448,8 +448,8 @@ else
         PlayerClaimVerified = false;
         ClaimChallenge = CreatePlayerClaimChallenge(enrichedPlayer);
         Message = ClaimChallenge is null
-            ? $"{enrichedPlayer.PlayerName} selectionne. Joueur trouve dans EA, mais taille ou poste absent dans la reponse actuelle. Verification automatique impossible avec cette source."
-            : $"{enrichedPlayer.PlayerName} selectionne. Mets dans FC une taille differente ({ClaimChallenge.TargetHeight} cm) et un poste different ({FormatPosition(ClaimChallenge.TargetPosition)}), puis clique sur Verifier EA.";
+            ? $"{enrichedPlayer.PlayerName} selectionne. Compte creatable maintenant avec statut EA non verifie."
+            : $"{enrichedPlayer.PlayerName} selectionne. Compte creatable maintenant; verification EA optionnelle plus tard via match de championnat.";
     }
 
     private async Task<EaClubRosterPlayerResponse> TryEnrichRegistrationPlayerAsync(EaClubRosterPlayerResponse player)
@@ -567,6 +567,12 @@ else
         {
             EaProfileLoadAttempted = true;
             Message = me.Error ?? "Impossible de charger les donnees du compte depuis la base.";
+            if (IsInvalidStoredSession(me.Error))
+            {
+                await AuthState.SignOutAsync();
+                Message = "Ta session locale ne correspond plus a un compte en base. Tu as ete deconnecte.";
+            }
+
             return;
         }
 
@@ -917,6 +923,19 @@ else
         return !string.IsNullOrWhiteSpace(left)
             && !string.IsNullOrWhiteSpace(right)
             && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsInvalidStoredSession(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return false;
+        }
+
+        return error.Contains("User was not found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("user.not_found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("401", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetApplicationPlayerStatus(EaClubRosterPlayerResponse player)

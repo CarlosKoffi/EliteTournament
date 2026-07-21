@@ -63,4 +63,19 @@ union all select 'after', 'Teams', count(*) from "Teams"
 union all select 'after', 'Tournaments', count(*) from "Tournaments"
 union all select 'after', 'LocalizedContents', count(*) from "LocalizedContents";
 
+do $$
+begin
+    if exists (select 1 from "Users" limit 1) then
+        raise exception 'Production reset failed: Users table is not empty.';
+    end if;
+
+    if exists (select 1 from "Teams" limit 1) then
+        raise exception 'Production reset failed: Teams table is not empty.';
+    end if;
+
+    if exists (select 1 from "Tournaments" limit 1) then
+        raise exception 'Production reset failed: Tournaments table is not empty.';
+    end if;
+end $$;
+
 commit;

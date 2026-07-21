@@ -9,7 +9,7 @@ internal static class Mapping
 {
     public static UserSummaryResponse ToSummary(User user)
     {
-        return new UserSummaryResponse(user.Id, user.Email, user.DisplayName, user.Gamertag, user.EaSportsId, user.DiscordUserId, (Platform)(int)user.Platform, user.PreferredLanguage, user.TimeZone, user.ProfileImageUrl, user.EaClubId, user.EaClubName, user.IsAdmin);
+        return new UserSummaryResponse(user.Id, user.Email, user.DisplayName, user.Gamertag, user.EaSportsId, user.DiscordUserId, (Platform)(int)user.Platform, user.PreferredLanguage, user.TimeZone, user.ProfileImageUrl, user.EaClubId, user.EaClubName, user.IsAdmin, user.EaIdentityVerified, user.EaIdentityVerifiedAt);
     }
 
     public static TeamMemberResponse ToMemberResponse(TeamMember membership)

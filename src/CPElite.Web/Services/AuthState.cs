@@ -37,6 +37,23 @@ public sealed class AuthState
             {
                 await ClearStoredSessionAsync();
             }
+
+            if (!string.IsNullOrWhiteSpace(_api.Token))
+            {
+                var me = await _api.GetMeAsync();
+                if (me.Value is not null)
+                {
+                    User = me.Value.User;
+                    await _js.InvokeVoidAsync("localStorage.setItem", UserKey, JsonSerializer.Serialize(User, _jsonOptions));
+                }
+                else if (IsInvalidStoredSession(me.Error))
+                {
+                    Console.Error.WriteLine($"Stored auth session is no longer valid and will be cleared. {me.Error}");
+                    _api.Token = null;
+                    User = null;
+                    await ClearStoredSessionAsync();
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -123,6 +140,19 @@ public sealed class AuthState
     {
         await _js.InvokeVoidAsync("localStorage.removeItem", TokenKey);
         await _js.InvokeVoidAsync("localStorage.removeItem", UserKey);
+    }
+
+    private static bool IsInvalidStoredSession(string? error)
+    {
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            return false;
+        }
+
+        return error.Contains("User was not found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("user.not_found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("401", StringComparison.OrdinalIgnoreCase);
     }
 
     private void NotifyChanged()

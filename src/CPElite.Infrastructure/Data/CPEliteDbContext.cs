@@ -53,6 +53,7 @@ public sealed class CPEliteDbContext : DbContext
             entity.Property(user => user.ProfileImageUrl).HasMaxLength(1000);
             entity.Property(user => user.EaClubName).HasMaxLength(120);
             entity.Property(user => user.IsAdmin).HasDefaultValue(false);
+            entity.Property(user => user.EaIdentityVerified).HasDefaultValue(false);
             entity.HasMany(user => user.Memberships)
                 .WithOne(member => member.User)
                 .HasForeignKey(member => member.UserId);
