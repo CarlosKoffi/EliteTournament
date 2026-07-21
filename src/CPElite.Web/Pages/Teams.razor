@@ -435,13 +435,13 @@
 
             <div class="drawer-data-grid player-identity-stats">
                 <article>
-                    <span class="result-kind">Donnees EA stockees</span>
+                    <span class="result-kind">@(SelectedPlayerSheet.IsMatchSheet ? "Donnees du match EA" : "Donnees EA stockees")</span>
                     <dl>
                         <div><dt>Nom pro</dt><dd>@SelectedPlayerSheet.ProName</dd></div>
                         <div><dt>Poste</dt><dd>@SelectedPlayerSheet.Position</dd></div>
-                        <div><dt>Taille</dt><dd>@SelectedPlayerSheet.HeightLabel</dd></div>
-                        <div><dt>OVR</dt><dd>@SelectedPlayerSheet.OverallLabel</dd></div>
-                        <div><dt>Matchs</dt><dd>@SelectedPlayerSheet.Matches</dd></div>
+                        <div><dt>@(SelectedPlayerSheet.IsMatchSheet ? "Club EA" : "Taille")</dt><dd>@SelectedPlayerSheet.HeightLabel</dd></div>
+                        <div><dt>@(SelectedPlayerSheet.IsMatchSheet ? "Temps reel" : "OVR")</dt><dd>@SelectedPlayerSheet.OverallLabel</dd></div>
+                        <div><dt>@(SelectedPlayerSheet.IsMatchSheet ? "Temps joue" : "Matchs")</dt><dd>@SelectedPlayerSheet.Matches</dd></div>
                         <div><dt>Homme du match</dt><dd>@SelectedPlayerSheet.PlayerOfTheMatchLabel</dd></div>
                     </dl>
                 </article>
@@ -1323,6 +1323,8 @@
         string ShotRateLabel,
         IReadOnlyCollection<PlayerMetricGroup> MetricGroups)
     {
+        public bool IsMatchSheet => Source.StartsWith("Detail match EA", StringComparison.OrdinalIgnoreCase);
+
         public string PositionFocusTitle => NormalizeSheetPosition(Position) switch
         {
             "goalkeeper" => "Lecture gardien",
@@ -1334,11 +1336,11 @@
 
         public string PositionFocusText => NormalizeSheetPosition(Position) switch
         {
-            "goalkeeper" => "Priorite aux arrets, buts encaisses et clean sheets.",
-            "defender" => "Priorite aux tacles, clean sheets, relance et discipline.",
-            "midfielder" => "Priorite aux passes, assists, recuperation et volume de jeu.",
-            "forward" => "Priorite aux buts, assists, tirs et note du match.",
-            _ => "Priorite aux actions decisives et a l'impact global."
+            "goalkeeper" => IsMatchSheet ? "Sur ce match: arrets, buts encaisses, clean sheet GK et qualite de relance." : "Priorite aux arrets, buts encaisses et clean sheets.",
+            "defender" => IsMatchSheet ? "Sur ce match: duels, tacles, clean sheet DEF, relance et discipline." : "Priorite aux tacles, clean sheets, relance et discipline.",
+            "midfielder" => IsMatchSheet ? "Sur ce match: volume de passes, precision, recuperation et derniere passe." : "Priorite aux passes, assists, recuperation et volume de jeu.",
+            "forward" => IsMatchSheet ? "Sur ce match: buts, assists, tirs, efficacite et note." : "Priorite aux buts, assists, tirs et note du match.",
+            _ => IsMatchSheet ? "Sur ce match: actions decisives, temps joue et impact global." : "Priorite aux actions decisives et a l'impact global."
         };
 
         public IReadOnlyCollection<PlayerMetric> PriorityMetrics => NormalizeSheetPosition(Position) switch
@@ -1396,17 +1398,17 @@
                 stat.Position ?? profile?.Position ?? "Poste inconnu",
                 stat.PlayerOfTheMatch ? "Detail match EA - homme du match" : "Detail match EA",
                 hasApp,
-                profile?.Matches?.ToString() ?? "Match selectionne",
+                Duration(stat.SecondsPlayed ?? stat.GameTime),
                 stat.Goals?.ToString() ?? "0",
                 stat.Assists?.ToString() ?? "0",
-                profile?.Height?.ToString() is { } height ? $"{height} cm" : "-",
-                profile?.Overall?.ToString() ?? "-",
-                stat.Rating?.ToString("0.0") ?? profile?.AverageRating?.ToString("0.0") ?? "-",
-                stat.PlayerOfTheMatch ? "Oui" : profile?.PlayerOfTheMatch?.ToString() ?? "-",
-                stat.PassSuccessRate?.ToString("0") is { } pass ? $"{pass}%" : "-",
-                stat.TackleSuccessRate?.ToString("0") is { } tackle ? $"{tackle}%" : "-",
+                $"Club EA {stat.EaClubId}",
+                Duration(stat.RealtimeGame),
+                stat.Rating?.ToString("0.0") ?? "-",
+                stat.PlayerOfTheMatch ? "Oui" : "Non",
+                MadeAttemptRate(stat.PassesMade, stat.PassAttempts, stat.PassSuccessRate),
+                MadeAttemptRate(stat.TacklesMade, stat.TackleAttempts, stat.TackleSuccessRate),
                 stat.Shots?.ToString() ?? "-",
-                profile is null ? BuildMatchMetricGroups(stat) : BuildProfileMetricGroups(profile));
+                BuildMatchMetricGroups(stat));
         }
 
         private static IReadOnlyCollection<PlayerMetricGroup> BuildProfileMetricGroups(EaPlayerProfileSnapshotResponse player)
@@ -1467,20 +1469,82 @@
 
         private static IReadOnlyCollection<PlayerMetricGroup> BuildMatchMetricGroups(EaMatchPlayerStatResponse stat)
         {
-            return new[]
+            var position = NormalizeSheetPosition(stat.Position);
+            var groups = new List<PlayerMetricGroup>();
+
+            groups.Add(new PlayerMetricGroup("Resume du match", new[]
             {
-                new PlayerMetricGroup("Match selectionne", new[]
+                Metric("Note EA", Decimal(stat.Rating)),
+                Metric("Homme du match", stat.PlayerOfTheMatch ? "Oui" : "Non"),
+                Metric("Temps joue", Duration(stat.SecondsPlayed ?? stat.GameTime)),
+                Metric("Temps reel", Duration(stat.RealtimeGame)),
+                Metric("Temps idle", Duration(stat.RealtimeIdle)),
+                Metric("Carton rouge", stat.RedCards),
+                Metric("Archetype", stat.ArchetypeId),
+                Metric("Attributs VPro", stat.VproAttributes ?? "-")
+            }));
+
+            if (position is "forward" or "midfielder")
+            {
+                groups.Add(new PlayerMetricGroup("Impact offensif", new[]
                 {
                     Metric("Buts", stat.Goals),
                     Metric("Assists", stat.Assists),
-                    Metric("Note", Decimal(stat.Rating)),
                     Metric("Tirs", stat.Shots),
-                    Metric("Passes", $"{stat.PassesMade?.ToString() ?? "-"}/{stat.PassAttempts?.ToString() ?? "-"}"),
-                    Metric("Tacles", $"{stat.TacklesMade?.ToString() ?? "-"}/{stat.TackleAttempts?.ToString() ?? "-"}"),
-                    Metric("Saves", stat.Saves),
-                    Metric("Carton rouge", stat.RedCards)
-                })
-            };
+                    Metric("Actions G+A", (stat.Goals ?? 0) + (stat.Assists ?? 0)),
+                    Metric("Note", Decimal(stat.Rating))
+                }));
+            }
+
+            if (position is "midfielder" or "defender" or "forward")
+            {
+                groups.Add(new PlayerMetricGroup("Jeu collectif", new[]
+                {
+                    Metric("Passes reussies", stat.PassesMade),
+                    Metric("Passes tentees", stat.PassAttempts),
+                    Metric("Precision passes", Percent(stat.PassSuccessRate)),
+                    Metric("Lecture passes", MadeAttemptRate(stat.PassesMade, stat.PassAttempts, stat.PassSuccessRate))
+                }));
+            }
+
+            if (position is "defender" or "midfielder" or "goalkeeper")
+            {
+                groups.Add(new PlayerMetricGroup("Defense", new[]
+                {
+                    Metric("Tacles reussis", stat.TacklesMade),
+                    Metric("Tacles tentes", stat.TackleAttempts),
+                    Metric("Precision tacles", Percent(stat.TackleSuccessRate)),
+                    Metric("Clean sheet any", stat.CleanSheetsAny),
+                    Metric("Clean sheet DEF", stat.CleanSheetsDef),
+                    Metric("Buts encaisses", stat.GoalsConceded)
+                }));
+            }
+
+            if (position == "goalkeeper")
+            {
+                groups.Add(new PlayerMetricGroup("Gardien", new[]
+                {
+                    Metric("Arrets", stat.Saves),
+                    Metric("Buts encaisses", stat.GoalsConceded),
+                    Metric("Clean sheet GK", stat.CleanSheetsGk),
+                    Metric("Ball dive saves", stat.BallDiveSaves),
+                    Metric("Cross saves", stat.CrossSaves),
+                    Metric("Good direction saves", stat.GoodDirectionSaves),
+                    Metric("Parry saves", stat.ParrySaves),
+                    Metric("Punch saves", stat.PunchSaves),
+                    Metric("Reflex saves", stat.ReflexSaves)
+                }));
+            }
+
+            groups.Add(new PlayerMetricGroup("Evenements bruts EA", new[]
+            {
+                Metric("Event 0", stat.MatchEventAggregate0 ?? "-"),
+                Metric("Event 1", stat.MatchEventAggregate1 ?? "-"),
+                Metric("Event 2", stat.MatchEventAggregate2 ?? "-"),
+                Metric("Event 3", stat.MatchEventAggregate3 ?? "-")
+            }));
+
+            return groups;
         }
 
         private static PlayerMetric Metric(string label, int? value) => new(label, value?.ToString() ?? "-");
@@ -1490,6 +1554,26 @@
         private static string Decimal(double? value) => value?.ToString("0.##") ?? "-";
 
         private static string Percent(double? value) => value?.ToString("0.#") is { } percent ? $"{percent}%" : "-";
+
+        private static string MadeAttemptRate(int? made, int? attempts, double? rate)
+        {
+            var ratio = $"{made?.ToString() ?? "-"}/{attempts?.ToString() ?? "-"}";
+            var percent = Percent(rate);
+            return percent == "-" ? ratio : $"{ratio} - {percent}";
+        }
+
+        private static string Duration(int? seconds)
+        {
+            if (seconds is null || seconds <= 0)
+            {
+                return "-";
+            }
+
+            var duration = TimeSpan.FromSeconds(seconds.Value);
+            return duration.TotalHours >= 1
+                ? $"{(int)duration.TotalHours}h {duration.Minutes:D2}m"
+                : $"{duration.Minutes}m {duration.Seconds:D2}s";
+        }
         public static PlayerSheetModel FromMember(TeamMemberResponse member)
         {
             return new PlayerSheetModel(
