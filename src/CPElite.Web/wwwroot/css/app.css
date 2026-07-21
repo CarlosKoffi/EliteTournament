@@ -6786,3 +6786,71 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Account EA profile contrast guard.
+   This page mixes dark hero blocks and light stat blocks, so keep every child
+   explicit to avoid inherited white text on white backgrounds. */
+.account-player-card.panel {
+    background: #050505;
+    color: #ffffff;
+    border-color: rgba(5, 5, 5, .24);
+}
+
+.account-player-card .account-ea-profile-hero {
+    background: #050505;
+    color: #ffffff;
+}
+
+.account-player-card .account-ea-profile-hero .eyebrow {
+    color: var(--app-pitch);
+}
+
+.account-player-card .account-ea-profile-hero h2,
+.account-player-card .account-ea-profile-hero strong,
+.account-player-card .account-ea-profile-hero span,
+.account-player-card .account-ea-profile-hero small {
+    color: #ffffff;
+}
+
+.account-player-card .account-ea-sync-panel,
+.account-player-card .ea-profile-empty-state,
+.account-player-card .player-position-panel,
+.account-player-card .account-ea-main-grid div,
+.account-player-card .account-player-deep-stats article,
+.account-player-card .account-player-deep-stats .player-skill-grid div,
+.account-player-card .stored-player-fallback-grid div {
+    background: #ffffff;
+    color: #050505;
+}
+
+.account-player-card .account-ea-sync-panel .eyebrow,
+.account-player-card .player-position-panel .eyebrow,
+.account-player-card .ea-profile-empty-state span,
+.account-player-card .stored-player-fallback-grid span,
+.account-player-card .account-ea-main-grid span,
+.account-player-card .account-player-deep-stats span:not(.result-kind),
+.account-player-card .account-player-deep-stats .player-skill-grid span {
+    color: #59616d;
+}
+
+.account-player-card .account-ea-sync-panel h3,
+.account-player-card .account-ea-sync-panel p,
+.account-player-card .ea-profile-empty-state strong,
+.account-player-card .ea-profile-empty-state p,
+.account-player-card .stored-player-fallback-grid strong,
+.account-player-card .player-position-panel h3,
+.account-player-card .account-ea-main-grid strong,
+.account-player-card .account-player-deep-stats strong,
+.account-player-card .account-player-deep-stats .player-skill-grid strong {
+    color: #050505;
+}
+
+.account-player-card .account-player-deep-stats .result-kind {
+    display: inline-flex;
+    width: fit-content;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    background: #e8f3ef;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .12);
+}
