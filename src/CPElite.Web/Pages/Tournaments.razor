@@ -3,6 +3,7 @@
 @inject ApiClient Api
 @inject AuthState AuthState
 @inject IWebAssemblyHostEnvironment HostEnvironment
+@inject IJSRuntime JS
 
 <PageTitle>TS Tournament - Tournois</PageTitle>
 
@@ -27,7 +28,14 @@
                 <strong>Dans 7 jours</strong>
                 <span>Il reste 14 places</span>
             </div>
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")" @onclick="PrepareDemoTournamentAsync">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+            @if (AuthState.IsAuthenticated)
+            {
+                <button type="button" class="button-link primary" @onclick="PrepareDemoTournamentAsync">Preparer mon equipe</button>
+            }
+            else
+            {
+                <a class="button-link primary" href="account">Creer ton compte et ramener ton equipe</a>
+            }
         </article>
 
         <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
@@ -43,7 +51,14 @@
                 <strong>Dans 5 jours</strong>
                 <span>Il reste 21 places</span>
             </div>
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")" @onclick="PrepareDemoTournamentAsync">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+            @if (AuthState.IsAuthenticated)
+            {
+                <button type="button" class="button-link primary" @onclick="PrepareDemoTournamentAsync">Preparer mon equipe</button>
+            }
+            else
+            {
+                <a class="button-link primary" href="account">Creer ton compte et ramener ton equipe</a>
+            }
         </article>
     </section>
 }
@@ -68,9 +83,14 @@ else if (PublishedTournaments.Count > 0)
                     <strong>@BuildCountdownLabel(tournament.StartsAt)</strong>
                     <span>Il reste des places</span>
                 </div>
-                <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")" @onclick="() => PrepareTournamentAsync(tournament)">
-                    @(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")
-                </a>
+                @if (AuthState.IsAuthenticated)
+                {
+                    <button type="button" class="button-link primary" @onclick="() => PrepareTournamentAsync(tournament)">Preparer mon equipe</button>
+                }
+                else
+                {
+                    <a class="button-link primary" href="account">Creer ton compte et ramener ton equipe</a>
+                }
             </article>
         }
     </section>
@@ -111,7 +131,7 @@ else
     <div class="panel-heading">
         <div>
             <p class="eyebrow">Mes tournois</p>
-            <h2>Suivi equipe TheSurvivors</h2>
+            <h2>Suivi tournois</h2>
         </div>
     </div>
 
@@ -123,6 +143,36 @@ else
 
     @if (PlayerTournamentTab == "live")
     {
+        @if (!ShowDemoData)
+        {
+            @if (LiveTournaments.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun tournoi en cours</strong>
+                    <p>Quand un tournoi passera en statut en cours, il apparaitra ici avec les matchs, scores et actions disponibles.</p>
+                </div>
+            }
+            else
+            {
+                <div class="player-tournament-grid compact">
+                    @foreach (var tournament in LiveTournaments)
+                    {
+                        <article class="live-team-card">
+                            <span class="result-kind">En cours</span>
+                            <h3>@tournament.Name</h3>
+                            <p>@BuildTournamentSubtitle(tournament)</p>
+                            <div class="ops-metrics">
+                                <div><span>Debut</span><strong>@FormatTournamentTime(tournament.StartsAt)</strong></div>
+                                <div><span>Type</span><strong>@(tournament.IsCashPrize ? "Goodies" : "Simple")</strong></div>
+                                <div><span>Max</span><strong>@tournament.MaxTeams</strong></div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        }
+        else
+        {
         <div class="player-tournament-grid">
         <article class="live-team-card">
             <span class="result-kind">TheSurvivors</span>
@@ -238,10 +288,42 @@ else
             </div>
         </article>
         </div>
+        }
     }
 
     @if (PlayerTournamentTab == "upcoming")
     {
+        @if (!ShowDemoData)
+        {
+            @if (UpcomingTournaments.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun tournoi a venir</strong>
+                    <p>Les prochains tournois ouverts aux inscriptions apparaitront ici depuis la base.</p>
+                </div>
+            }
+            else
+            {
+                <div class="player-tournament-grid compact">
+                    @foreach (var tournament in UpcomingTournaments)
+                    {
+                        <article class="live-team-card">
+                            <span class="result-kind">@(tournament.IsCashPrize ? "Goodies" : "Tournoi")</span>
+                            <h3>@tournament.Name</h3>
+                            <p>@BuildTournamentSubtitle(tournament)</p>
+                            <div class="ops-metrics">
+                                <div><span>Debut</span><strong>@FormatTournamentTime(tournament.StartsAt)</strong></div>
+                                <div><span>Date</span><strong>@FormatTournamentDate(tournament.StartsAt)</strong></div>
+                                <div><span>Places</span><strong>@tournament.MaxTeams</strong></div>
+                            </div>
+                            <button type="button" class="primary-action" @onclick="() => PrepareTournamentAsync(tournament)">Preparer mon equipe</button>
+                        </article>
+                    }
+                </div>
+            }
+        }
+        else
+        {
         <div class="player-tournament-grid compact">
             <article class="live-team-card">
                 <span class="result-kind">A venir</span>
@@ -264,10 +346,36 @@ else
                 </div>
             </article>
         </div>
+        }
     }
 
     @if (PlayerTournamentTab == "past")
     {
+        @if (!ShowDemoData)
+        {
+            @if (PastTournaments.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun tournoi termine</strong>
+                    <p>L'historique sera alimente uniquement par les tournois termines en base.</p>
+                </div>
+            }
+            else
+            {
+                <div class="past-summary-grid">
+                    @foreach (var tournament in PastTournaments)
+                    {
+                        <article class="ops-feature-card history">
+                            <span class="result-kind">Historique</span>
+                            <h3>@tournament.Name</h3>
+                            <p>Tournoi termine le @FormatTournamentDate(tournament.StartsAt). Les vainqueurs, buteurs, passeurs et MVP seront affiches depuis les resultats stockes.</p>
+                        </article>
+                    }
+                </div>
+            }
+        }
+        else
+        {
         <div class="past-summary-grid">
             <article class="ops-feature-card history">
                 <span class="result-kind">Friday Goodies Cup #3</span>
@@ -292,11 +400,12 @@ else
                 <div><span>Homme equipe</span><button type="button" class="inline-player-link strong-link" @onclick='() => OpenPlayerByNameAsync("Tchollismo")'>Tchollismo</button><small>3 MVP</small></div>
             </article>
         </div>
+        }
     }
 </section>
 }
 
-@if (AuthState.IsAuthenticated && PlayerTournamentTab == "upcoming")
+@if (AuthState.IsAuthenticated && IsPreparingTournament)
 {
 <section id="owner-submit" class="owner-submit-shell">
     <div class="owner-submit-hero">
@@ -322,16 +431,27 @@ else
                 <button class="ghost-action" @onclick="LoadOwnerContextAsync">Charger mes clubs</button>
             </div>
 
-            <label>Club owner
-                <select @bind="SelectedOwnerTeamId" @bind:after="LoadRosterForSelectedTeamAsync">
-                    @foreach (var club in OwnerTeams)
-                    {
-                            <option value="@club.TeamId">@club.Name@(club.HasPendingManagerClaim ? " - demande GM en attente" : "")</option>
-                    }
-                </select>
-            </label>
+            @if (OwnerTeams.Count == 0)
+            {
+                <div class="empty-state compact">
+                    <strong>Aucun club eligible</strong>
+                    <p>Tu dois etre GM, Co-GM, ou avoir une demande GM en attente sur un club pour preparer son inscription.</p>
+                    <a class="button-link primary" href="teams">Aller dans Mon equipe</a>
+                </div>
+            }
+            else
+            {
+                <label>Club owner
+                    <select @bind="SelectedOwnerTeamId" @bind:after="LoadRosterForSelectedTeamAsync">
+                        @foreach (var club in OwnerTeams)
+                        {
+                                <option value="@club.TeamId">@club.Name@(club.HasPendingManagerClaim ? " - demande GM en attente" : "")</option>
+                        }
+                    </select>
+                </label>
+            }
 
-            <button class="team-entry-card clickable-card" @onclick="OpenTeamSheetAsync">
+            <button class="team-entry-card clickable-card" @onclick="OpenTeamSheetAsync" disabled="@(SelectedOwnerTeamId is null)">
                 <div class="club-avatar">@SelectedOwnerTeamInitials</div>
                 <div>
                     <span class="result-kind">@SelectedTournamentKindLabel</span>
@@ -354,20 +474,20 @@ else
             <div class="tournament-rule-card">
                 <div>
                     <span class="result-kind">Infos tournoi</span>
-                    <strong>Friday Goodies Cup</strong>
+                    <strong>@SelectedTournamentName</strong>
                 </div>
                 <div class="tournament-rule-summary">
                     <div><span>Max general</span><strong>@DefaultMaxHeightCm cm</strong></div>
                     <div><span>Exception DC</span><strong>@CenterBackMaxHeightCm cm</strong></div>
-                    <div><span>Debut</span><strong>22:30 CET</strong></div>
-                    <div><span>Type</span><strong>Goodies</strong></div>
+                    <div><span>Debut</span><strong>@SelectedTournamentStartsAt.LocalDateTime.ToString("HH:mm")</strong></div>
+                    <div><span>Type</span><strong>@(SelectedTournamentIsGoodies ? "Goodies" : "Simple")</strong></div>
                 </div>
                 <div class="club-kit-summary">
                     <div>
                         <span class="kit-swatch" style="background: @KitPrimaryColor;"></span>
                         <span class="kit-swatch accent" style="background: @KitAccentColor;"></span>
                     </div>
-                    <small>Couleurs definies dans la configuration du club TheSurvivors.</small>
+                <small>Couleurs definies dans la configuration du club.</small>
                 </div>
                 <div class="formation-control">
                     <label>Formation
@@ -392,7 +512,7 @@ else
             </div>
 
             <div class="row-actions">
-                <button class="primary-action" @onclick="SubmitRosterAsync" disabled="@(SelectedRosterCount != 11 || HeightViolationCount > 0 || Busy)">Soumettre les 11</button>
+                <button class="primary-action" @onclick="SubmitRosterAsync" disabled="@(SelectedOwnerTeamId is null || SelectedRosterCount != 11 || HeightViolationCount > 0 || Busy)">Soumettre les 11</button>
                 <button class="ghost-action" @onclick="RemindPendingAsync" disabled="@Busy">Relancer les joueurs</button>
             </div>
         </article>
@@ -432,9 +552,19 @@ else
                 </div>
             }
 
-            <div class="matchday-roster">
-                @foreach (var player in Roster)
-                {
+            @if (Roster.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun joueur app dans ce club</strong>
+                    <p>La base ne renvoie aucun membre actif pour le club selectionne. Ajoute les joueurs au club avant de preparer les 11 du tournoi.</p>
+                    <a class="button-link primary" href="teams">Gerer mon equipe</a>
+                </div>
+            }
+            else
+            {
+                <div class="matchday-roster">
+                    @foreach (var player in Roster)
+                    {
                     <article class="matchday-player @(player.Selected ? "selected" : "") @(SelectedPlayer == player ? "focused" : "") @(player.IsUnavailable ? "unavailable" : "") @(!player.HasApp ? "app-required" : "") @(player.Selected && !IsHeightEligibleForTournament(player) ? "height-warning" : "")" @onclick="() => OpenPlayerSheetAsync(player)">
                         <label class="matchday-select">
                             <input type="checkbox" checked="@player.Selected" @onclick:stopPropagation @onchange="args => TogglePlayer(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && (SelectedRosterCount >= 11 || !IsHeightEligibleForTournament(player))))" />
@@ -466,8 +596,9 @@ else
                         </select>
                         <span class="presence-pill @player.StatusCss">@player.Status</span>
                     </article>
+                    }
+                </div>
                 }
-            </div>
         </article>
 
         <article class="panel lineup-overview-panel">
@@ -516,15 +647,15 @@ else
             </div>
 
             <div class="drawer-metrics">
-                <div><span>EA club</span><strong>@(TeamClubSnapshot?.EaClubId.ToString() ?? "Demo")</strong></div>
-                <div><span>Division</span><strong>@(TeamClubSnapshot?.Division?.ToString() ?? SelectedClubProfile?.Division.ToString() ?? "1")</strong></div>
-                <div><span>Forme EA</span><strong>@(SelectedClubProfile?.EaForm ?? "2V 1N 0D")</strong></div>
+                <div><span>EA club</span><strong>@(TeamClubSnapshot?.EaClubId.ToString() ?? "-")</strong></div>
+                <div><span>Division</span><strong>@(TeamClubSnapshot?.Division?.ToString() ?? SelectedClubProfile?.Division.ToString() ?? "-")</strong></div>
+                <div><span>Forme EA</span><strong>@(SelectedClubProfile?.EaForm ?? "-")</strong></div>
             </div>
 
             <div class="drawer-metrics">
-                <div><span>Stats tournoi</span><strong>@(SelectedClubProfile?.TournamentRecord ?? "3 matchs")</strong></div>
-                <div><span>Buts TS</span><strong>@(SelectedClubProfile?.TournamentGoalsFor.ToString() ?? "6")</strong></div>
-                <div><span>Meilleur joueur</span><strong>@(SelectedClubProfile?.KeyPlayer ?? "KoffiMarvelous")</strong></div>
+                <div><span>Stats tournoi</span><strong>@(SelectedClubProfile?.TournamentRecord ?? "-")</strong></div>
+                <div><span>Buts TS</span><strong>@(SelectedClubProfile?.TournamentGoalsFor.ToString() ?? "-")</strong></div>
+                <div><span>Meilleur joueur</span><strong>@(SelectedClubProfile?.KeyPlayer ?? "-")</strong></div>
             </div>
 
             <div class="drawer-data-grid">
@@ -533,18 +664,18 @@ else
                     <dl>
                         <div><dt>Nom EA</dt><dd>@(TeamClubSnapshot?.Name ?? OpenedClubName)</dd></div>
                         <div><dt>Abbreviation</dt><dd>@(TeamClubSnapshot?.Abbreviation ?? SelectedClubProfile?.ShortName ?? SelectedOwnerTeamInitials)</dd></div>
-                        <div><dt>Plateforme</dt><dd>@(TeamClubSnapshot?.Platform ?? "common-gen5")</dd></div>
-                        <div><dt>Derniere synchro</dt><dd>@(TeamClubSnapshot?.SyncedAt.LocalDateTime.ToString("dd/MM HH:mm") ?? "Demo locale")</dd></div>
-                        <div><dt>Statut TS</dt><dd>@(SelectedClubProfile?.TournamentStatus ?? "Qualifie phase finale")</dd></div>
+                        <div><dt>Plateforme</dt><dd>@(TeamClubSnapshot?.Platform ?? "-")</dd></div>
+                        <div><dt>Derniere synchro</dt><dd>@(TeamClubSnapshot?.SyncedAt.LocalDateTime.ToString("dd/MM HH:mm") ?? "-")</dd></div>
+                        <div><dt>Statut TS</dt><dd>@(SelectedClubProfile?.TournamentStatus ?? "-")</dd></div>
                     </dl>
                 </article>
                 <article>
                     <span class="result-kind">Stats tournoi app</span>
                     <div class="player-skill-grid">
-                        <div><span>MJ</span><strong>@(SelectedClubProfile?.TournamentPlayed.ToString() ?? "3")</strong></div>
-                        <div><span>BP</span><strong>@(SelectedClubProfile?.TournamentGoalsFor.ToString() ?? "6")</strong></div>
-                        <div><span>BC</span><strong>@(SelectedClubProfile?.TournamentGoalsAgainst.ToString() ?? "3")</strong></div>
-                        <div><span>Classement</span><strong>@(SelectedClubProfile?.Standing ?? "1er poule B")</strong></div>
+                        <div><span>MJ</span><strong>@(SelectedClubProfile?.TournamentPlayed.ToString() ?? "-")</strong></div>
+                        <div><span>BP</span><strong>@(SelectedClubProfile?.TournamentGoalsFor.ToString() ?? "-")</strong></div>
+                        <div><span>BC</span><strong>@(SelectedClubProfile?.TournamentGoalsAgainst.ToString() ?? "-")</strong></div>
+                        <div><span>Classement</span><strong>@(SelectedClubProfile?.Standing ?? "-")</strong></div>
                     </div>
                 </article>
                 <article>
@@ -656,6 +787,7 @@ else
     private List<RosterPlayerModel> Roster { get; } = [];
     private List<TournamentResponse> PublishedTournaments { get; } = [];
     private bool Busy;
+    private bool IsPreparingTournament;
     private string? Message;
     private string? OpenedSheet;
     private RosterPlayerModel? SelectedPlayer;
@@ -677,7 +809,10 @@ else
     private int UnavailableRosterCount => Roster.Count(player => player.IsUnavailable);
     private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
     private string ReadinessLabel => SelectedRosterCount == 11 && ConfirmedRosterCount == 11 && HeightViolationCount == 0 ? "Equipe prete" : "En attente joueurs";
-    private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? "TheSurvivors";
+    private IReadOnlyList<TournamentResponse> LiveTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.InProgress).ToArray();
+    private IReadOnlyList<TournamentResponse> UpcomingTournaments => PublishedTournaments.Where(tournament => tournament.Status is TournamentStatus.RegistrationOpen or TournamentStatus.RegistrationLocked && tournament.StartsAt >= DateTimeOffset.UtcNow).ToArray();
+    private IReadOnlyList<TournamentResponse> PastTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.Completed).ToArray();
+    private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? (ShowDemoData ? "TheSurvivors" : "Aucun club");
     private bool SelectedOwnerTeamHasPendingManagerClaim => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.HasPendingManagerClaim == true;
     private string SelectedTournamentKindLabel => SelectedTournamentIsGoodies ? "Tournoi goodies" : "Tournoi";
     private string SelectedTournamentKickoffLabel => $"coup d'envoi {SelectedTournamentStartsAt.LocalDateTime:dd/MM HH:mm}";
@@ -714,8 +849,10 @@ else
         SelectedTournamentIsGoodies = true;
         SelectedTournamentStartsAt = DateTimeOffset.UtcNow.AddDays(2);
         PlayerTournamentTab = "upcoming";
+        IsPreparingTournament = true;
         await LoadOwnerContextAsync();
         Message = "Choisis ton club et prepare les 11 joueurs pour le tournoi.";
+        await ScrollToPreparationAsync();
     }
 
     private async Task PrepareTournamentAsync(TournamentResponse tournament)
@@ -730,8 +867,23 @@ else
         SelectedTournamentIsGoodies = tournament.IsCashPrize;
         SelectedTournamentStartsAt = tournament.StartsAt;
         PlayerTournamentTab = "upcoming";
+        IsPreparingTournament = true;
         await LoadOwnerContextAsync();
         Message = $"Tournoi selectionne: {tournament.Name}. Choisis ton club et prepare les 11.";
+        await ScrollToPreparationAsync();
+    }
+
+    private async Task ScrollToPreparationAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "setTimeout(function(){var el=document.getElementById('owner-submit'); if(el){el.scrollIntoView({behavior:'smooth', block:'start'});}}, 50);");
+        }
+        catch
+        {
+            // Navigation remains usable even if the browser blocks the smooth scroll helper.
+        }
     }
 
     private void OnAuthStateChanged()
@@ -836,7 +988,11 @@ else
             OwnerTeams.AddRange(DemoOwnerTeams);
         }
 
-        SelectedOwnerTeamId ??= OwnerTeams[0].TeamId;
+        if (SelectedOwnerTeamId is null || OwnerTeams.All(team => team.TeamId != SelectedOwnerTeamId.Value))
+        {
+            SelectedOwnerTeamId = OwnerTeams[0].TeamId;
+        }
+
         await LoadRosterForSelectedTeamAsync();
     }
 
@@ -856,23 +1012,29 @@ else
             }
         }
 
-        if (Roster.Count == 0)
+        if (Roster.Count == 0 && ShowDemoData)
         {
             Roster.AddRange(DemoRoster);
             LoadDemoEaTeamData();
+        }
+        else if (Roster.Count == 0)
+        {
+            Message = "Aucun membre actif trouve en base pour ce club. Impossible de preparer les 11 tant que l'effectif app est vide.";
         }
     }
 
     private async Task OpenTeamSheetAsync()
     {
-        SelectedClubProfile = DemoClubProfiles.FirstOrDefault(club => string.Equals(club.Name, SelectedOwnerTeamName, StringComparison.OrdinalIgnoreCase));
+        SelectedClubProfile = ShowDemoData
+            ? DemoClubProfiles.FirstOrDefault(club => string.Equals(club.Name, SelectedOwnerTeamName, StringComparison.OrdinalIgnoreCase))
+            : null;
         OpenedSheet = "team";
         if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
         {
             TeamClubSnapshot = (await Api.GetTeamEaClubAsync(SelectedOwnerTeamId.Value)).Value;
             TeamEaMembers = (await Api.GetTeamEaMembersAsync(SelectedOwnerTeamId.Value)).Value;
         }
-        else
+        else if (ShowDemoData)
         {
             LoadDemoEaTeamData();
         }
@@ -880,14 +1042,25 @@ else
 
     private Task OpenClubSheetAsync(string teamName)
     {
-        SelectedClubProfile = DemoClubProfiles.FirstOrDefault(club => string.Equals(club.Name, teamName, StringComparison.OrdinalIgnoreCase))
-            ?? new DemoClubProfile(teamName, GetInitials(teamName), 0, "A synchroniser", "Pas encore lie", 0, 0, 0, "Non classe", "Profil a completer", "Club detecte dans le tournoi");
+        SelectedClubProfile = ShowDemoData
+            ? DemoClubProfiles.FirstOrDefault(club => string.Equals(club.Name, teamName, StringComparison.OrdinalIgnoreCase))
+                ?? new DemoClubProfile(teamName, GetInitials(teamName), 0, "A synchroniser", "Pas encore lie", 0, 0, 0, "Non classe", "Profil a completer", "Club detecte dans le tournoi")
+            : null;
 
         if (string.Equals(teamName, SelectedOwnerTeamName, StringComparison.OrdinalIgnoreCase))
         {
             return OpenTeamSheetAsync();
         }
 
+        if (!ShowDemoData)
+        {
+            TeamClubSnapshot = null;
+            TeamEaMembers = null;
+            OpenedSheet = "team";
+            return Task.CompletedTask;
+        }
+
+        SelectedClubProfile ??= new DemoClubProfile(teamName, GetInitials(teamName), 0, "A synchroniser", "Pas encore lie", 0, 0, 0, "Non classe", "Profil a completer", "Club detecte dans le tournoi");
         TeamClubSnapshot = new EaClubSnapshotResponse(
             SelectedOwnerTeamId ?? DemoOwnerTeams.First().TeamId,
             0,
@@ -934,7 +1107,7 @@ else
         }
 
         return Roster.FirstOrDefault(player => IsSamePlayer(player, playerName))
-            ?? DemoRoster.FirstOrDefault(player => IsSamePlayer(player, playerName));
+            ?? (ShowDemoData ? DemoRoster.FirstOrDefault(player => IsSamePlayer(player, playerName)) : null);
     }
 
     private static bool IsSamePlayer(RosterPlayerModel player, string playerName)
