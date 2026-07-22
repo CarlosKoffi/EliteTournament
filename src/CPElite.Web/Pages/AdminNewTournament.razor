@@ -119,6 +119,7 @@ else
                 <div class="metric-card"><span>1er</span><strong>@Tournament.FirstPrize EUR</strong></div>
                 <div class="metric-card"><span>2e</span><strong>@Tournament.SecondPrize EUR</strong></div>
                 <div class="metric-card"><span>3e</span><strong>Credit @Tournament.ThirdPrizeCredit EUR</strong></div>
+                <div class="metric-card admin-only-metric"><span>Reste apres lots</span><strong>@Tournament.EstimatedNetAfterPrizes EUR</strong></div>
                 <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
             </div>
             <div class="prize-preview-card">
@@ -238,9 +239,11 @@ else
         public int MinTeams { get; set; } = 24;
         public decimal EntryFee { get; set; } = 50m;
         public decimal PrizeBudget => FirstPrize + SecondPrize + ThirdPrizeCredit;
+        public decimal GrossParticipation => IsCashPrize ? decimal.Round(EntryFee * MaxTeams, 2) : 0m;
         public decimal FirstPrize => IsCashPrize ? decimal.Round(EntryFee * 11m, 2) : 0m;
         public decimal SecondPrize => IsCashPrize ? decimal.Round(EntryFee * 5.5m, 2) : 0m;
         public decimal ThirdPrizeCredit => IsCashPrize ? decimal.Round(EntryFee, 2) : 0m;
+        public decimal EstimatedNetAfterPrizes => decimal.Round(GrossParticipation - PrizeBudget, 2);
         public bool IsCashPrize { get; set; } = true;
         public string? BannerUrl { get; set; } = "/images/tournaments/friday-goodies.svg";
         public int DefaultMaxHeightCm { get; set; } = 182;
