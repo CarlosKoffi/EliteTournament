@@ -116,6 +116,9 @@ public sealed class ApiClient
     public Task<ApiResult<TournamentResponse>> CreateTournamentAsync(CreateTournamentRequest request) =>
         SendAsync<TournamentResponse>(HttpMethod.Post, "api/tournaments/official", request);
 
+    public Task<ApiResult<TeamAssetUploadResponse>> UploadTournamentBannerAsync(Stream stream, string fileName, string contentType) =>
+        UploadImageAsync("api/tournament-assets/banner", stream, fileName, contentType);
+
     public Task<ApiResult<IReadOnlyCollection<TournamentResponse>>> GetTournamentsAsync() =>
         SendAsync<IReadOnlyCollection<TournamentResponse>>(HttpMethod.Get, "api/tournaments", requiresAuth: false);
 

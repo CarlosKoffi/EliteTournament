@@ -46,8 +46,8 @@
                 <label>Heure fermeture <InputText @bind-Value="Tournament.RegistrationEndTime" /></label>
                 <label>Max teams <InputNumber @bind-Value="Tournament.MaxTeams" /></label>
                 <label>Min teams <InputNumber @bind-Value="Tournament.MinTeams" /></label>
-                <label>Entry fee <InputNumber @bind-Value="Tournament.EntryFee" /></label>
-                <label>Prize budget <InputNumber @bind-Value="Tournament.PrizeBudget" /></label>
+                <label>Participation equipe <InputNumber @bind-Value="Tournament.EntryFee" /></label>
+                <label>Budget lots calcule <input value="@Tournament.PrizeBudget.ToString("0.##")" readonly /></label>
             </div>
 
             <label class="asset-upload compact-upload">
@@ -57,7 +57,9 @@
             </label>
 
             <label class="checkbox-line locked-check"><InputCheckbox @bind-Value="Tournament.IsCashPrize" disabled /> Cash prize / Goodies</label>
-            <label>Lots / description <InputTextArea @bind-Value="Tournament.Goodies" /></label>
+            <label>Lots / description automatique
+                <textarea class="readonly-textarea" readonly>@Tournament.PrizeDescription</textarea>
+            </label>
 
             <div class="admin-restriction-panel">
                 <div>
@@ -101,8 +103,15 @@
             <div class="metric-card"><span>Debut</span><strong>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime</strong></div>
             <div class="metric-card"><span>Inscription</span><strong>@Tournament.RegistrationEndDate.ToString("dd/MM") @Tournament.RegistrationEndTime</strong></div>
             <div class="metric-card"><span>Equipes</span><strong>@Tournament.MinTeams - @Tournament.MaxTeams</strong></div>
-            <div class="metric-card"><span>Fee</span><strong>@Tournament.EntryFee EUR</strong></div>
+            <div class="metric-card"><span>Participation</span><strong>@Tournament.EntryFee EUR</strong></div>
+            <div class="metric-card"><span>1er</span><strong>@Tournament.FirstPrize EUR</strong></div>
+            <div class="metric-card"><span>2e</span><strong>@Tournament.SecondPrize EUR</strong></div>
+            <div class="metric-card"><span>3e</span><strong>Credit @Tournament.ThirdPrizeCredit EUR</strong></div>
             <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
+        </div>
+        <div class="prize-preview-card">
+            <span class="result-kind">Description sauvegardee</span>
+            <p>@Tournament.PrizeDescription</p>
         </div>
     </article>
 </section>
@@ -128,16 +137,12 @@
         {
             Tournament.Name = "Nouveau tournoi simple";
             Tournament.EntryFee = 0;
-            Tournament.PrizeBudget = 0;
-            Tournament.Goodies = "Tournoi simple pour animer la communaute.";
             Tournament.IsCashPrize = false;
         }
         else
         {
             Tournament.Name = "Nouveau tournoi goodies";
             Tournament.EntryFee = 50;
-            Tournament.PrizeBudget = 700;
-            Tournament.Goodies = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
             Tournament.IsCashPrize = true;
         }
     }
@@ -153,7 +158,7 @@
             Tournament.MaxTeams,
             Tournament.EntryFee,
             "EUR",
-            Tournament.Goodies,
+            Tournament.PrizeDescription,
             Tournament.MinTeams,
             Tournament.BuildRegistrationEndsAt(),
             Tournament.PrizeBudget,
@@ -176,7 +181,7 @@
     {
         var file = args.File;
         await using var stream = file.OpenReadStream(5_000_000);
-        var result = await Api.UploadTeamAssetAsync(stream, file.Name, file.ContentType);
+        var result = await Api.UploadTournamentBannerAsync(stream, file.Name, file.ContentType);
         if (result.Value is null)
         {
             Message = result.Error;
@@ -200,14 +205,19 @@
         public int MaxTeams { get; set; } = 32;
         public int MinTeams { get; set; } = 24;
         public decimal EntryFee { get; set; } = 50m;
-        public decimal PrizeBudget { get; set; } = 700m;
+        public decimal PrizeBudget => FirstPrize + SecondPrize + ThirdPrizeCredit;
+        public decimal FirstPrize => IsCashPrize ? decimal.Round(EntryFee * 11m, 2) : 0m;
+        public decimal SecondPrize => IsCashPrize ? decimal.Round(EntryFee * 5.5m, 2) : 0m;
+        public decimal ThirdPrizeCredit => IsCashPrize ? decimal.Round(EntryFee, 2) : 0m;
         public bool IsCashPrize { get; set; } = true;
-        public string Goodies { get; set; } = "1er: lot 500 EUR, 2e: lot 200 EUR, 3e: inscription offerte au prochain tournoi.";
         public string? BannerUrl { get; set; } = "/images/tournaments/friday-goodies.svg";
         public int DefaultMaxHeightCm { get; set; } = 182;
         public int CenterBackMaxHeightCm { get; set; } = 187;
         public bool EnablePlaystyleRestrictions { get; set; }
         public string ForbiddenPlaystyles { get; set; } = "";
+        public string PrizeDescription => IsCashPrize
+            ? $"Lots automatiques: 1er {FirstPrize:0.##} EUR de lots, 2e {SecondPrize:0.##} EUR de lots, 3e inscription offerte au prochain tournoi jusqu'a {ThirdPrizeCredit:0.##} EUR. Si le prochain tournoi coute plus cher, l'equipe paiera uniquement la difference."
+            : "Tournoi simple sans goodies payants. Participation gratuite, classement et stats TS Tournament uniquement.";
 
         public DateTimeOffset BuildStartsAt()
         {

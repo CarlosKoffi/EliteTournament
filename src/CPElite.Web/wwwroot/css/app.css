@@ -5832,6 +5832,30 @@ body {
     color: #050505;
 }
 
+.readonly-textarea {
+    min-height: 112px;
+    resize: vertical;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .16);
+    font-weight: 800;
+}
+
+.prize-preview-card {
+    margin-top: 16px;
+    padding: 16px;
+    background: #050505;
+    color: #ffffff;
+    border-left: 6px solid var(--app-pitch);
+}
+
+.prize-preview-card p {
+    margin: 10px 0 0;
+    color: #ffffff;
+    font-weight: 850;
+    line-height: 1.45;
+}
+
 .registration-player-card .app-status {
     margin-top: 7px;
     color: #050505;

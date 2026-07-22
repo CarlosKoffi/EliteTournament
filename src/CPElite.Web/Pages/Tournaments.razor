@@ -715,7 +715,7 @@ else
 
     private static string BuildTournamentSubtitle(TournamentResponse tournament)
     {
-        if (tournament.IsCashPrize && !string.IsNullOrWhiteSpace(tournament.GoodiesDescription))
+        if (!string.IsNullOrWhiteSpace(tournament.GoodiesDescription))
         {
             return tournament.GoodiesDescription;
         }
