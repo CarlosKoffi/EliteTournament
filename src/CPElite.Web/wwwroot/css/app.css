@@ -7208,6 +7208,51 @@ body {
     line-height: 1;
 }
 
+.account-gm-panel {
+    display: grid;
+    gap: 14px;
+    background: #ffffff;
+    color: #050505;
+    border-left: 6px solid var(--app-pitch);
+}
+
+.account-gm-panel h2,
+.account-gm-panel p,
+.account-gm-panel strong,
+.account-gm-panel span:not(.presence-pill) {
+    color: #050505;
+}
+
+.account-gm-panel .eyebrow {
+    color: #007a4d;
+}
+
+.gm-account-progress {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    background: #f4f4f1;
+    border: 1px solid rgba(5, 5, 5, .14);
+}
+
+.gm-account-progress div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.gm-account-progress span,
+.gm-account-progress small {
+    color: #4b5563;
+    font-weight: 800;
+}
+
+.gm-account-progress strong {
+    font-size: 24px;
+    line-height: 1;
+}
+
 .compact-action {
     min-height: 44px;
     padding: 10px 14px;

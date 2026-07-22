@@ -137,9 +137,9 @@ public sealed class TournamentService
         }
 
         var actorMembership = await _teams.GetMembershipAsync(request.TeamId, actorUserId, cancellationToken);
-        if (actorMembership is null || !actorMembership.CanManageRoles())
+        if (!await CanRegisterTeamAsync(actorMembership, request.TeamId, actorUserId, cancellationToken))
         {
-            return Result<TournamentRegistrationResponse>.Failure(ErrorType.Forbidden, "tournament.registration_forbidden", "Only a team owner can register the team.");
+            return Result<TournamentRegistrationResponse>.Failure(ErrorType.Forbidden, "tournament.registration_forbidden", "Only a team owner, manager or pending GM claimant can register the team.");
         }
 
         if (!HasRegistrationStarted(tournament, _clock.UtcNow))
@@ -173,9 +173,9 @@ public sealed class TournamentService
         }
 
         var actorMembership = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
-        if (actorMembership is null || !actorMembership.CanManageRoles())
+        if (!await CanRegisterTeamAsync(actorMembership, teamId, actorUserId, cancellationToken))
         {
-            return Result<TournamentRegistrationResponse>.Failure(ErrorType.Forbidden, "tournament.confirmation_forbidden", "Only a team owner can confirm the tournament registration.");
+            return Result<TournamentRegistrationResponse>.Failure(ErrorType.Forbidden, "tournament.confirmation_forbidden", "Only a team owner, manager or pending GM claimant can confirm the tournament registration.");
         }
 
         var registration = await _tournaments.GetRegistrationAsync(tournamentId, teamId, cancellationToken);
@@ -1060,6 +1060,21 @@ public sealed class TournamentService
     private static TournamentRegistrationResponse ToRegistrationResponse(TournamentRegistration registration)
     {
         return new TournamentRegistrationResponse(registration.Id, registration.TournamentId, registration.TeamId, (ContractPaymentMode)(int)registration.PaymentMode, registration.IsPaymentComplete, (ContractRegistrationStatus)(int)registration.Status, registration.Source, registration.DiscordGuildId, registration.DiscordChannelId, registration.DiscordMessageId, registration.DiscordRequestedByUserId);
+    }
+
+    private async Task<bool> CanRegisterTeamAsync(TeamMember? membership, Guid teamId, Guid actorUserId, CancellationToken cancellationToken)
+    {
+        if (membership is null || !membership.IsActive)
+        {
+            return false;
+        }
+
+        if (membership.CanManageRoles())
+        {
+            return true;
+        }
+
+        return await _teams.GetPendingManagerClaimAsync(teamId, actorUserId, cancellationToken) is not null;
     }
 
     private static TournamentMatchResponse ToMatchResponse(TournamentMatch match)

@@ -149,8 +149,16 @@ public sealed class TournamentParticipationService
         }
 
         var membership = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
-        return membership is null || !membership.CanManageRoles()
-            ? Result<bool>.Failure(ErrorType.Forbidden, "participant.manage_forbidden", "Only the team owner can manage the tournament roster.")
+        if (membership is null || !membership.IsActive)
+        {
+            return Result<bool>.Failure(ErrorType.Forbidden, "participant.manage_forbidden", "Only the team owner, manager or pending GM claimant can manage the tournament roster.");
+        }
+
+        var canManage = membership.CanManageRoles()
+            || await _teams.GetPendingManagerClaimAsync(teamId, actorUserId, cancellationToken) is not null;
+
+        return !canManage
+            ? Result<bool>.Failure(ErrorType.Forbidden, "participant.manage_forbidden", "Only the team owner, manager or pending GM claimant can manage the tournament roster.")
             : Result<bool>.Success(true);
     }
 

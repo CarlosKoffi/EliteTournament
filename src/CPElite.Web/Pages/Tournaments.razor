@@ -27,7 +27,7 @@
                 <strong>Dans 7 jours</strong>
                 <span>Il reste 14 places</span>
             </div>
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")" @onclick="PrepareDemoTournamentAsync">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
         </article>
 
         <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
@@ -43,7 +43,7 @@
                 <strong>Dans 5 jours</strong>
                 <span>Il reste 21 places</span>
             </div>
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")" @onclick="PrepareDemoTournamentAsync">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
         </article>
     </section>
 }
@@ -68,7 +68,7 @@ else if (PublishedTournaments.Count > 0)
                     <strong>@BuildCountdownLabel(tournament.StartsAt)</strong>
                     <span>Il reste des places</span>
                 </div>
-                <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">
+                <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")" @onclick="() => PrepareTournamentAsync(tournament)">
                     @(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")
                 </a>
             </article>
@@ -105,7 +105,7 @@ else
     </section>
 }
 
-@if (AuthState.IsAuthenticated && ShowDemoData)
+@if (AuthState.IsAuthenticated)
 {
 <section class="panel player-tournament-panel">
     <div class="panel-heading">
@@ -296,19 +296,19 @@ else
 </section>
 }
 
-@if (AuthState.IsAuthenticated && ShowDemoData && PlayerTournamentTab == "upcoming")
+@if (AuthState.IsAuthenticated && PlayerTournamentTab == "upcoming")
 {
 <section id="owner-submit" class="owner-submit-shell">
     <div class="owner-submit-hero">
         <div>
-            <p class="eyebrow">Owner desk</p>
-            <h2>Soumettre les 11 joueurs</h2>
-            <p>Un owner peut gerer plusieurs clubs. Il choisit le club inscrit ce soir, selectionne 11 joueurs, puis chaque joueur recoit sa confirmation de presence.</p>
+                    <p class="eyebrow">Inscription tournoi</p>
+                    <h2>Soumettre les 11 joueurs</h2>
+                    <p>Un GM valide, Co-GM ou demande GM en attente peut preparer l'inscription. Si la validation GM n'est pas terminee avant la deadline, l'equipe sera notifiee puis retiree automatiquement.</p>
         </div>
         <div class="owner-readiness-card">
-            <span>Validation</span>
-            <strong>@SelectedRosterCount / 11</strong>
-            <small>@ReadinessLabel</small>
+                <span>@SelectedTournamentName</span>
+                <strong>@SelectedRosterCount / 11</strong>
+                <small>@ReadinessLabel</small>
         </div>
     </div>
 
@@ -316,7 +316,7 @@ else
         <article class="panel owner-control-panel">
             <div class="panel-heading">
                 <div>
-                    <p class="eyebrow">Club</p>
+                    <p class="eyebrow">@SelectedTournamentName</p>
                     <h2>Equipe a inscrire</h2>
                 </div>
                 <button class="ghost-action" @onclick="LoadOwnerContextAsync">Charger mes clubs</button>
@@ -326,7 +326,7 @@ else
                 <select @bind="SelectedOwnerTeamId" @bind:after="LoadRosterForSelectedTeamAsync">
                     @foreach (var club in OwnerTeams)
                     {
-                        <option value="@club.TeamId">@club.Name</option>
+                            <option value="@club.TeamId">@club.Name@(club.HasPendingManagerClaim ? " - demande GM en attente" : "")</option>
                     }
                 </select>
             </label>
@@ -334,11 +334,22 @@ else
             <button class="team-entry-card clickable-card" @onclick="OpenTeamSheetAsync">
                 <div class="club-avatar">@SelectedOwnerTeamInitials</div>
                 <div>
-                    <span class="result-kind">Tournoi goodies</span>
+                    <span class="result-kind">@SelectedTournamentKindLabel</span>
                     <strong>@SelectedOwnerTeamName</strong>
-                    <small>Friday Goodies Cup - coup d'envoi 22:30 CET</small>
+                    <small>@SelectedTournamentName - @SelectedTournamentKickoffLabel</small>
                 </div>
             </button>
+
+            @if (SelectedOwnerTeamHasPendingManagerClaim)
+            {
+                <div class="rules-alert gm-pending-alert">
+                    <div>
+                        <span>GM en attente de validation</span>
+                        <strong>Inscription provisoire autorisee</strong>
+                        <small>Tu peux preparer les 11 maintenant. A 4h du tournoi les membres seront relances; a 1h si le GM, le paiement ou les presences ne sont pas valides, l'equipe sera retiree.</small>
+                    </div>
+                </div>
+            }
 
             <div class="tournament-rule-card">
                 <div>
@@ -637,6 +648,10 @@ else
     private const string CommunityCupBannerUrl = "/images/tournaments/community-cup.svg";
     private const string GoodiesCupBannerUrl = "/images/tournaments/friday-goodies.svg";
     private Guid? SelectedOwnerTeamId { get; set; }
+    private Guid SelectedTournamentId { get; set; }
+    private string SelectedTournamentName { get; set; } = "Friday Goodies Cup";
+    private bool SelectedTournamentIsGoodies { get; set; } = true;
+    private DateTimeOffset SelectedTournamentStartsAt { get; set; } = DateTimeOffset.UtcNow.AddDays(2);
     private List<OwnerTeamOption> OwnerTeams { get; } = [];
     private List<RosterPlayerModel> Roster { get; } = [];
     private List<TournamentResponse> PublishedTournaments { get; } = [];
@@ -663,6 +678,9 @@ else
     private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
     private string ReadinessLabel => SelectedRosterCount == 11 && ConfirmedRosterCount == 11 && HeightViolationCount == 0 ? "Equipe prete" : "En attente joueurs";
     private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? "TheSurvivors";
+    private bool SelectedOwnerTeamHasPendingManagerClaim => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.HasPendingManagerClaim == true;
+    private string SelectedTournamentKindLabel => SelectedTournamentIsGoodies ? "Tournoi goodies" : "Tournoi";
+    private string SelectedTournamentKickoffLabel => $"coup d'envoi {SelectedTournamentStartsAt.LocalDateTime:dd/MM HH:mm}";
     private string SelectedOwnerTeamInitials => GetInitials(SelectedOwnerTeamName);
     private string OpenedClubName => SelectedClubProfile?.Name ?? SelectedOwnerTeamName;
     private IReadOnlyList<IReadOnlyList<LineupSlotModel>> LineupRows => BuildLineupRows();
@@ -678,9 +696,42 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        SelectedTournamentId = DemoTournamentId;
         AuthState.Changed += OnAuthStateChanged;
         await LoadPublishedTournamentsAsync();
         await LoadOwnerContextAsync();
+    }
+
+    private async Task PrepareDemoTournamentAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            return;
+        }
+
+        SelectedTournamentId = DemoTournamentId;
+        SelectedTournamentName = "Friday Goodies Cup";
+        SelectedTournamentIsGoodies = true;
+        SelectedTournamentStartsAt = DateTimeOffset.UtcNow.AddDays(2);
+        PlayerTournamentTab = "upcoming";
+        await LoadOwnerContextAsync();
+        Message = "Choisis ton club et prepare les 11 joueurs pour le tournoi.";
+    }
+
+    private async Task PrepareTournamentAsync(TournamentResponse tournament)
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            return;
+        }
+
+        SelectedTournamentId = tournament.Id;
+        SelectedTournamentName = tournament.Name;
+        SelectedTournamentIsGoodies = tournament.IsCashPrize;
+        SelectedTournamentStartsAt = tournament.StartsAt;
+        PlayerTournamentTab = "upcoming";
+        await LoadOwnerContextAsync();
+        Message = $"Tournoi selectionne: {tournament.Name}. Choisis ton club et prepare les 11.";
     }
 
     private void OnAuthStateChanged()
@@ -759,7 +810,17 @@ else
             {
                 OwnerTeams.AddRange(result.Value.Memberships
                     .Where(member => member.TeamId.HasValue && (member.Role is TeamRole.Owner or TeamRole.Manager))
-                    .Select(member => new OwnerTeamOption(member.TeamId!.Value, member.TeamName ?? member.DisplayName)));
+                    .Select(member => new OwnerTeamOption(member.TeamId!.Value, member.TeamName ?? member.DisplayName, false)));
+
+                foreach (var member in result.Value.Memberships.Where(member => member.TeamId.HasValue && member.Role is not TeamRole.Owner and not TeamRole.Manager))
+                {
+                    var claims = await Api.GetTeamManagerClaimsAsync(member.TeamId!.Value);
+                    var hasPendingClaim = claims.Value?.Any(claim => claim.ClaimantUserId == result.Value.User.Id && claim.Status == TeamManagerClaimStatus.Pending) == true;
+                    if (hasPendingClaim && OwnerTeams.All(team => team.TeamId != member.TeamId.Value))
+                    {
+                        OwnerTeams.Add(new OwnerTeamOption(member.TeamId.Value, member.TeamName ?? member.DisplayName, true));
+                    }
+                }
             }
         }
 
@@ -988,14 +1049,30 @@ else
         Busy = true;
         if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
         {
+            var registration = await Api.RegisterTeamForTournamentAsync(SelectedTournamentId, new RegisterTeamForTournamentRequest(SelectedOwnerTeamId.Value, TournamentPaymentMode.IndividualPlayers));
+            if (!registration.Success && !IsAlreadyRegistered(registration.Error))
+            {
+                Busy = false;
+                Message = registration.Error;
+                return;
+            }
+
             foreach (var player in Roster.Where(player => player.Selected).Take(11))
             {
-                await Api.AddTournamentParticipantAsync(DemoTournamentId, SelectedOwnerTeamId.Value, new AddTournamentParticipantRequest(player.UserId, player.Position));
+                var participant = await Api.AddTournamentParticipantAsync(SelectedTournamentId, SelectedOwnerTeamId.Value, new AddTournamentParticipantRequest(player.UserId, player.Position));
+                if (!participant.Success && !IsAlreadyRegistered(participant.Error))
+                {
+                    Busy = false;
+                    Message = participant.Error;
+                    return;
+                }
             }
         }
 
         Busy = false;
-        Message = "Composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
+        Message = SelectedOwnerTeamHasPendingManagerClaim
+            ? "Inscription provisoire creee et composition soumise. Les 11 joueurs doivent valider leur presence, et la demande GM devra etre validee avant la deadline."
+            : "Equipe inscrite et composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
     }
 
     private async Task RemindPendingAsync()
@@ -1003,11 +1080,19 @@ else
         Busy = true;
         if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
         {
-            await Api.RemindPendingTournamentParticipantsAsync(DemoTournamentId, SelectedOwnerTeamId.Value);
+            await Api.RemindPendingTournamentParticipantsAsync(SelectedTournamentId, SelectedOwnerTeamId.Value);
         }
 
         Busy = false;
         Message = "Relance envoyee aux joueurs qui n'ont pas encore confirme.";
+    }
+
+    private static bool IsAlreadyRegistered(string? error)
+    {
+        return !string.IsNullOrWhiteSpace(error)
+            && (error.Contains("already", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("deja", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("déjà", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string DefaultPosition(int index)
@@ -1081,9 +1166,9 @@ else
 
     private static IReadOnlyCollection<OwnerTeamOption> DemoOwnerTeams { get; } =
     [
-        new(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "TheSurvivors"),
-        new(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "TheSurvivors B"),
-        new(Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), "TSV Academy")
+        new(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "TheSurvivors", false),
+        new(Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "TheSurvivors B", false),
+        new(Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), "TSV Academy", false)
     ];
 
     private static IReadOnlyCollection<DemoGroupRow> DemoGroupRows { get; } =
@@ -1136,7 +1221,7 @@ else
         new(Guid.NewGuid(), "MaxBackup", "MaxBackup", "Max", "DC", "Defenseur", false, false, "Pas dispo", 186, 82, 42, 45, 3, 5, 6.7, 18, 76, 33, 1, 0)
     ];
 
-    private sealed record OwnerTeamOption(Guid TeamId, string Name);
+    private sealed record OwnerTeamOption(Guid TeamId, string Name, bool HasPendingManagerClaim);
 
     private sealed record LineupSlotModel(string Position, RosterPlayerModel? Player);
     private sealed record DemoGroupRow(int Rank, string Team, int Points, string Record);

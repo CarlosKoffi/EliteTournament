@@ -43,6 +43,7 @@
                 <div><span>Fuseau horaire</span><strong>@PlayerTimeZone</strong></div>
                 <div><span>Club actif</span><strong>@PlayerClubName</strong></div>
                 <div><span>Role</span><strong>@PlayerRole</strong></div>
+                <div><span>Statut GM</span><strong>@PlayerManagerStatus</strong></div>
                 <div class="identity-verification-cell">
                     <span>Verification EA</span>
                     <strong>@PlayerVerificationStatus</strong>
@@ -53,6 +54,27 @@
                 </div>
             </div>
         </div>
+    </section>
+
+    <section class="panel account-gm-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Droits club</p>
+                <h2>Statut GM</h2>
+            </div>
+            <span class="presence-pill @PlayerManagerStatusCss">@PlayerManagerStatus</span>
+        </div>
+        <p>@PlayerManagerHelpText</p>
+        @if (ActiveManagerClaim is not null)
+        {
+            <div class="gm-account-progress">
+                <div>
+                    <span>Validations membres</span>
+                    <strong>@ActiveManagerClaim.ApprovalCount / @ActiveManagerClaim.ApprovalThreshold</strong>
+                </div>
+                <small>Tu peux preparer une inscription tournoi maintenant. Il faudra que la validation GM soit terminee avant la deadline operationnelle.</small>
+            </div>
+        }
     </section>
 
     @if (ShowAccountVerificationInfo)
@@ -408,6 +430,7 @@ else
     private bool PlayerClaimVerified;
     private bool RosterLoading;
     private TeamMemberResponse? ActiveMembership;
+    private List<TeamManagerClaimResponse> AccountManagerClaims { get; } = [];
     private EaPlayerProfileSnapshotResponse? PlayerEaProfile;
     private bool EaProfileLoadAttempted;
     private bool ShowAccountVerificationInfo;
@@ -433,6 +456,21 @@ else
             ? $"Club deja present dans TS Tournament - EA ID {SelectedRegistrationClub.EaClubId}."
             : $"Club pas encore cree dans l'app - EA ID {SelectedRegistrationClub.EaClubId}. Tu peux quand meme te positionner dessus.";
     private string PlayerRole => ActiveMembership?.Role.ToString() ?? "User";
+    private TeamManagerClaimResponse? ActiveManagerClaim => AccountManagerClaims.FirstOrDefault(claim => claim.ClaimantUserId == AuthState.User?.Id && claim.Status == TeamManagerClaimStatus.Pending);
+    private string PlayerManagerStatus => ActiveMembership?.Role switch
+    {
+        TeamRole.Owner => "GM valide",
+        TeamRole.Manager => "Co-GM valide",
+        _ => ActiveManagerClaim is not null ? $"Demande GM en attente ({ActiveManagerClaim.ApprovalCount}/{ActiveManagerClaim.ApprovalThreshold})" : "Joueur"
+    };
+    private string PlayerManagerStatusCss => ActiveMembership?.Role is TeamRole.Owner or TeamRole.Manager
+        ? "confirmed"
+        : ActiveManagerClaim is not null ? "pending" : "unavailable";
+    private string PlayerManagerHelpText => ActiveMembership?.Role is TeamRole.Owner or TeamRole.Manager
+        ? "Tu as les droits pour gerer ton club et inscrire l'equipe aux tournois."
+        : ActiveManagerClaim is not null
+            ? "Ta demande GM est en attente. Tu peux preparer une inscription provisoire, mais les membres du club devront confirmer ton role avant la deadline du tournoi."
+            : "Tu es rattache au club comme joueur. Si tu es le GM reel, fais ta demande depuis Mon equipe pour que les membres la valident.";
     private TournamentTotalsDemo TournamentTotals { get; } = new(0, 0, 0, 0);
     private IReadOnlyCollection<TournamentPerformanceDemo> TournamentHistory { get; } = [];
     private string PlayerEaProfileStatus => PlayerEaProfile is null
@@ -716,6 +754,7 @@ else
         EaProfileLoadAttempted = false;
         PlayerEaProfile = null;
         ActiveMembership = null;
+        AccountManagerClaims.Clear();
 
         var me = await Api.GetMeAsync();
         if (me.Value is null)
@@ -743,6 +782,8 @@ else
             Message = "Aucun club actif n'est rattache a ton compte. Rejoins ou cree ton club avant de charger les donnees EA joueur.";
             return;
         }
+
+        await LoadAccountManagerClaimsAsync();
 
         PlayerEaProfile = await LoadCurrentUserEaProfileFromDatabaseAsync(ActiveMembership.TeamId.Value);
         if (PlayerEaProfile is null)
@@ -779,6 +820,21 @@ else
         }
 
         EaProfileLoadAttempted = true;
+    }
+
+    private async Task LoadAccountManagerClaimsAsync()
+    {
+        AccountManagerClaims.Clear();
+        if (ActiveMembership?.TeamId is null)
+        {
+            return;
+        }
+
+        var claims = await Api.GetTeamManagerClaimsAsync(ActiveMembership.TeamId.Value);
+        if (claims.Value is not null)
+        {
+            AccountManagerClaims.AddRange(claims.Value);
+        }
     }
 
     private async Task<EaPlayerProfileSnapshotResponse?> LoadCurrentUserEaProfileFromDatabaseAsync(Guid teamId)
