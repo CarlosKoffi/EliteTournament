@@ -10,6 +10,8 @@ public sealed class CPEliteDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+    public DbSet<TeamManagerClaim> TeamManagerClaims => Set<TeamManagerClaim>();
+    public DbSet<TeamManagerClaimVote> TeamManagerClaimVotes => Set<TeamManagerClaimVote>();
     public DbSet<TeamJoinRequest> TeamJoinRequests => Set<TeamJoinRequest>();
     public DbSet<TeamPosition> TeamPositions => Set<TeamPosition>();
     public DbSet<TeamScheduleSlot> TeamScheduleSlots => Set<TeamScheduleSlot>();
@@ -104,6 +106,32 @@ public sealed class CPEliteDbContext : DbContext
         {
             entity.HasKey(member => member.Id);
             entity.HasIndex(member => new { member.TeamId, member.UserId }).IsUnique();
+        });
+
+        modelBuilder.Entity<TeamManagerClaim>(entity =>
+        {
+            entity.HasKey(claim => claim.Id);
+            entity.HasIndex(claim => new { claim.TeamId, claim.ClaimantUserId, claim.Status });
+            entity.HasOne(claim => claim.Team)
+                .WithMany()
+                .HasForeignKey(claim => claim.TeamId);
+            entity.HasOne(claim => claim.ClaimantUser)
+                .WithMany()
+                .HasForeignKey(claim => claim.ClaimantUserId);
+            entity.HasMany(claim => claim.Votes)
+                .WithOne(vote => vote.Claim)
+                .HasForeignKey(vote => vote.ClaimId);
+            entity.Navigation(claim => claim.Votes).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<TeamManagerClaimVote>(entity =>
+        {
+            entity.HasKey(vote => vote.Id);
+            entity.HasIndex(vote => new { vote.ClaimId, vote.VoterUserId }).IsUnique();
+            entity.HasIndex(vote => new { vote.TeamId, vote.VoterUserId });
+            entity.HasOne(vote => vote.VoterUser)
+                .WithMany()
+                .HasForeignKey(vote => vote.VoterUserId);
         });
 
         modelBuilder.Entity<UserTournamentAccess>(entity =>

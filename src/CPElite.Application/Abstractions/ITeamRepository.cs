@@ -14,6 +14,10 @@ public interface ITeamRepository
     Task<TeamMember?> GetActiveMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TeamMember>> GetMembershipsForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TeamMember>> GetTeamMembersAsync(Guid teamId, CancellationToken cancellationToken = default);
+    Task<TeamManagerClaim?> GetManagerClaimAsync(Guid claimId, CancellationToken cancellationToken = default);
+    Task<TeamManagerClaim?> GetPendingManagerClaimAsync(Guid teamId, Guid claimantUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TeamManagerClaim>> GetManagerClaimsAsync(Guid teamId, CancellationToken cancellationToken = default);
+    Task<TeamManagerClaimVote?> GetManagerClaimVoteAsync(Guid claimId, Guid voterUserId, CancellationToken cancellationToken = default);
     Task<TeamJoinRequest?> GetPendingJoinRequestAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default);
     Task<TeamJoinRequest?> GetJoinRequestAsync(Guid requestId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TeamJoinRequest>> GetPendingJoinRequestsAsync(Guid teamId, CancellationToken cancellationToken = default);
@@ -25,6 +29,8 @@ public interface ITeamRepository
     Task<IReadOnlyCollection<TeamPlayerDemand>> GetActivePlayerDemandsAsync(DateTimeOffset startInclusive, DateTimeOffset endExclusive, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task AddAsync(Team team, CancellationToken cancellationToken = default);
     Task AddMemberAsync(TeamMember membership, CancellationToken cancellationToken = default);
+    Task AddManagerClaimAsync(TeamManagerClaim claim, CancellationToken cancellationToken = default);
+    Task AddManagerClaimVoteAsync(TeamManagerClaimVote vote, CancellationToken cancellationToken = default);
     Task AddJoinRequestAsync(TeamJoinRequest joinRequest, CancellationToken cancellationToken = default);
     Task AddPositionAsync(TeamPosition position, CancellationToken cancellationToken = default);
     Task AddScheduleSlotAsync(TeamScheduleSlot slot, CancellationToken cancellationToken = default);

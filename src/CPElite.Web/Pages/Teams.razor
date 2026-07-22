@@ -231,6 +231,63 @@
             </article>
         </div>
 
+        <section class="gm-validation-panel">
+            <div class="panel-heading compact">
+                <div>
+                    <p class="eyebrow">Droits club</p>
+                    <h3>Validation GM</h3>
+                </div>
+                <span class="presence-pill @(CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager ? "confirmed" : "pending")">
+                    @(CurrentMembership?.Role is TeamRole.Owner ? "GM valide" : CurrentMembership?.Role is TeamRole.Manager ? "Co-GM valide" : "Joueur")
+                </span>
+            </div>
+
+            @if (CurrentMembership?.Role is TeamRole.Owner or TeamRole.Manager)
+            {
+                <p class="muted">Tu as les droits club. Tu peux gerer les infos equipe, les images, l'effectif et les inscriptions tournoi.</p>
+            }
+            else
+            {
+                <p class="muted">Si tu es le GM reel du club, fais une demande. Quatre membres du club devront confirmer avant que les droits soient actives.</p>
+                <button type="button" class="primary-action" @onclick="RequestManagerClaimAsync" disabled="@Busy">Je suis GM de ce club</button>
+            }
+
+            @if (ManagerClaims.Count == 0)
+            {
+                <div class="empty-state compact">
+                    <strong>Aucune demande GM en attente</strong>
+                    <p>Les demandes apparaitront ici pour etre validees par les membres du club.</p>
+                </div>
+            }
+            else
+            {
+                <div class="gm-claim-list">
+                    @foreach (var claim in ManagerClaims)
+                    {
+                        <article class="gm-claim-card">
+                            <div>
+                                <span class="result-kind">Demande GM</span>
+                                <h4>@claim.ClaimantDisplayName</h4>
+                                <p>@(claim.ClaimantGamertag ?? "Gamertag non renseigne") - veut devenir @(claim.RequestedRole == TeamRole.Owner ? "GM" : "Co-GM").</p>
+                            </div>
+                            <div class="gm-claim-progress">
+                                <strong>@claim.ApprovalCount / @claim.ApprovalThreshold</strong>
+                                <span>validations</span>
+                            </div>
+                            @if (claim.CanCurrentUserApprove)
+                            {
+                                <button type="button" class="primary-action compact-action" @onclick="() => ApproveManagerClaimAsync(claim)" disabled="@Busy">Valider ce GM</button>
+                            }
+                            else
+                            {
+                                <span class="presence-pill @(claim.CurrentUserHasApproved ? "confirmed" : "pending")">@(claim.CurrentUserHasApproved ? "Tu as valide" : claim.Status.ToString())</span>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
         @if (EaProfiles.Count > 0)
         {
             <h3>Effectif actif complet (@EaProfiles.Count)</h3>
@@ -499,6 +556,7 @@
     private EaMemberStatsSummaryResponse? EaMembers;
     private List<EaPlayerProfileSnapshotResponse> EaProfiles { get; } = new();
     private List<EaFriendlyMatchResponse> EaFriendlies { get; } = new();
+    private List<TeamManagerClaimResponse> ManagerClaims { get; } = new();
     private Dictionary<string, EaFriendlyMatchDetailsResponse> DemoFriendlyDetails { get; } = new();
     private EaFriendlyMatchDetailsResponse? SelectedFriendlyDetails;
     private TeamMemberResponse? SelectedPlayer;
@@ -851,6 +909,8 @@
             ApplyTeamProfile(profile.Value);
         }
 
+        await LoadManagerClaimsAsync();
+
         await LoadStoredEaDataAsync();
         if (!HasStoredEaData)
         {
@@ -862,6 +922,67 @@
         Message = HasStoredEaData
             ? $"Equipe chargee depuis la base: {TeamMembers.Count} membre(s) app, {EaProfiles.Count} profil(s) EA, {EaFriendlies.Count} amical(aux)."
             : $"Equipe chargee: {TeamMembers.Count} membre(s) app. Aucune donnee EA stockee pour le moment.";
+    }
+
+    private async Task LoadManagerClaimsAsync()
+    {
+        ManagerClaims.Clear();
+        if (!SelectedTeamId.HasValue || DemoMode)
+        {
+            return;
+        }
+
+        var claims = await Api.GetTeamManagerClaimsAsync(SelectedTeamId.Value);
+        if (claims.Value is not null)
+        {
+            ManagerClaims.AddRange(claims.Value);
+        }
+    }
+
+    private async Task RequestManagerClaimAsync()
+    {
+        if (!SelectedTeamId.HasValue || DemoMode)
+        {
+            Message = "Selectionne d'abord ton club en base pour demander les droits GM.";
+            return;
+        }
+
+        Busy = true;
+        var result = await Api.RequestTeamManagerClaimAsync(SelectedTeamId.Value);
+        Busy = false;
+
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        await LoadManagerClaimsAsync();
+        Message = "Demande GM creee. Quatre membres du club doivent maintenant la valider.";
+    }
+
+    private async Task ApproveManagerClaimAsync(TeamManagerClaimResponse claim)
+    {
+        if (!SelectedTeamId.HasValue || DemoMode)
+        {
+            return;
+        }
+
+        Busy = true;
+        var result = await Api.ApproveTeamManagerClaimAsync(SelectedTeamId.Value, claim.Id);
+        Busy = false;
+
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        await LoadManagerClaimsAsync();
+        await LoadMeAsync();
+        Message = result.Value.Status == TeamManagerClaimStatus.Approved
+            ? $"{result.Value.ClaimantDisplayName} est maintenant GM valide du club."
+            : $"Validation ajoutee pour {result.Value.ClaimantDisplayName}: {result.Value.ApprovalCount}/{result.Value.ApprovalThreshold}.";
     }
 
     private bool HasStoredEaData => ClubSnapshot is not null || EaMembers is not null || EaProfiles.Count > 0 || EaFriendlies.Count > 0;

@@ -124,6 +124,10 @@ public sealed class AuthServiceTests
         public Task<TeamMember?> GetActiveMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<TeamMember?>(null);
         public Task<IReadOnlyCollection<TeamMember>> GetMembershipsForUserAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<TeamMember>>(Array.Empty<TeamMember>());
         public Task<IReadOnlyCollection<TeamMember>> GetTeamMembersAsync(Guid teamId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<TeamMember>>(Array.Empty<TeamMember>());
+        public Task<TeamManagerClaim?> GetManagerClaimAsync(Guid claimId, CancellationToken cancellationToken = default) => Task.FromResult<TeamManagerClaim?>(null);
+        public Task<TeamManagerClaim?> GetPendingManagerClaimAsync(Guid teamId, Guid claimantUserId, CancellationToken cancellationToken = default) => Task.FromResult<TeamManagerClaim?>(null);
+        public Task<IReadOnlyCollection<TeamManagerClaim>> GetManagerClaimsAsync(Guid teamId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<TeamManagerClaim>>(Array.Empty<TeamManagerClaim>());
+        public Task<TeamManagerClaimVote?> GetManagerClaimVoteAsync(Guid claimId, Guid voterUserId, CancellationToken cancellationToken = default) => Task.FromResult<TeamManagerClaimVote?>(null);
         public Task<TeamJoinRequest?> GetPendingJoinRequestAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default) => Task.FromResult<TeamJoinRequest?>(null);
         public Task<TeamJoinRequest?> GetJoinRequestAsync(Guid requestId, CancellationToken cancellationToken = default) => Task.FromResult<TeamJoinRequest?>(null);
         public Task<IReadOnlyCollection<TeamJoinRequest>> GetPendingJoinRequestsAsync(Guid teamId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<TeamJoinRequest>>(Array.Empty<TeamJoinRequest>());
@@ -145,6 +149,8 @@ public sealed class AuthServiceTests
             return Task.CompletedTask;
         }
         public Task AddJoinRequestAsync(TeamJoinRequest joinRequest, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task AddManagerClaimAsync(TeamManagerClaim claim, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task AddManagerClaimVoteAsync(TeamManagerClaimVote vote, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task AddPositionAsync(TeamPosition position, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task AddScheduleSlotAsync(TeamScheduleSlot slot, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task AddPlayerDemandAsync(TeamPlayerDemand demand, CancellationToken cancellationToken = default) => Task.CompletedTask;

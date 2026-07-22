@@ -27,7 +27,7 @@
                 <strong>Dans 7 jours</strong>
                 <span>Il reste 14 places</span>
             </div>
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
         </article>
 
         <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
@@ -43,7 +43,7 @@
                 <strong>Dans 5 jours</strong>
                 <span>Il reste 21 places</span>
             </div>
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")</a>
         </article>
     </section>
 }
@@ -68,7 +68,7 @@ else if (PublishedTournaments.Count > 0)
                     <strong>@BuildCountdownLabel(tournament.StartsAt)</strong>
                     <span>Il reste des places</span>
                 </div>
-                <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "#owner-submit" : "account")">
+                <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">
                     @(AuthState.IsAuthenticated ? "Preparer mon equipe" : "Creer ton compte et ramener ton equipe")
                 </a>
             </article>

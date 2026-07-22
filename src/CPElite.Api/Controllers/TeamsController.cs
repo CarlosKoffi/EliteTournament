@@ -105,6 +105,24 @@ public sealed class TeamsController : ApiControllerBase
         return ToActionResult(await _teamService.GetMembersAsync(teamId, cancellationToken));
     }
 
+    [HttpPost("{teamId:guid}/manager-claims")]
+    public async Task<IActionResult> RequestManagerClaim(Guid teamId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _teamService.RequestManagerClaimAsync(CurrentUserId, teamId, cancellationToken));
+    }
+
+    [HttpGet("{teamId:guid}/manager-claims")]
+    public async Task<IActionResult> GetManagerClaims(Guid teamId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _teamService.GetManagerClaimsAsync(CurrentUserId, teamId, cancellationToken));
+    }
+
+    [HttpPost("{teamId:guid}/manager-claims/{claimId:guid}/approve")]
+    public async Task<IActionResult> ApproveManagerClaim(Guid teamId, Guid claimId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _teamService.ApproveManagerClaimAsync(CurrentUserId, teamId, claimId, cancellationToken));
+    }
+
     [HttpPatch("{teamId:guid}/members/{userId:guid}/role")]
     public async Task<IActionResult> ChangeRole(Guid teamId, Guid userId, ChangeTeamMemberRoleRequest request, CancellationToken cancellationToken)
     {

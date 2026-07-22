@@ -85,6 +85,38 @@ public sealed class TeamRepository : ITeamRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<TeamManagerClaim?> GetManagerClaimAsync(Guid claimId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TeamManagerClaims
+            .Include(claim => claim.ClaimantUser)
+            .Include(claim => claim.Votes)
+            .FirstOrDefaultAsync(claim => claim.Id == claimId, cancellationToken);
+    }
+
+    public async Task<TeamManagerClaim?> GetPendingManagerClaimAsync(Guid teamId, Guid claimantUserId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TeamManagerClaims
+            .Include(claim => claim.ClaimantUser)
+            .Include(claim => claim.Votes)
+            .FirstOrDefaultAsync(claim => claim.TeamId == teamId && claim.ClaimantUserId == claimantUserId && claim.Status == Domain.Enums.TeamManagerClaimStatus.Pending, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<TeamManagerClaim>> GetManagerClaimsAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TeamManagerClaims
+            .Include(claim => claim.ClaimantUser)
+            .Include(claim => claim.Votes)
+            .Where(claim => claim.TeamId == teamId && claim.Status == Domain.Enums.TeamManagerClaimStatus.Pending)
+            .OrderBy(claim => claim.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<TeamManagerClaimVote?> GetManagerClaimVoteAsync(Guid claimId, Guid voterUserId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TeamManagerClaimVotes
+            .FirstOrDefaultAsync(vote => vote.ClaimId == claimId && vote.VoterUserId == voterUserId, cancellationToken);
+    }
+
     public async Task<TeamJoinRequest?> GetPendingJoinRequestAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.TeamJoinRequests
@@ -161,6 +193,16 @@ public sealed class TeamRepository : ITeamRepository
     public async Task AddMemberAsync(TeamMember membership, CancellationToken cancellationToken = default)
     {
         await _dbContext.TeamMembers.AddAsync(membership, cancellationToken);
+    }
+
+    public async Task AddManagerClaimAsync(TeamManagerClaim claim, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.TeamManagerClaims.AddAsync(claim, cancellationToken);
+    }
+
+    public async Task AddManagerClaimVoteAsync(TeamManagerClaimVote vote, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.TeamManagerClaimVotes.AddAsync(vote, cancellationToken);
     }
 
     public async Task AddJoinRequestAsync(TeamJoinRequest joinRequest, CancellationToken cancellationToken = default)

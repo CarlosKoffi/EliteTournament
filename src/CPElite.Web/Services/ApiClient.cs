@@ -70,6 +70,15 @@ public sealed class ApiClient
     public Task<ApiResult<IReadOnlyCollection<TeamMemberResponse>>> GetTeamMembersAsync(Guid teamId) =>
         SendAsync<IReadOnlyCollection<TeamMemberResponse>>(HttpMethod.Get, $"api/teams/{teamId}/members");
 
+    public Task<ApiResult<IReadOnlyCollection<TeamManagerClaimResponse>>> GetTeamManagerClaimsAsync(Guid teamId) =>
+        SendAsync<IReadOnlyCollection<TeamManagerClaimResponse>>(HttpMethod.Get, $"api/teams/{teamId}/manager-claims");
+
+    public Task<ApiResult<TeamManagerClaimResponse>> RequestTeamManagerClaimAsync(Guid teamId) =>
+        SendAsync<TeamManagerClaimResponse>(HttpMethod.Post, $"api/teams/{teamId}/manager-claims");
+
+    public Task<ApiResult<TeamManagerClaimResponse>> ApproveTeamManagerClaimAsync(Guid teamId, Guid claimId) =>
+        SendAsync<TeamManagerClaimResponse>(HttpMethod.Post, $"api/teams/{teamId}/manager-claims/{claimId}/approve");
+
     public async Task<ApiResult<TeamAssetUploadResponse>> UploadTeamAssetAsync(Stream stream, string fileName, string contentType)
     {
         return await UploadImageAsync("api/team-assets/upload", stream, fileName, contentType);

@@ -34,7 +34,7 @@ public sealed class TeamMember
 
     public bool CanManageRoles()
     {
-        return IsActive && Role == TeamRole.Owner;
+        return IsActive && Role is TeamRole.Owner or TeamRole.Manager;
     }
 
     public bool CanManageTeamAccess()

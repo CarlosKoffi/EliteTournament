@@ -7124,3 +7124,102 @@ body {
 .account-ea-card-v2 .player-rating {
     color: #050505 !important;
 }
+
+.gm-validation-panel {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+    padding: 18px;
+    background: #050505;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-left: 6px solid var(--app-pitch);
+}
+
+.gm-validation-panel .panel-heading,
+.gm-validation-panel h3,
+.gm-validation-panel h4,
+.gm-validation-panel p,
+.gm-validation-panel strong,
+.gm-validation-panel span {
+    color: inherit;
+}
+
+.gm-validation-panel .eyebrow {
+    color: var(--app-pitch) !important;
+}
+
+.gm-validation-panel .muted {
+    color: rgba(255, 255, 255, .78);
+}
+
+.gm-validation-panel .empty-state {
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .14);
+}
+
+.gm-validation-panel .empty-state strong,
+.gm-validation-panel .empty-state p {
+    color: #050505;
+}
+
+.gm-claim-list {
+    display: grid;
+    gap: 10px;
+}
+
+.gm-claim-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .14);
+}
+
+.gm-claim-card h4,
+.gm-claim-card p,
+.gm-claim-card strong,
+.gm-claim-card span:not(.presence-pill):not(.result-kind) {
+    color: #050505;
+}
+
+.gm-claim-card p {
+    margin: 4px 0 0;
+    color: #4b5563;
+    font-weight: 800;
+}
+
+.gm-claim-progress {
+    min-width: 84px;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 10px;
+    background: #f4f4f1;
+    border: 1px solid rgba(5, 5, 5, .12);
+}
+
+.gm-claim-progress strong {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.compact-action {
+    min-height: 44px;
+    padding: 10px 14px;
+}
+
+@media (max-width: 760px) {
+    .gm-claim-card {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .gm-claim-progress {
+        justify-items: start;
+    }
+}

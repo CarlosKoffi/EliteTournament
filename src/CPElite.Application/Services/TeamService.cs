@@ -9,6 +9,7 @@ namespace CPElite.Application.Services;
 
 public sealed class TeamService
 {
+    private const int ManagerClaimApprovalThreshold = 4;
     private readonly IUserRepository _users;
     private readonly ITeamRepository _teams;
     private readonly AccessService _accessService;
@@ -163,7 +164,7 @@ public sealed class TeamService
         var actor = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
         if (actor is null || !actor.CanManageRoles())
         {
-            return Result<TeamMemberResponse>.Failure(ErrorType.Forbidden, "team.role_forbidden", "Only team owners can change member roles.");
+            return Result<TeamMemberResponse>.Failure(ErrorType.Forbidden, "team.role_forbidden", "Only team owners and managers can change member roles.");
         }
 
         var target = await _teams.GetMembershipAsync(teamId, targetUserId, cancellationToken);
@@ -193,7 +194,7 @@ public sealed class TeamService
         var actor = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
         if (actor is null || !actor.CanManageRoles())
         {
-            return Result<TeamMemberResponse>.Failure(ErrorType.Forbidden, "team.remove_forbidden", "Only team owners can remove a member.");
+            return Result<TeamMemberResponse>.Failure(ErrorType.Forbidden, "team.remove_forbidden", "Only team owners and managers can remove a member.");
         }
 
         var target = await _teams.GetMembershipAsync(teamId, targetUserId, cancellationToken);
@@ -216,6 +217,90 @@ public sealed class TeamService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result<TeamMemberResponse>.Success(Mapping.ToMemberResponse(target));
+    }
+
+    public async Task<Result<TeamManagerClaimResponse>> RequestManagerClaimAsync(Guid actorUserId, Guid teamId, CancellationToken cancellationToken = default)
+    {
+        var membership = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
+        if (membership is null || !membership.IsActive)
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.Forbidden, "team.manager_claim_membership_required", "Tu dois deja appartenir a ce club pour demander les droits GM.");
+        }
+
+        if (membership.CanManageTeamAccess())
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.Conflict, "team.manager_claim_already_manager", "Tu as deja les droits GM ou co-GM sur ce club.");
+        }
+
+        var existing = await _teams.GetPendingManagerClaimAsync(teamId, actorUserId, cancellationToken);
+        if (existing is not null)
+        {
+            return Result<TeamManagerClaimResponse>.Success(ToManagerClaimResponse(existing, actorUserId, membership));
+        }
+
+        var claim = new TeamManagerClaim(Guid.NewGuid(), teamId, actorUserId, DomainTeamRole.Owner, ManagerClaimApprovalThreshold, _clock.UtcNow);
+        await _teams.AddManagerClaimAsync(claim, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var saved = await _teams.GetManagerClaimAsync(claim.Id, cancellationToken);
+        return Result<TeamManagerClaimResponse>.Success(ToManagerClaimResponse(saved!, actorUserId, membership));
+    }
+
+    public async Task<Result<IReadOnlyCollection<TeamManagerClaimResponse>>> GetManagerClaimsAsync(Guid actorUserId, Guid teamId, CancellationToken cancellationToken = default)
+    {
+        var actor = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
+        if (actor is null || !actor.IsActive)
+        {
+            return Result<IReadOnlyCollection<TeamManagerClaimResponse>>.Failure(ErrorType.Forbidden, "team.manager_claims_forbidden", "Seuls les membres du club peuvent voir les demandes GM.");
+        }
+
+        var claims = await _teams.GetManagerClaimsAsync(teamId, cancellationToken);
+        return Result<IReadOnlyCollection<TeamManagerClaimResponse>>.Success(claims.Select(claim => ToManagerClaimResponse(claim, actorUserId, actor)).ToArray());
+    }
+
+    public async Task<Result<TeamManagerClaimResponse>> ApproveManagerClaimAsync(Guid actorUserId, Guid teamId, Guid claimId, CancellationToken cancellationToken = default)
+    {
+        var actor = await _teams.GetMembershipAsync(teamId, actorUserId, cancellationToken);
+        if (actor is null || !actor.IsActive)
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.Forbidden, "team.manager_claim_vote_membership_required", "Tu dois etre membre actif du club pour valider un GM.");
+        }
+
+        var claim = await _teams.GetManagerClaimAsync(claimId, cancellationToken);
+        if (claim is null || claim.TeamId != teamId || claim.Status != Domain.Enums.TeamManagerClaimStatus.Pending)
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.NotFound, "team.manager_claim_not_found", "Demande GM introuvable ou deja traitee.");
+        }
+
+        if (claim.ClaimantUserId == actorUserId)
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.Validation, "team.manager_claim_self_vote", "Tu ne peux pas valider ta propre demande GM.");
+        }
+
+        if (await _teams.GetManagerClaimVoteAsync(claimId, actorUserId, cancellationToken) is not null)
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.Conflict, "team.manager_claim_already_voted", "Tu as deja valide cette demande GM.");
+        }
+
+        var vote = new TeamManagerClaimVote(Guid.NewGuid(), claim.Id, teamId, actorUserId, _clock.UtcNow);
+        await _teams.AddManagerClaimVoteAsync(vote, cancellationToken);
+
+        var claimantMembership = await _teams.GetMembershipAsync(teamId, claim.ClaimantUserId, cancellationToken);
+        if (claimantMembership is null || !claimantMembership.IsActive)
+        {
+            return Result<TeamManagerClaimResponse>.Failure(ErrorType.Conflict, "team.manager_claim_claimant_not_member", "Le joueur demandeur n'est plus membre actif du club.");
+        }
+
+        if (claim.Votes.Count + 1 >= claim.ApprovalThreshold)
+        {
+            claim.Approve(_clock.UtcNow);
+            claimantMembership.ChangeRole(claim.RequestedRole);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var saved = await _teams.GetManagerClaimAsync(claim.Id, cancellationToken);
+        return Result<TeamManagerClaimResponse>.Success(ToManagerClaimResponse(saved!, actorUserId, actor));
     }
 
     public async Task<Result<TeamResponse>> UpdateProfileAsync(Guid actorUserId, Guid teamId, UpdateTeamProfileRequest request, CancellationToken cancellationToken = default)
@@ -586,6 +671,31 @@ public sealed class TeamService
     {
         var user = joinRequest.User ?? throw new InvalidOperationException("Join request user was not loaded.");
         return new TeamJoinRequestResponse(joinRequest.Id, joinRequest.TeamId, joinRequest.UserId, user.DisplayName, user.Gamertag, joinRequest.Message, (JoinRequestStatus)(int)joinRequest.Status, joinRequest.CreatedAt);
+    }
+
+    private static TeamManagerClaimResponse ToManagerClaimResponse(TeamManagerClaim claim, Guid currentUserId, TeamMember currentMembership)
+    {
+        var user = claim.ClaimantUser ?? throw new InvalidOperationException("Manager claim user was not loaded.");
+        var currentUserHasApproved = claim.Votes.Any(vote => vote.VoterUserId == currentUserId);
+        var canApprove = claim.Status == Domain.Enums.TeamManagerClaimStatus.Pending
+            && currentMembership.IsActive
+            && claim.ClaimantUserId != currentUserId
+            && !currentUserHasApproved;
+
+        return new TeamManagerClaimResponse(
+            claim.Id,
+            claim.TeamId,
+            claim.ClaimantUserId,
+            user.DisplayName,
+            user.Gamertag,
+            (TeamRole)(int)claim.RequestedRole,
+            (TeamManagerClaimStatus)(int)claim.Status,
+            claim.Votes.Count,
+            claim.ApprovalThreshold,
+            currentUserHasApproved,
+            canApprove,
+            claim.CreatedAt,
+            claim.ResolvedAt);
     }
 
     private static TeamPositionResponse ToPositionResponse(TeamPosition position)
