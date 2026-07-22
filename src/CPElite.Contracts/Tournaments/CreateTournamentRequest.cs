@@ -20,4 +20,7 @@ public sealed record CreateTournamentRequest(
     bool IsCashPrize = false,
     DateTimeOffset? RegistrationStartsAt = null,
     DateTimeOffset? RegistrationEndsAt = null,
-    string? BannerUrl = null);
+    string? BannerUrl = null,
+    TournamentScoreRecoveryMode ScoreRecoveryMode = TournamentScoreRecoveryMode.ManualOnly,
+    int ScoreRecoveryIntervalMinutes = 2,
+    bool AutoPublishPerfectScore = false);

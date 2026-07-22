@@ -54,6 +54,20 @@ public sealed class EaSyncRepository : IEaSyncRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<EaFriendlyMatch>> GetFriendlyMatchesForLookupAsync(Guid teamId, DateTimeOffset from, DateTimeOffset until, long homeEaClubId, long awayEaClubId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.EaFriendlyMatches
+            .Include(match => match.PlayerStats)
+            .Include(match => match.ClubStats)
+            .Where(match => match.TeamId == teamId
+                && match.PlayedAt >= from
+                && match.PlayedAt <= until
+                && ((match.HomeEaClubId == homeEaClubId && match.AwayEaClubId == awayEaClubId)
+                    || (match.HomeEaClubId == awayEaClubId && match.AwayEaClubId == homeEaClubId)))
+            .OrderByDescending(match => match.PlayedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<EaFriendlyMatch?> GetFriendlyMatchAsync(Guid teamId, string eaMatchId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.EaFriendlyMatches

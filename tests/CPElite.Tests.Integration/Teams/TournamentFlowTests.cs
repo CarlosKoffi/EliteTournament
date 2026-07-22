@@ -78,6 +78,52 @@ public sealed class TournamentFlowTests : IClassFixture<ApiTestFactory>
     }
 
     [Fact]
+    public async Task Tournament_score_recovery_configuration_is_saved_and_audits_are_exposed()
+    {
+        var owner = await _client.RegisterPlayerAsync($"owner-{Guid.NewGuid():N}@test.com");
+        _client.AuthorizeAs(owner);
+        var home = await _client.CreateTeamAsync($"Audit Home {Guid.NewGuid():N}");
+        var away = await _client.CreateTeamAsync($"Audit Away {Guid.NewGuid():N}");
+
+        var tournamentResponse = await _client.PostAsJsonAsync("/api/tournaments/official", new CreateTournamentRequest(
+            "Audit Cup",
+            TournamentType.Goodies,
+            DateTimeOffset.UtcNow.AddDays(1),
+            "Europe/Zurich",
+            32,
+            50m,
+            "EUR",
+            "Goodies",
+            24,
+            ScoreRecoveryMode: TournamentScoreRecoveryMode.AutomaticEveryInterval,
+            ScoreRecoveryIntervalMinutes: 3,
+            AutoPublishPerfectScore: true), JsonOptions);
+        tournamentResponse.EnsureSuccessStatusCode();
+        var tournament = (await tournamentResponse.Content.ReadFromJsonAsync<TournamentResponse>(JsonOptions))!;
+
+        Assert.Equal(TournamentScoreRecoveryMode.AutomaticEveryInterval, tournament.ScoreRecoveryMode);
+        Assert.Equal(3, tournament.ScoreRecoveryIntervalMinutes);
+        Assert.True(tournament.AutoPublishPerfectScore);
+
+        var matchResponse = await _client.PostAsJsonAsync($"/api/tournaments/{tournament.Id}/matches", new CreateTournamentMatchRequest(home.Id, away.Id, 1, DateTimeOffset.UtcNow.AddHours(2)), JsonOptions);
+        matchResponse.EnsureSuccessStatusCode();
+
+        var recoverResponse = await _client.PostAsync($"/api/tournaments/{tournament.Id}/scores/recover", null);
+        recoverResponse.EnsureSuccessStatusCode();
+        var recoveries = (await recoverResponse.Content.ReadFromJsonAsync<IReadOnlyCollection<EaMatchVerificationResponse>>(JsonOptions))!;
+        Assert.Single(recoveries);
+
+        var auditsResponse = await _client.GetAsync($"/api/tournaments/{tournament.Id}/scores/audits");
+        auditsResponse.EnsureSuccessStatusCode();
+        var audits = (await auditsResponse.Content.ReadFromJsonAsync<IReadOnlyCollection<TournamentScoreAuditResponse>>(JsonOptions))!;
+        var audit = Assert.Single(audits);
+
+        Assert.Equal(ScoreReconciliationStatus.NoCandidateFound, audit.Status);
+        Assert.False(audit.TeamsMatched);
+        Assert.Equal("manual-admin", audit.Trigger);
+    }
+
+    [Fact]
     public async Task Discord_bot_can_register_team_read_board_and_publish_moments()
     {
         var owner = await _client.RegisterPlayerAsync($"owner-{Guid.NewGuid():N}@test.com");

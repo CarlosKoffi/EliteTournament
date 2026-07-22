@@ -137,6 +137,12 @@ public sealed class ApiClient
     public Task<ApiResult<TournamentDrawResponse>> LaunchWorldCupTournamentAsync(Guid tournamentId, LaunchWorldCupTournamentRequest request) =>
         SendAsync<TournamentDrawResponse>(HttpMethod.Post, $"api/tournaments/{tournamentId}/launch-world-cup", request);
 
+    public Task<ApiResult<IReadOnlyCollection<EaMatchVerificationResponse>>> RecoverTournamentScoresAsync(Guid tournamentId) =>
+        SendAsync<IReadOnlyCollection<EaMatchVerificationResponse>>(HttpMethod.Post, $"api/tournaments/{tournamentId}/scores/recover");
+
+    public Task<ApiResult<IReadOnlyCollection<TournamentScoreAuditResponse>>> GetTournamentScoreAuditsAsync(Guid tournamentId) =>
+        SendAsync<IReadOnlyCollection<TournamentScoreAuditResponse>>(HttpMethod.Get, $"api/tournaments/{tournamentId}/scores/audits");
+
     public Task<ApiResult<IReadOnlyCollection<TournamentParticipantResponse>>> GetTournamentParticipantsAsync(Guid tournamentId, Guid teamId) =>
         SendAsync<IReadOnlyCollection<TournamentParticipantResponse>>(HttpMethod.Get, $"api/tournaments/{tournamentId}/teams/{teamId}/participants");
 

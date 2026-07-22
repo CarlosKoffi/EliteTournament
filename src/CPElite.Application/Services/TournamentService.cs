@@ -3,9 +3,12 @@ using CPElite.Application.Abstractions;
 using CPElite.Contracts.Tournaments;
 using CPElite.Domain.Entities;
 using DomainPaymentMode = CPElite.Domain.Enums.TournamentPaymentMode;
+using DomainReconciliationStatus = CPElite.Domain.Enums.ScoreReconciliationStatus;
 using DomainScoreSource = CPElite.Domain.Enums.ScoreVerificationSource;
 using DomainTournamentType = CPElite.Domain.Enums.TournamentType;
+using DomainScoreRecoveryMode = CPElite.Domain.Enums.TournamentScoreRecoveryMode;
 using ContractMatchStatus = CPElite.Contracts.Common.TournamentMatchStatus;
+using ContractReconciliationStatus = CPElite.Contracts.Common.ScoreReconciliationStatus;
 using ContractPaymentMode = CPElite.Contracts.Common.TournamentPaymentMode;
 using ContractRegistrationOutcome = CPElite.Contracts.Common.DiscordTournamentRegistrationOutcome;
 using ContractRegistrationStatus = CPElite.Contracts.Common.TournamentRegistrationStatus;
@@ -22,14 +25,16 @@ public sealed class TournamentService
     private readonly ITournamentRepository _tournaments;
     private readonly ITeamRepository _teams;
     private readonly IEaSyncRepository _eaSnapshots;
+    private readonly ITournamentParticipationRepository _participants;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
 
-    public TournamentService(ITournamentRepository tournaments, ITeamRepository teams, IEaSyncRepository eaSnapshots, IClock clock, IUnitOfWork unitOfWork)
+    public TournamentService(ITournamentRepository tournaments, ITeamRepository teams, IEaSyncRepository eaSnapshots, ITournamentParticipationRepository participants, IClock clock, IUnitOfWork unitOfWork)
     {
         _tournaments = tournaments;
         _teams = teams;
         _eaSnapshots = eaSnapshots;
+        _participants = participants;
         _clock = clock;
         _unitOfWork = unitOfWork;
     }
@@ -93,7 +98,10 @@ public sealed class TournamentService
             request.Type == ContractTournamentType.Goodies,
             registrationStartsAt,
             registrationEndsAt,
-            NormalizeOptional(request.BannerUrl));
+            NormalizeOptional(request.BannerUrl),
+            (DomainScoreRecoveryMode)(int)request.ScoreRecoveryMode,
+            Math.Clamp(request.ScoreRecoveryIntervalMinutes, 1, 60),
+            request.AutoPublishPerfectScore);
 
         tournament.OpenRegistration();
         await _tournaments.AddTournamentAsync(tournament, cancellationToken);
@@ -618,6 +626,11 @@ public sealed class TournamentService
 
     public async Task<Result<EaMatchVerificationResponse>> VerifyMatchWithEaAsync(Guid matchId, CancellationToken cancellationToken = default)
     {
+        return await VerifyMatchWithEaAsync(matchId, "manual-admin", cancellationToken);
+    }
+
+    public async Task<Result<EaMatchVerificationResponse>> VerifyMatchWithEaAsync(Guid matchId, string trigger, CancellationToken cancellationToken = default)
+    {
         var match = await _tournaments.GetMatchAsync(matchId, cancellationToken);
         if (match is null)
         {
@@ -631,6 +644,7 @@ public sealed class TournamentService
         if (homeTeam?.EaClubId is null || awayTeam?.EaClubId is null)
         {
             match.RequireOwnerConfirmation();
+            await _tournaments.AddScoreAuditAsync(await BuildScoreAuditAsync(match, null, trigger, cancellationToken), cancellationToken);
             await _tournaments.AddMomentAsync(new TournamentMoment(Guid.NewGuid(), match.TournamentId, match.Id, null, null, null, DomainMomentType.ProofRequested, "EA club link missing", "EA validation needs both teams to have an EA club ID linked. Club owners should confirm score and proofs manually.", null, _clock.UtcNow), cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -638,7 +652,11 @@ public sealed class TournamentService
         }
 
         var tournament = await _tournaments.GetTournamentAsync(match.TournamentId, cancellationToken);
-        var candidate = await FindEaMatchCandidateAsync(match, homeTeam.EaClubId.Value, awayTeam.EaClubId.Value, tournament?.PlayerRestrictionsJson, cancellationToken);
+        var candidate = await FindStoredFriendlyCandidateAsync(match, tournament, homeTeam.EaClubId.Value, awayTeam.EaClubId.Value, cancellationToken)
+            ?? await FindEaMatchCandidateAsync(match, homeTeam.EaClubId.Value, awayTeam.EaClubId.Value, tournament?.PlayerRestrictionsJson, cancellationToken);
+        var audit = await BuildScoreAuditAsync(match, candidate, trigger, cancellationToken);
+        await _tournaments.AddScoreAuditAsync(audit, cancellationToken);
+
         if (candidate is null || candidate.Confidence < 80)
         {
             match.RequireOwnerConfirmation();
@@ -649,7 +667,15 @@ public sealed class TournamentService
         }
 
         var winnerTeamId = ResolveWinner(match, candidate.HomeScore, candidate.AwayScore);
-        match.CaptureEaCandidateScore(candidate.HomeScore, candidate.AwayScore, winnerTeamId, candidate.PayloadJson, _clock.UtcNow);
+        if (audit.Status == DomainReconciliationStatus.PerfectMatch && tournament?.AutoPublishPerfectScore == true)
+        {
+            match.ApplyVerifiedScore(candidate.HomeScore, candidate.AwayScore, winnerTeamId, DomainScoreSource.EaApi, candidate.PayloadJson, _clock.UtcNow);
+        }
+        else
+        {
+            match.CaptureEaCandidateScore(candidate.HomeScore, candidate.AwayScore, winnerTeamId, candidate.PayloadJson, _clock.UtcNow);
+        }
+
         if (!string.IsNullOrWhiteSpace(candidate.EaMatchId))
         {
             await _eaSnapshots.LinkFriendlyMatchToTournamentMatchAsync(candidate.EaMatchId, match.Id, cancellationToken);
@@ -661,6 +687,40 @@ public sealed class TournamentService
         return Result<EaMatchVerificationResponse>.Success(new EaMatchVerificationResponse(match.Id, ContractMatchStatus.OwnerConfirmationRequired, false, "EA found a likely match candidate. Club owners must validate it before publication.", candidate.Confidence, candidate.HomeScore, candidate.AwayScore, true, candidate.Evidence));
     }
 
+    public async Task<Result<IReadOnlyCollection<EaMatchVerificationResponse>>> VerifyTournamentScoresAsync(Guid tournamentId, string trigger = "manual-admin", CancellationToken cancellationToken = default)
+    {
+        var tournament = await _tournaments.GetTournamentAsync(tournamentId, cancellationToken);
+        if (tournament is null)
+        {
+            return Result<IReadOnlyCollection<EaMatchVerificationResponse>>.Failure(ErrorType.NotFound, "tournament.not_found", "Tournament was not found.");
+        }
+
+        var matches = await _tournaments.GetMatchesAsync(tournamentId, cancellationToken);
+        var responses = new List<EaMatchVerificationResponse>();
+        foreach (var match in matches.Where(match => match.Status is Domain.Enums.TournamentMatchStatus.Scheduled or Domain.Enums.TournamentMatchStatus.WaitingForEaData or Domain.Enums.TournamentMatchStatus.OwnerConfirmationRequired or Domain.Enums.TournamentMatchStatus.ScoreSubmitted))
+        {
+            var result = await VerifyMatchWithEaAsync(match.Id, trigger, cancellationToken);
+            if (result.Value is not null)
+            {
+                responses.Add(result.Value);
+            }
+        }
+
+        return Result<IReadOnlyCollection<EaMatchVerificationResponse>>.Success(responses);
+    }
+
+    public async Task<Result<IReadOnlyCollection<TournamentScoreAuditResponse>>> GetScoreAuditsAsync(Guid tournamentId, CancellationToken cancellationToken = default)
+    {
+        var tournament = await _tournaments.GetTournamentAsync(tournamentId, cancellationToken);
+        if (tournament is null)
+        {
+            return Result<IReadOnlyCollection<TournamentScoreAuditResponse>>.Failure(ErrorType.NotFound, "tournament.not_found", "Tournament was not found.");
+        }
+
+        var audits = await _tournaments.GetScoreAuditsAsync(tournamentId, 150, cancellationToken);
+        return Result<IReadOnlyCollection<TournamentScoreAuditResponse>>.Success(audits.Select(ToScoreAuditResponse).ToArray());
+    }
+
     public async Task<int> VerifyDueEaMatchesAsync(int take = 25, CancellationToken cancellationToken = default)
     {
         var dueMatches = await _tournaments.GetEaVerificationDueMatchesAsync(_clock.UtcNow, Math.Clamp(take, 1, 100), cancellationToken);
@@ -668,11 +728,239 @@ public sealed class TournamentService
 
         foreach (var match in dueMatches)
         {
-            await VerifyMatchWithEaAsync(match.Id, cancellationToken);
+            await VerifyMatchWithEaAsync(match.Id, "automatic-cron", cancellationToken);
             checkedCount++;
         }
 
         return checkedCount;
+    }
+
+    private async Task<EaMatchCandidate?> FindStoredFriendlyCandidateAsync(TournamentMatch match, Tournament? tournament, long homeEaClubId, long awayEaClubId, CancellationToken cancellationToken)
+    {
+        var candidates = await _eaSnapshots.GetFriendlyMatchesForLookupAsync(match.HomeTeamId, match.EaLookupFrom, match.EaLookupUntil, homeEaClubId, awayEaClubId, cancellationToken);
+        if (candidates.Count == 0)
+        {
+            candidates = await _eaSnapshots.GetFriendlyMatchesForLookupAsync(match.AwayTeamId, match.EaLookupFrom, match.EaLookupUntil, homeEaClubId, awayEaClubId, cancellationToken);
+        }
+
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        return candidates
+            .Select(candidate => ToStoredCandidate(match, candidate, candidates.Count, homeEaClubId, awayEaClubId, tournament?.PlayerRestrictionsJson))
+            .OrderByDescending(candidate => candidate.Confidence)
+            .ThenByDescending(candidate => candidate.PlayedAt)
+            .FirstOrDefault();
+    }
+
+    private static EaMatchCandidate ToStoredCandidate(TournamentMatch tournamentMatch, EaFriendlyMatch match, int duplicateCount, long homeEaClubId, long awayEaClubId, string? restrictionsJson)
+    {
+        var isSameOrder = match.HomeEaClubId == homeEaClubId && match.AwayEaClubId == awayEaClubId;
+        var homeScore = isSameOrder ? match.HomeScore : match.AwayScore;
+        var awayScore = isSameOrder ? match.AwayScore : match.HomeScore;
+        var issues = new List<string>();
+        var confidence = 65;
+
+        if (match.PlayedAt >= tournamentMatch.EaLookupFrom && match.PlayedAt <= tournamentMatch.EaLookupUntil)
+        {
+            confidence += 15;
+        }
+        else
+        {
+            confidence -= 25;
+            issues.Add("Le timestamp du match EA est hors fenetre de recherche.");
+        }
+
+        var durationLooksComplete = LooksComplete(match.PlayerStats);
+        if (durationLooksComplete)
+        {
+            confidence += 10;
+        }
+        else
+        {
+            confidence -= 20;
+            issues.Add("La duree/statistiques joueurs ne prouvent pas encore un match complet. Possible restart ou match incomplet.");
+        }
+
+        if (duplicateCount > 1)
+        {
+            confidence -= 10;
+            issues.Add("Plusieurs matchs candidats existent dans la fenetre, probablement restart/rematch. Verification admin conseillee.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(restrictionsJson) && !match.RawJson.Contains("height", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add("Restrictions tournoi non verifiables dans ce payload EA, preuve admin possible.");
+        }
+
+        var evidence = string.Join(" ", new[]
+        {
+            $"Friendly stocke trouve: {match.EaMatchId}.",
+            $"EA clubs: {match.HomeEaClubId} vs {match.AwayEaClubId}.",
+            $"Timestamp: {match.PlayedAt:O}.",
+            duplicateCount > 1 ? $"{duplicateCount} candidats dans la fenetre." : "Candidat unique dans la fenetre."
+        }.Concat(issues));
+
+        return new EaMatchCandidate(
+            Math.Clamp(confidence, 0, 100),
+            homeScore,
+            awayScore,
+            match.RawJson,
+            evidence,
+            issues.Count == 0 ? "Friendly EA stocke retrouve et coherent." : "Friendly EA retrouve avec points a verifier.",
+            match.EaMatchId,
+            match.PlayedAt,
+            durationLooksComplete,
+            duplicateCount,
+            match.PlayerStats.ToArray());
+    }
+
+    private async Task<TournamentScoreAudit> BuildScoreAuditAsync(TournamentMatch match, EaMatchCandidate? candidate, string trigger, CancellationToken cancellationToken)
+    {
+        if (candidate is null)
+        {
+            return new TournamentScoreAudit(
+                Guid.NewGuid(),
+                match.TournamentId,
+                match.Id,
+                _clock.UtcNow,
+                trigger,
+                DomainReconciliationStatus.NoCandidateFound,
+                "Aucun match EA candidat trouve dans la fenetre configuree.",
+                null,
+                0,
+                null,
+                null,
+                null,
+                match.HomeScore,
+                match.AwayScore,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                JsonSerializer.Serialize(new[] { "Aucun friendly EA ne correspond aux deux clubs et au timestamp attendu." }),
+                JsonSerializer.Serialize(new { match.EaLookupFrom, match.EaLookupUntil }),
+                null);
+        }
+
+        var homePlayers = await _participants.GetTeamConfirmationsAsync(match.TournamentId, match.HomeTeamId, cancellationToken);
+        var awayPlayers = await _participants.GetTeamConfirmationsAsync(match.TournamentId, match.AwayTeamId, cancellationToken);
+        var playerIssues = BuildPlayerIssues(homePlayers, awayPlayers, candidate.PlayerStats);
+        var scoreMatched = match.HomeScore is null || match.AwayScore is null || (match.HomeScore == candidate.HomeScore && match.AwayScore == candidate.AwayScore);
+        var timestampMatched = candidate.PlayedAt is not null && candidate.PlayedAt >= match.EaLookupFrom && candidate.PlayedAt <= match.EaLookupUntil;
+        var teamsMatched = candidate.Evidence.Contains("EA clubs", StringComparison.OrdinalIgnoreCase);
+        var duplicateDetected = candidate.CandidateCount > 1;
+        var issues = new List<string>();
+
+        if (!timestampMatched)
+        {
+            issues.Add("Timestamp EA hors fenetre attendue.");
+        }
+
+        if (!scoreMatched)
+        {
+            issues.Add($"Score manuel different: manuel {match.HomeScore}-{match.AwayScore}, EA {candidate.HomeScore}-{candidate.AwayScore}.");
+        }
+
+        if (!candidate.DurationLooksComplete)
+        {
+            issues.Add("Duree du match non conforme ou impossible a confirmer.");
+        }
+
+        if (duplicateDetected)
+        {
+            issues.Add("Plusieurs matchs candidats dans la fenetre, possible restart/rematch.");
+        }
+
+        issues.AddRange(playerIssues);
+        var playersMatched = playerIssues.Count == 0;
+        var perfect = candidate.Confidence >= 90 && timestampMatched && teamsMatched && scoreMatched && playersMatched && candidate.DurationLooksComplete && !duplicateDetected;
+        var status = perfect
+            ? DomainReconciliationStatus.PerfectMatch
+            : candidate.Confidence >= 80 && teamsMatched && timestampMatched
+                ? DomainReconciliationStatus.NeedsReview
+                : DomainReconciliationStatus.Dispute;
+        var summary = perfect
+            ? "Match EA parfaitement rapproche: score, clubs, timestamp, duree et joueurs conformes."
+            : "Rapprochement EA a verifier: des ecarts sont disponibles dans le journal de litige.";
+
+        return new TournamentScoreAudit(
+            Guid.NewGuid(),
+            match.TournamentId,
+            match.Id,
+            _clock.UtcNow,
+            trigger,
+            status,
+            summary,
+            candidate.EaMatchId,
+            candidate.CandidateCount,
+            candidate.Confidence,
+            candidate.HomeScore,
+            candidate.AwayScore,
+            match.HomeScore,
+            match.AwayScore,
+            teamsMatched,
+            timestampMatched,
+            scoreMatched,
+            playersMatched,
+            candidate.DurationLooksComplete,
+            duplicateDetected,
+            JsonSerializer.Serialize(issues),
+            JsonSerializer.Serialize(new { candidate.Evidence, candidate.PlayedAt, match.EaLookupFrom, match.EaLookupUntil }),
+            candidate.PayloadJson);
+    }
+
+    private static List<string> BuildPlayerIssues(IReadOnlyCollection<TournamentPlayerConfirmation> homePlayers, IReadOnlyCollection<TournamentPlayerConfirmation> awayPlayers, IReadOnlyCollection<EaMatchPlayerStat> actualPlayers)
+    {
+        var issues = new List<string>();
+        AddPlayerIssues("home", homePlayers, actualPlayers, issues);
+        AddPlayerIssues("away", awayPlayers, actualPlayers, issues);
+        return issues;
+    }
+
+    private static void AddPlayerIssues(string side, IReadOnlyCollection<TournamentPlayerConfirmation> expected, IReadOnlyCollection<EaMatchPlayerStat> actualPlayers, List<string> issues)
+    {
+        if (expected.Count == 0)
+        {
+            issues.Add($"Aucun joueur annonce cote {side}, verification joueurs impossible.");
+            return;
+        }
+
+        var actualKeys = actualPlayers
+            .SelectMany(stat => BuildPlayerKeys(stat.EaPlayerId, stat.PlayerName))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var confirmation in expected)
+        {
+            var expectedKeys = BuildPlayerKeys(confirmation.User?.EaSportsId, confirmation.User?.Gamertag, confirmation.User?.DisplayName);
+            if (!expectedKeys.Any(key => actualKeys.Contains(key)))
+            {
+                issues.Add($"Joueur annonce non retrouve cote {side}: {confirmation.User?.Gamertag ?? confirmation.User?.DisplayName ?? confirmation.UserId.ToString()}.");
+            }
+        }
+    }
+
+    private static IReadOnlyCollection<string> BuildPlayerKeys(params string?[] values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool LooksComplete(IReadOnlyCollection<EaMatchPlayerStat> playerStats)
+    {
+        if (playerStats.Count == 0)
+        {
+            return false;
+        }
+
+        return playerStats.Any(stat => stat.SecondsPlayed is >= 540 || stat.GameTime is >= 540 || stat.RealtimeGame is >= 540);
     }
 
     private static Guid? ResolveWinner(TournamentMatch match, int homeScore, int awayScore)
@@ -747,7 +1035,7 @@ public sealed class TournamentService
 
     private static TournamentResponse ToTournamentResponse(Tournament tournament)
     {
-        return new TournamentResponse(tournament.Id, tournament.Name, (ContractTournamentType)(int)tournament.Type, (ContractTournamentStatus)(int)tournament.Status, tournament.StartsAt, tournament.TimeZone, tournament.MinTeams, tournament.MaxTeams, tournament.EntryFee, tournament.Currency, tournament.GoodiesDescription, tournament.RegistrationLockAt, tournament.EstimatedPrizeBudget, tournament.EaMonitoringStartsMinutesBefore, tournament.EaMonitoringEndsMinutesAfter, tournament.PlayerRestrictionsJson, tournament.IsCashPrize, tournament.RegistrationStartsAt, tournament.RegistrationEndsAt, tournament.BannerUrl);
+        return new TournamentResponse(tournament.Id, tournament.Name, (ContractTournamentType)(int)tournament.Type, (ContractTournamentStatus)(int)tournament.Status, tournament.StartsAt, tournament.TimeZone, tournament.MinTeams, tournament.MaxTeams, tournament.EntryFee, tournament.Currency, tournament.GoodiesDescription, tournament.RegistrationLockAt, tournament.EstimatedPrizeBudget, tournament.EaMonitoringStartsMinutesBefore, tournament.EaMonitoringEndsMinutesAfter, tournament.PlayerRestrictionsJson, tournament.IsCashPrize, tournament.RegistrationStartsAt, tournament.RegistrationEndsAt, tournament.BannerUrl, (CPElite.Contracts.Common.TournamentScoreRecoveryMode)(int)tournament.ScoreRecoveryMode, tournament.ScoreRecoveryIntervalMinutes, tournament.AutoPublishPerfectScore);
     }
 
     private static TournamentRegistrationResponse ToRegistrationResponse(TournamentRegistration registration)
@@ -758,6 +1046,33 @@ public sealed class TournamentService
     private static TournamentMatchResponse ToMatchResponse(TournamentMatch match)
     {
         return new TournamentMatchResponse(match.Id, match.TournamentId, match.HomeTeamId, match.AwayTeamId, match.RoundNumber, match.ScheduledAt, match.EaLookupFrom, match.EaLookupUntil, match.HomeScore, match.AwayScore, (ContractMatchStatus)(int)match.Status, match.WinnerTeamId, (CPElite.Contracts.Common.TournamentStage)(int)match.Stage, match.GroupName, match.MatchNumber);
+    }
+
+    private static TournamentScoreAuditResponse ToScoreAuditResponse(TournamentScoreAudit audit)
+    {
+        return new TournamentScoreAuditResponse(
+            audit.Id,
+            audit.TournamentId,
+            audit.TournamentMatchId,
+            audit.AttemptedAt,
+            audit.Trigger,
+            (ContractReconciliationStatus)(int)audit.Status,
+            audit.Summary,
+            audit.EaMatchId,
+            audit.CandidateCount,
+            audit.Confidence,
+            audit.HomeScore,
+            audit.AwayScore,
+            audit.ManualHomeScore,
+            audit.ManualAwayScore,
+            audit.TeamsMatched,
+            audit.TimestampMatched,
+            audit.ScoreMatched,
+            audit.PlayersMatched,
+            audit.DurationLooksComplete,
+            audit.DuplicateCandidateDetected,
+            audit.IssuesJson,
+            audit.EvidenceJson);
     }
 
     private async Task<Result<TournamentMomentResponse>> CreateMomentCoreAsync(TournamentMatch match, CreateTournamentMomentRequest request, CancellationToken cancellationToken)
@@ -1255,7 +1570,10 @@ public sealed class TournamentService
         return new RestrictionEvidence(-5, ["Player restriction fields were not found in the EA match payload, so proof may be required."]);
     }
 
-    private sealed record EaMatchCandidate(int Confidence, int HomeScore, int AwayScore, string PayloadJson, string Evidence, string Message, string? EaMatchId = null);
+    private sealed record EaMatchCandidate(int Confidence, int HomeScore, int AwayScore, string PayloadJson, string Evidence, string Message, string? EaMatchId = null, DateTimeOffset? PlayedAt = null, bool DurationLooksComplete = false, int CandidateCount = 1, IReadOnlyCollection<EaMatchPlayerStat>? PlayerStats = null)
+    {
+        public IReadOnlyCollection<EaMatchPlayerStat> PlayerStats { get; init; } = PlayerStats ?? Array.Empty<EaMatchPlayerStat>();
+    }
 
     private sealed record CompletionEvidence(int ConfidenceDelta, string Reason);
 

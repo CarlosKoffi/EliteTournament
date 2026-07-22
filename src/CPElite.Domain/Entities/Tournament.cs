@@ -6,7 +6,7 @@ public sealed class Tournament
 {
     private Tournament() { }
 
-    public Tournament(Guid id, string name, TournamentType type, DateTimeOffset startsAt, string timeZone, int minTeams, int maxTeams, decimal entryFee, string currency, string? goodiesDescription, DateTimeOffset? registrationLockAt, decimal? estimatedPrizeBudget, int eaMonitoringStartsMinutesBefore, int eaMonitoringEndsMinutesAfter, string? playerRestrictionsJson, DateTimeOffset createdAt, Guid createdByUserId, bool isCashPrize = false, DateTimeOffset? registrationStartsAt = null, DateTimeOffset? registrationEndsAt = null, string? bannerUrl = null)
+    public Tournament(Guid id, string name, TournamentType type, DateTimeOffset startsAt, string timeZone, int minTeams, int maxTeams, decimal entryFee, string currency, string? goodiesDescription, DateTimeOffset? registrationLockAt, decimal? estimatedPrizeBudget, int eaMonitoringStartsMinutesBefore, int eaMonitoringEndsMinutesAfter, string? playerRestrictionsJson, DateTimeOffset createdAt, Guid createdByUserId, bool isCashPrize = false, DateTimeOffset? registrationStartsAt = null, DateTimeOffset? registrationEndsAt = null, string? bannerUrl = null, TournamentScoreRecoveryMode scoreRecoveryMode = TournamentScoreRecoveryMode.ManualOnly, int scoreRecoveryIntervalMinutes = 2, bool autoPublishPerfectScore = false)
     {
         Id = id;
         Name = name;
@@ -30,6 +30,9 @@ public sealed class Tournament
         CreatedByUserId = createdByUserId;
         IsCashPrize = isCashPrize;
         BannerUrl = bannerUrl;
+        ScoreRecoveryMode = scoreRecoveryMode;
+        ScoreRecoveryIntervalMinutes = scoreRecoveryIntervalMinutes;
+        AutoPublishPerfectScore = autoPublishPerfectScore;
     }
 
     public Guid Id { get; private set; }
@@ -54,6 +57,9 @@ public sealed class Tournament
     public string? BannerUrl { get; private set; }
     public Guid CreatedByUserId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
+    public TournamentScoreRecoveryMode ScoreRecoveryMode { get; private set; } = TournamentScoreRecoveryMode.ManualOnly;
+    public int ScoreRecoveryIntervalMinutes { get; private set; } = 2;
+    public bool AutoPublishPerfectScore { get; private set; }
 
     public void OpenRegistration()
     {

@@ -28,6 +28,7 @@ public sealed class CPEliteDbContext : DbContext
     public DbSet<MatchScoreSubmission> MatchScoreSubmissions => Set<MatchScoreSubmission>();
     public DbSet<ChampionTitle> ChampionTitles => Set<ChampionTitle>();
     public DbSet<TournamentMoment> TournamentMoments => Set<TournamentMoment>();
+    public DbSet<TournamentScoreAudit> TournamentScoreAudits => Set<TournamentScoreAudit>();
     public DbSet<EaDiagnosticProbe> EaDiagnosticProbes => Set<EaDiagnosticProbe>();
     public DbSet<UserTournamentAccess> UserTournamentAccesses => Set<UserTournamentAccess>();
     public DbSet<TeamSlotPackage> TeamSlotPackages => Set<TeamSlotPackage>();
@@ -307,6 +308,9 @@ public sealed class CPEliteDbContext : DbContext
             entity.Property(tournament => tournament.GoodiesDescription).HasMaxLength(1000);
             entity.Property(tournament => tournament.BannerUrl).HasMaxLength(1000);
             entity.Property(tournament => tournament.PlayerRestrictionsJson).HasColumnType("jsonb");
+            entity.Property(tournament => tournament.ScoreRecoveryMode).HasDefaultValue(Domain.Enums.TournamentScoreRecoveryMode.ManualOnly);
+            entity.Property(tournament => tournament.ScoreRecoveryIntervalMinutes).HasDefaultValue(2);
+            entity.Property(tournament => tournament.AutoPublishPerfectScore).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<TournamentRegistration>(entity =>
@@ -366,6 +370,26 @@ public sealed class CPEliteDbContext : DbContext
             entity.Property(moment => moment.Title).HasMaxLength(160).IsRequired();
             entity.Property(moment => moment.Message).HasMaxLength(1000).IsRequired();
             entity.Property(moment => moment.PayloadJson).HasColumnType("jsonb");
+        });
+
+        modelBuilder.Entity<TournamentScoreAudit>(entity =>
+        {
+            entity.HasKey(audit => audit.Id);
+            entity.HasIndex(audit => new { audit.TournamentId, audit.AttemptedAt });
+            entity.HasIndex(audit => new { audit.TournamentMatchId, audit.AttemptedAt });
+            entity.HasIndex(audit => audit.Status);
+            entity.Property(audit => audit.Trigger).HasMaxLength(80).IsRequired();
+            entity.Property(audit => audit.Summary).HasMaxLength(1000).IsRequired();
+            entity.Property(audit => audit.EaMatchId).HasMaxLength(80);
+            entity.Property(audit => audit.IssuesJson).HasColumnType("jsonb");
+            entity.Property(audit => audit.EvidenceJson).HasColumnType("jsonb");
+            entity.Property(audit => audit.RawCandidateJson).HasColumnType("jsonb");
+            entity.HasOne(audit => audit.Tournament)
+                .WithMany()
+                .HasForeignKey(audit => audit.TournamentId);
+            entity.HasOne(audit => audit.TournamentMatch)
+                .WithMany()
+                .HasForeignKey(audit => audit.TournamentMatchId);
         });
 
         modelBuilder.Entity<TournamentPlayerConfirmation>(entity =>

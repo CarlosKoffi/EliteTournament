@@ -71,6 +71,18 @@ public sealed class TournamentsController : ApiControllerBase
         return ToActionResult(await _tournamentService.LaunchWorldCupTournamentAsync(tournamentId, request, cancellationToken));
     }
 
+    [HttpPost("{tournamentId:guid}/scores/recover")]
+    public async Task<IActionResult> RecoverTournamentScores(Guid tournamentId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.VerifyTournamentScoresAsync(tournamentId, "manual-admin", cancellationToken));
+    }
+
+    [HttpGet("{tournamentId:guid}/scores/audits")]
+    public async Task<IActionResult> GetTournamentScoreAudits(Guid tournamentId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.GetScoreAuditsAsync(tournamentId, cancellationToken));
+    }
+
     [HttpPost("matches/{matchId:guid}/scores")]
     public async Task<IActionResult> SubmitScore(Guid matchId, SubmitMatchScoreRequest request, CancellationToken cancellationToken)
     {

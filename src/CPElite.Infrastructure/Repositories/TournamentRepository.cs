@@ -43,13 +43,48 @@ public sealed class TournamentRepository : ITournamentRepository
     public async Task<IReadOnlyCollection<TournamentMatch>> GetEaVerificationDueMatchesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken = default)
     {
         var startsAt = now.AddMinutes(-15);
-        return await _dbContext.TournamentMatches
+        var candidates = await _dbContext.TournamentMatches
+            .Include(match => match.Tournament)
             .Where(match =>
-                match.Status == Domain.Enums.TournamentMatchStatus.Scheduled &&
+                (match.Status == Domain.Enums.TournamentMatchStatus.Scheduled ||
+                    match.Status == Domain.Enums.TournamentMatchStatus.WaitingForEaData ||
+                    match.Status == Domain.Enums.TournamentMatchStatus.OwnerConfirmationRequired) &&
                 match.ScheduledAt <= startsAt &&
-                match.EaLookupUntil >= now)
+                match.EaLookupUntil >= now &&
+                match.Tournament!.ScoreRecoveryMode != Domain.Enums.TournamentScoreRecoveryMode.ManualOnly &&
+                match.Tournament.ScoreRecoveryMode != Domain.Enums.TournamentScoreRecoveryMode.EndOfRound &&
+                match.Tournament.ScoreRecoveryMode != Domain.Enums.TournamentScoreRecoveryMode.EndOfTournament)
             .OrderBy(match => match.ScheduledAt)
+            .ToArrayAsync(cancellationToken);
+
+        var matchIds = candidates.Select(match => match.Id).ToArray();
+        var recentAudits = await _dbContext.TournamentScoreAudits
+            .Where(audit => matchIds.Contains(audit.TournamentMatchId))
+            .GroupBy(audit => audit.TournamentMatchId)
+            .Select(group => new { MatchId = group.Key, LastAttemptedAt = group.Max(audit => audit.AttemptedAt) })
+            .ToDictionaryAsync(item => item.MatchId, item => item.LastAttemptedAt, cancellationToken);
+
+        return candidates
+            .Where(match =>
+            {
+                if (!recentAudits.TryGetValue(match.Id, out var lastAttempt))
+                {
+                    return true;
+                }
+
+                var interval = Math.Clamp(match.Tournament?.ScoreRecoveryIntervalMinutes ?? 2, 1, 60);
+                return lastAttempt <= now.AddMinutes(-interval);
+            })
             .Take(take)
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyCollection<TournamentScoreAudit>> GetScoreAuditsAsync(Guid tournamentId, int take = 100, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TournamentScoreAudits
+            .Where(audit => audit.TournamentId == tournamentId)
+            .OrderByDescending(audit => audit.AttemptedAt)
+            .Take(Math.Clamp(take, 1, 250))
             .ToArrayAsync(cancellationToken);
     }
 
@@ -97,6 +132,11 @@ public sealed class TournamentRepository : ITournamentRepository
     public async Task AddMomentAsync(TournamentMoment moment, CancellationToken cancellationToken = default)
     {
         await _dbContext.TournamentMoments.AddAsync(moment, cancellationToken);
+    }
+
+    public async Task AddScoreAuditAsync(TournamentScoreAudit audit, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.TournamentScoreAudits.AddAsync(audit, cancellationToken);
     }
 
     public Task<TournamentMoment?> GetMomentAsync(Guid momentId, CancellationToken cancellationToken = default)

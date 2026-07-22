@@ -92,6 +92,32 @@ else
                 </div>
             </div>
 
+            <div class="admin-restriction-panel">
+                <div>
+                    <p class="eyebrow">Scores EA</p>
+                    <h3>Recuperation par tournoi</h3>
+                    <small>Ce reglage controle uniquement ce tournoi: manuel, toutes les X minutes, fin de match, fin de tour ou fin de tournoi.</small>
+                </div>
+                <div class="form-grid">
+                    <label>Mode recuperation
+                        <select @bind="Tournament.ScoreRecoveryMode">
+                            <option value="@TournamentScoreRecoveryMode.ManualOnly">Manuel uniquement</option>
+                            <option value="@TournamentScoreRecoveryMode.AutomaticEveryInterval">Automatique toutes les X minutes</option>
+                            <option value="@TournamentScoreRecoveryMode.AfterEachMatch">Fin de chaque match</option>
+                            <option value="@TournamentScoreRecoveryMode.EndOfRound">Fin de chaque tour</option>
+                            <option value="@TournamentScoreRecoveryMode.EndOfTournament">Fin du tournoi</option>
+                        </select>
+                    </label>
+                    <label>Intervalle minutes <input type="number" value="@Tournament.ScoreRecoveryIntervalMinutes" @oninput="value => Tournament.ScoreRecoveryIntervalMinutes = ReadInt(value, Tournament.ScoreRecoveryIntervalMinutes)" /></label>
+                    <label class="checkbox-line"><InputCheckbox @bind-Value="Tournament.AutoPublishPerfectScore" /> Auto-valider si match parfait</label>
+                </div>
+                <div class="restriction-preview">
+                    <span>Audit obligatoire</span>
+                    <strong>@ScoreRecoveryPreview</strong>
+                    <small>Chaque tentative loggue timestamp, equipes, score, joueurs annonces/joues, duree et doublons.</small>
+                </div>
+            </div>
+
                 <button class="primary-action" disabled="@Busy">Creer le tournoi</button>
             </EditForm>
         </article>
@@ -121,6 +147,7 @@ else
                 <div class="metric-card"><span>3e</span><strong>Credit @Tournament.ThirdPrizeCredit EUR</strong></div>
                 <div class="metric-card admin-only-metric"><span>Reste apres lots</span><strong>@Tournament.EstimatedNetAfterPrizes EUR</strong></div>
                 <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
+                <div class="metric-card admin-only-metric"><span>Recup scores</span><strong>@ScoreRecoveryPreview</strong></div>
             </div>
             <div class="prize-preview-card">
                 <span class="result-kind">Description sauvegardee</span>
@@ -143,6 +170,16 @@ else
     private string PlaystyleRestrictionPreview => Tournament.EnablePlaystyleRestrictions
         ? $"Interdits: {Tournament.ForbiddenPlaystyles}"
         : "Aucune restriction playstyle active.";
+
+    private string ScoreRecoveryPreview => Tournament.ScoreRecoveryMode switch
+    {
+        TournamentScoreRecoveryMode.ManualOnly => "Manuel uniquement",
+        TournamentScoreRecoveryMode.AutomaticEveryInterval => $"Toutes les {Tournament.ScoreRecoveryIntervalMinutes} min",
+        TournamentScoreRecoveryMode.AfterEachMatch => "Fin de chaque match",
+        TournamentScoreRecoveryMode.EndOfRound => "Fin de chaque tour",
+        TournamentScoreRecoveryMode.EndOfTournament => "Fin du tournoi",
+        _ => "Manuel uniquement"
+    };
 
     private static string ReadText(ChangeEventArgs args) => args.Value?.ToString() ?? string.Empty;
 
@@ -201,7 +238,10 @@ else
             Tournament.IsCashPrize,
             Tournament.BuildRegistrationStartsAt(),
             Tournament.BuildRegistrationEndsAt(),
-            Tournament.BannerUrl);
+            Tournament.BannerUrl,
+            Tournament.ScoreRecoveryMode,
+            Tournament.ScoreRecoveryIntervalMinutes,
+            Tournament.AutoPublishPerfectScore);
 
         var result = await Api.CreateTournamentAsync(request);
         Busy = false;
@@ -250,6 +290,9 @@ else
         public int CenterBackMaxHeightCm { get; set; } = 187;
         public bool EnablePlaystyleRestrictions { get; set; }
         public string ForbiddenPlaystyles { get; set; } = "";
+        public TournamentScoreRecoveryMode ScoreRecoveryMode { get; set; } = TournamentScoreRecoveryMode.AutomaticEveryInterval;
+        public int ScoreRecoveryIntervalMinutes { get; set; } = 2;
+        public bool AutoPublishPerfectScore { get; set; }
         public string PrizeDescription => IsCashPrize
             ? $"Lots automatiques: 1er {FirstPrize:0.##} EUR de lots, 2e {SecondPrize:0.##} EUR de lots, 3e inscription offerte au prochain tournoi jusqu'a {ThirdPrizeCredit:0.##} EUR. Si le prochain tournoi coute plus cher, l'equipe paiera uniquement la difference."
             : "Tournoi simple sans goodies payants. Participation gratuite, classement et stats TS Tournament uniquement.";
