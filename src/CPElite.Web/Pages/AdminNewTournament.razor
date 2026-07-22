@@ -1,5 +1,6 @@
 @page "/admin/tournaments/new"
 @inject ApiClient Api
+@inject AuthState AuthState
 
 <PageTitle>TS Tournament Admin - Nouveau tournoi</PageTitle>
 
@@ -20,16 +21,27 @@
     </div>
 </section>
 
-<section class="section-grid admin-grid">
-    <article class="panel admin-panel">
-        <div class="panel-heading">
-            <div>
-                <p class="eyebrow">Configuration</p>
-                <h2>Nouveau tournoi</h2>
+@if (!AuthState.IsAuthenticated)
+{
+    <section class="panel">
+        <p class="eyebrow">Connexion requise</p>
+        <h2>Connecte-toi en admin pour creer un tournoi.</h2>
+        <p class="muted">La creation du tournoi et l'upload de banniere sont proteges. Une fois connecte, tu pourras verifier la sauvegarde et l'affichage public.</p>
+        <a class="button-link primary" href="login">Se connecter</a>
+    </section>
+}
+else
+{
+    <section class="section-grid admin-grid">
+        <article class="panel admin-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Configuration</p>
+                    <h2>Nouveau tournoi</h2>
+                </div>
             </div>
-        </div>
 
-        <EditForm Model="Tournament" OnValidSubmit="CreateTournamentAsync">
+            <EditForm Model="Tournament" OnValidSubmit="CreateTournamentAsync">
             <div class="segmented-control">
                 <button type="button" class="@(Tournament.Type == TournamentType.Normal ? "active" : "")" @onclick="() => SetType(TournamentType.Normal)">Simple</button>
                 <button type="button" class="@(Tournament.Type == TournamentType.Goodies ? "active" : "")" @onclick="() => SetType(TournamentType.Goodies)">Goodies</button>
@@ -80,41 +92,42 @@
                 </div>
             </div>
 
-            <button class="primary-action" disabled="@Busy">Creer le tournoi</button>
-        </EditForm>
-    </article>
+                <button class="primary-action" disabled="@Busy">Creer le tournoi</button>
+            </EditForm>
+        </article>
 
-    <article class="panel">
-        <div class="panel-heading">
-            <div>
-                <p class="eyebrow">Apercu</p>
-                <h2>@Tournament.Name</h2>
+        <article class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Apercu</p>
+                    <h2>@Tournament.Name</h2>
+                </div>
             </div>
-        </div>
-        <div class="tournament-banner-preview" style="@TournamentBannerStyle">
-            <div>
-                <span>@Tournament.Type</span>
-                <strong>@Tournament.Name</strong>
-                <small>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime - @Tournament.MinTeams/@Tournament.MaxTeams equipes</small>
+            <div class="tournament-banner-preview" style="@TournamentBannerStyle">
+                <div>
+                    <span>@Tournament.Type</span>
+                    <strong>@Tournament.Name</strong>
+                    <small>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime - @Tournament.MinTeams/@Tournament.MaxTeams equipes</small>
+                </div>
             </div>
-        </div>
-        <div class="metric-grid compact-metrics">
-            <div class="metric-card"><span>Type</span><strong>@Tournament.Type</strong></div>
-            <div class="metric-card"><span>Debut</span><strong>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime</strong></div>
-            <div class="metric-card"><span>Inscription</span><strong>@Tournament.RegistrationEndDate.ToString("dd/MM") @Tournament.RegistrationEndTime</strong></div>
-            <div class="metric-card"><span>Equipes</span><strong>@Tournament.MinTeams - @Tournament.MaxTeams</strong></div>
-            <div class="metric-card"><span>Participation</span><strong>@Tournament.EntryFee EUR</strong></div>
-            <div class="metric-card"><span>1er</span><strong>@Tournament.FirstPrize EUR</strong></div>
-            <div class="metric-card"><span>2e</span><strong>@Tournament.SecondPrize EUR</strong></div>
-            <div class="metric-card"><span>3e</span><strong>Credit @Tournament.ThirdPrizeCredit EUR</strong></div>
-            <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
-        </div>
-        <div class="prize-preview-card">
-            <span class="result-kind">Description sauvegardee</span>
-            <p>@Tournament.PrizeDescription</p>
-        </div>
-    </article>
-</section>
+            <div class="metric-grid compact-metrics">
+                <div class="metric-card"><span>Type</span><strong>@Tournament.Type</strong></div>
+                <div class="metric-card"><span>Debut</span><strong>@Tournament.StartsDate.ToString("dd/MM") @Tournament.StartsTime</strong></div>
+                <div class="metric-card"><span>Inscription</span><strong>@Tournament.RegistrationEndDate.ToString("dd/MM") @Tournament.RegistrationEndTime</strong></div>
+                <div class="metric-card"><span>Equipes</span><strong>@Tournament.MinTeams - @Tournament.MaxTeams</strong></div>
+                <div class="metric-card"><span>Participation</span><strong>@Tournament.EntryFee EUR</strong></div>
+                <div class="metric-card"><span>1er</span><strong>@Tournament.FirstPrize EUR</strong></div>
+                <div class="metric-card"><span>2e</span><strong>@Tournament.SecondPrize EUR</strong></div>
+                <div class="metric-card"><span>3e</span><strong>Credit @Tournament.ThirdPrizeCredit EUR</strong></div>
+                <div class="metric-card"><span>Restrictions</span><strong>@Tournament.DefaultMaxHeightCm cm / DC @Tournament.CenterBackMaxHeightCm cm</strong></div>
+            </div>
+            <div class="prize-preview-card">
+                <span class="result-kind">Description sauvegardee</span>
+                <p>@Tournament.PrizeDescription</p>
+            </div>
+        </article>
+    </section>
+}
 
 @if (!string.IsNullOrWhiteSpace(Message))
 {
