@@ -36,17 +36,17 @@
             </div>
 
             <div class="form-grid">
-                <label>Nom <InputText @bind-Value="Tournament.Name" /></label>
-                <label>Banniere URL <InputText @bind-Value="Tournament.BannerUrl" placeholder="https://..." /></label>
-                <label>Date <InputDate @bind-Value="Tournament.StartsDate" /></label>
-                <label>Heure CET <InputText @bind-Value="Tournament.StartsTime" /></label>
-                <label>Debut inscription <InputDate @bind-Value="Tournament.RegistrationStartDate" /></label>
-                <label>Heure ouverture <InputText @bind-Value="Tournament.RegistrationStartTime" /></label>
-                <label>Fin inscription <InputDate @bind-Value="Tournament.RegistrationEndDate" /></label>
-                <label>Heure fermeture <InputText @bind-Value="Tournament.RegistrationEndTime" /></label>
-                <label>Max teams <InputNumber @bind-Value="Tournament.MaxTeams" /></label>
-                <label>Min teams <InputNumber @bind-Value="Tournament.MinTeams" /></label>
-                <label>Participation equipe <InputNumber @bind-Value="Tournament.EntryFee" /></label>
+                <label>Nom <input value="@Tournament.Name" @oninput="value => Tournament.Name = ReadText(value)" /></label>
+                <label>Banniere URL <input value="@Tournament.BannerUrl" placeholder="https://..." @oninput="value => Tournament.BannerUrl = ReadNullableText(value)" /></label>
+                <label>Date <input type="date" value="@FormatDate(Tournament.StartsDate)" @oninput="value => Tournament.StartsDate = ReadDate(value, Tournament.StartsDate)" /></label>
+                <label>Heure CET <input value="@Tournament.StartsTime" @oninput="value => Tournament.StartsTime = ReadText(value)" /></label>
+                <label>Debut inscription <input type="date" value="@FormatDate(Tournament.RegistrationStartDate)" @oninput="value => Tournament.RegistrationStartDate = ReadDate(value, Tournament.RegistrationStartDate)" /></label>
+                <label>Heure ouverture <input value="@Tournament.RegistrationStartTime" @oninput="value => Tournament.RegistrationStartTime = ReadText(value)" /></label>
+                <label>Fin inscription <input type="date" value="@FormatDate(Tournament.RegistrationEndDate)" @oninput="value => Tournament.RegistrationEndDate = ReadDate(value, Tournament.RegistrationEndDate)" /></label>
+                <label>Heure fermeture <input value="@Tournament.RegistrationEndTime" @oninput="value => Tournament.RegistrationEndTime = ReadText(value)" /></label>
+                <label>Max teams <input type="number" value="@Tournament.MaxTeams" @oninput="value => Tournament.MaxTeams = ReadInt(value, Tournament.MaxTeams)" /></label>
+                <label>Min teams <input type="number" value="@Tournament.MinTeams" @oninput="value => Tournament.MinTeams = ReadInt(value, Tournament.MinTeams)" /></label>
+                <label>Participation equipe <input type="number" step="0.01" value="@Tournament.EntryFee" @oninput="value => Tournament.EntryFee = ReadDecimal(value, Tournament.EntryFee)" /></label>
                 <label>Budget lots calcule <input value="@Tournament.PrizeBudget.ToString("0.##")" readonly /></label>
             </div>
 
@@ -68,10 +68,10 @@
                     <small>Ces regles seront visibles par les owners, mais non modifiables pendant l'inscription.</small>
                 </div>
                 <div class="form-grid">
-                    <label>Taille max generale <InputNumber @bind-Value="Tournament.DefaultMaxHeightCm" /></label>
-                    <label>Taille max DC <InputNumber @bind-Value="Tournament.CenterBackMaxHeightCm" /></label>
+                    <label>Taille max generale <input type="number" value="@Tournament.DefaultMaxHeightCm" @oninput="value => Tournament.DefaultMaxHeightCm = ReadInt(value, Tournament.DefaultMaxHeightCm)" /></label>
+                    <label>Taille max DC <input type="number" value="@Tournament.CenterBackMaxHeightCm" @oninput="value => Tournament.CenterBackMaxHeightCm = ReadInt(value, Tournament.CenterBackMaxHeightCm)" /></label>
                     <label class="checkbox-line"><InputCheckbox @bind-Value="Tournament.EnablePlaystyleRestrictions" /> Activer restriction playstyles</label>
-                    <label>Playstyles interdits <InputText @bind-Value="Tournament.ForbiddenPlaystyles" placeholder="Ex: Aerial+, Power Header+" /></label>
+                    <label>Playstyles interdits <input value="@Tournament.ForbiddenPlaystyles" placeholder="Ex: Aerial+, Power Header+" @oninput="value => Tournament.ForbiddenPlaystyles = ReadText(value)" /></label>
                 </div>
                 <div class="restriction-preview">
                     <span>Regle publiee</span>
@@ -129,6 +129,25 @@
     private string PlaystyleRestrictionPreview => Tournament.EnablePlaystyleRestrictions
         ? $"Interdits: {Tournament.ForbiddenPlaystyles}"
         : "Aucune restriction playstyle active.";
+
+    private static string ReadText(ChangeEventArgs args) => args.Value?.ToString() ?? string.Empty;
+
+    private static string? ReadNullableText(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static int ReadInt(ChangeEventArgs args, int fallback) =>
+        int.TryParse(args.Value?.ToString(), out var value) ? value : fallback;
+
+    private static decimal ReadDecimal(ChangeEventArgs args, decimal fallback) =>
+        decimal.TryParse(args.Value?.ToString(), out var value) ? value : fallback;
+
+    private static DateTime ReadDate(ChangeEventArgs args, DateTime fallback) =>
+        DateTime.TryParse(args.Value?.ToString(), out var value) ? value : fallback;
+
+    private static string FormatDate(DateTime value) => value.ToString("yyyy-MM-dd");
 
     private void SetType(TournamentType type)
     {
