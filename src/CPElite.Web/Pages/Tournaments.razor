@@ -4,6 +4,7 @@
 @inject AuthState AuthState
 @inject IWebAssemblyHostEnvironment HostEnvironment
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>TS Tournament - Tournois</PageTitle>
 
@@ -533,6 +534,7 @@ else
                 <div><strong>@AvailableRosterCount</strong><span>disponibles</span></div>
                 <div><strong>@UnavailableRosterCount</strong><span>absents</span></div>
                 <div><strong>@LateRosterCount</strong><span>retards</span></div>
+                <div><strong>@SelectedInviteRequiredCount</strong><span>liens a envoyer</span></div>
             </div>
 
             @if (HeightViolationCount > 0)
@@ -583,6 +585,10 @@ else
                                 <span class="@(IsHeightEligibleForTournament(player) ? "" : "rule-alert")">@player.Height cm</span>
                                 <span>@player.Overall OVR</span>
                                 <span>@player.Matches MJ</span>
+                                @if (!player.HasApp)
+                                {
+                                    <span class="invite-needed">Lien pret apres soumission</span>
+                                }
                             </div>
                         </div>
                         <select @bind="player.Position" @onclick:stopPropagation>
@@ -602,6 +608,33 @@ else
                     }
                 </div>
                 }
+
+            @if (InviteLinks.Count > 0)
+            {
+                <section class="invite-conversion-panel">
+                    <div class="panel-heading compact">
+                        <div>
+                            <p class="eyebrow">Acquisition joueurs</p>
+                            <h3>Liens d'inscription pre-remplis</h3>
+                        </div>
+                        <span class="owner-capacity">@InviteLinks.Count lien(s)</span>
+                    </div>
+                    <p>Envoie ces liens aux joueurs selectionnes qui n'ont pas encore l'app. Ils arriveront sur la creation de compte avec le club, le joueur EA et le tournoi deja identifies.</p>
+                    <div class="invite-link-list">
+                        @foreach (var invite in InviteLinks)
+                        {
+                            <article>
+                                <div>
+                                    <strong>@invite.PlayerName</strong>
+                                    <span>@invite.EaPlayerId - @invite.Position</span>
+                                </div>
+                                <input value="@invite.Url" readonly />
+                                <button type="button" class="ghost-action" @onclick="() => CopyInviteLinkAsync(invite.Url)">Copier</button>
+                            </article>
+                        }
+                    </div>
+                </section>
+            }
         </article>
 
         <article class="panel lineup-overview-panel">
@@ -722,7 +755,7 @@ else
                 <div>
                     <span class="result-kind">Poste tournoi @SelectedPlayer.Position</span>
                     <strong>@SelectedPlayer.Gamertag</strong>
-                    <small>EA Sports ID: @SelectedPlayer.Gamertag · Poste EA: @SelectedPlayer.EaPosition · @(SelectedPlayer.HasApp ? "compte app actif" : "joueur EA sans compte app")</small>
+                    <small>EA Sports ID: @SelectedPlayer.EaPlayerId · Poste EA: @SelectedPlayer.EaPosition · @(SelectedPlayer.HasApp ? "compte app actif" : "joueur EA sans compte app")</small>
                 </div>
                 <span class="presence-pill @SelectedPlayer.StatusCss">@SelectedPlayer.Status</span>
             </div>
@@ -789,6 +822,7 @@ else
     private List<OwnerTeamOption> OwnerTeams { get; } = [];
     private List<RosterPlayerModel> Roster { get; } = [];
     private List<TournamentResponse> PublishedTournaments { get; } = [];
+    private List<PlayerInviteLink> InviteLinks { get; } = [];
     private bool Busy;
     private bool IsPreparingTournament;
     private string? Message;
@@ -810,6 +844,7 @@ else
     private int LateRosterCount => Roster.Count(player => player.Selected && player.Status == "Retard");
     private int AvailableRosterCount => Roster.Count(player => !player.IsUnavailable);
     private int UnavailableRosterCount => Roster.Count(player => player.IsUnavailable);
+    private int SelectedInviteRequiredCount => Roster.Count(player => player.Selected && !player.HasApp);
     private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
     private string ReadinessLabel => SelectedRosterCount == 11 && ConfirmedRosterCount == 11 && HeightViolationCount == 0 ? "Equipe prete" : "En attente joueurs";
     private IReadOnlyList<TournamentResponse> LiveTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.InProgress).ToArray();
@@ -1006,6 +1041,7 @@ else
         TeamEaMembers = null;
         SelectedPlayer = null;
         SelectedPlayerEa = null;
+        InviteLinks.Clear();
         if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
         {
             var membersResult = await Api.GetTeamMembersAsync(SelectedOwnerTeamId.Value);
@@ -1236,37 +1272,37 @@ else
 
     private IReadOnlyList<IReadOnlyList<LineupSlotModel>> BuildLineupRows()
     {
-        var usedPlayerIds = new HashSet<Guid>();
+        var usedPlayerKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         return GetFormationRows(SelectedFormation)
-            .Select(row => row.Select(position => new LineupSlotModel(position, GetLineupPlayer(position, usedPlayerIds))).ToArray())
+            .Select(row => row.Select(position => new LineupSlotModel(position, GetLineupPlayer(position, usedPlayerKeys))).ToArray())
             .ToArray();
     }
 
-    private RosterPlayerModel? GetLineupPlayer(string slot, HashSet<Guid> usedPlayerIds)
+    private RosterPlayerModel? GetLineupPlayer(string slot, HashSet<string> usedPlayerKeys)
     {
         var selected = Roster.Where(player => player.Selected).ToList();
-        var direct = selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && string.Equals(player.Position, slot, StringComparison.OrdinalIgnoreCase));
+        var direct = selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && string.Equals(player.Position, slot, StringComparison.OrdinalIgnoreCase));
         if (direct is not null)
         {
-            usedPlayerIds.Add(direct.UserId);
+            usedPlayerKeys.Add(direct.RosterKey);
             return direct;
         }
 
         var fallback = slot switch
         {
-            "DC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "DG" or "DD" or "MDC"),
-            "DG" or "DD" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "DC" or "MDC"),
-            "MDC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MC" or "DC"),
-            "MC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MDC" or "MOC"),
-            "MOC" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MC" or "AG" or "AD"),
-            "AG" or "AD" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "MOC" or "BU"),
-            "BU" => selected.FirstOrDefault(player => !usedPlayerIds.Contains(player.UserId) && player.Position is "AG" or "AD" or "MOC"),
+            "DC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DG" or "DD" or "MDC"),
+            "DG" or "DD" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DC" or "MDC"),
+            "MDC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "DC"),
+            "MC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MDC" or "MOC"),
+            "MOC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "AG" or "AD"),
+            "AG" or "AD" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MOC" or "BU"),
+            "BU" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "AG" or "AD" or "MOC"),
             _ => null
         };
 
         if (fallback is not null)
         {
-            usedPlayerIds.Add(fallback.UserId);
+            usedPlayerKeys.Add(fallback.RosterKey);
         }
 
         return fallback;
@@ -1287,6 +1323,7 @@ else
     private async Task SubmitRosterAsync()
     {
         Busy = true;
+        InviteLinks.Clear();
         if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
         {
             var registration = await Api.RegisterTeamForTournamentAsync(SelectedTournamentId, new RegisterTeamForTournamentRequest(SelectedOwnerTeamId.Value, TournamentPaymentMode.IndividualPlayers));
@@ -1299,6 +1336,12 @@ else
 
             foreach (var player in Roster.Where(player => player.Selected).Take(11))
             {
+                if (!player.HasApp)
+                {
+                    InviteLinks.Add(BuildInviteLink(player));
+                    continue;
+                }
+
                 var participant = await Api.AddTournamentParticipantAsync(SelectedTournamentId, SelectedOwnerTeamId.Value, new AddTournamentParticipantRequest(player.UserId, player.Position));
                 if (!participant.Success && !IsAlreadyRegistered(participant.Error))
                 {
@@ -1310,9 +1353,33 @@ else
         }
 
         Busy = false;
-        Message = SelectedOwnerTeamHasPendingManagerClaim
-            ? "Inscription provisoire creee et composition soumise. Les 11 joueurs doivent valider leur presence, et la demande GM devra etre validee avant la deadline."
-            : "Equipe inscrite et composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
+        var selectedAppPlayers = Roster.Count(player => player.Selected && player.HasApp);
+        var invitePlayers = InviteLinks.Count;
+        Message = invitePlayers > 0
+            ? $"Equipe preparee: {selectedAppPlayers} joueur(s) deja app ajoutes, {invitePlayers} lien(s) d'inscription generes. Envoie les liens pour finaliser les comptes."
+            : SelectedOwnerTeamHasPendingManagerClaim
+                ? "Inscription provisoire creee et composition soumise. Les 11 joueurs doivent valider leur presence, et la demande GM devra etre validee avant la deadline."
+                : "Equipe inscrite et composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
+    }
+
+    private PlayerInviteLink BuildInviteLink(RosterPlayerModel player)
+    {
+        var clubId = SelectedOwnerTeamId?.ToString() ?? "";
+        var url = $"{Navigation.BaseUri.TrimEnd('/')}/account?clubId={Uri.EscapeDataString(clubId)}&clubName={Uri.EscapeDataString(SelectedOwnerTeamName)}&eaPlayerId={Uri.EscapeDataString(player.EaPlayerId)}&playerName={Uri.EscapeDataString(player.DisplayName)}&tournamentId={Uri.EscapeDataString(SelectedTournamentId.ToString())}&tournamentName={Uri.EscapeDataString(SelectedTournamentName)}";
+        return new PlayerInviteLink(player.DisplayName, player.EaPlayerId, player.Position, url);
+    }
+
+    private async Task CopyInviteLinkAsync(string url)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            Message = "Lien d'invitation copie.";
+        }
+        catch
+        {
+            Message = "Lien pret a copier depuis le champ.";
+        }
     }
 
     private async Task RemindPendingAsync()
@@ -1462,6 +1529,7 @@ else
     ];
 
     private sealed record OwnerTeamOption(Guid TeamId, string Name, bool HasPendingManagerClaim);
+    private sealed record PlayerInviteLink(string PlayerName, string EaPlayerId, string Position, string Url);
 
     private sealed record LineupSlotModel(string Position, RosterPlayerModel? Player);
     private sealed record DemoGroupRow(int Rank, string Team, int Points, string Record);
@@ -1492,11 +1560,13 @@ else
             double passSuccessRate,
             double tackleSuccessRate,
             int playerOfTheMatch,
-            int prevGoals)
+            int prevGoals,
+            string? eaPlayerId = null)
         {
             UserId = userId;
             DisplayName = displayName;
             Gamertag = gamertag;
+            EaPlayerId = string.IsNullOrWhiteSpace(eaPlayerId) ? gamertag : eaPlayerId;
             ProName = proName;
             Position = position;
             EaPosition = eaPosition;
@@ -1520,6 +1590,7 @@ else
         public Guid UserId { get; }
         public string DisplayName { get; }
         public string Gamertag { get; }
+        public string EaPlayerId { get; }
         public string ProName { get; }
         public string Position { get; set; }
         public string EaPosition { get; }
@@ -1539,7 +1610,8 @@ else
         public int PlayerOfTheMatch { get; }
         public int PrevGoals { get; }
         public bool IsUnavailable => Status == "Pas dispo";
-        public bool CanBeSelected => HasApp && !IsUnavailable;
+        public string RosterKey => HasApp ? UserId.ToString() : $"{EaPlayerId}:{DisplayName}";
+        public bool CanBeSelected => !IsUnavailable;
         public string StatusCss => Status switch
         {
             "Confirme" => "confirmed",
@@ -1581,7 +1653,8 @@ else
                 profile.PassSuccessRate ?? 0,
                 profile.TackleSuccessRate ?? 0,
                 profile.PlayerOfTheMatch ?? 0,
-                profile.PrevGoals ?? 0);
+                profile.PrevGoals ?? 0,
+                profile.EaPlayerId);
         }
 
         public void RefreshEaSnapshot()

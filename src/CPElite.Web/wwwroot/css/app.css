@@ -7261,6 +7261,57 @@ body {
     flex-wrap: wrap;
 }
 
+.invite-needed {
+    background: #050505;
+    color: #ffffff;
+}
+
+.invite-conversion-panel {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+    padding: 16px;
+    background: #050505;
+    color: #ffffff;
+    border-left: 6px solid var(--app-pitch);
+}
+
+.invite-conversion-panel h3,
+.invite-conversion-panel p {
+    color: #ffffff;
+}
+
+.invite-link-list {
+    display: grid;
+    gap: 10px;
+}
+
+.invite-link-list article {
+    display: grid;
+    grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.6fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .14);
+}
+
+.invite-link-list strong,
+.invite-link-list span {
+    color: #050505;
+}
+
+.invite-link-list input {
+    width: 100%;
+    min-height: 42px;
+    padding: 10px;
+    border: 1px solid rgba(5, 5, 5, .18);
+    background: #f4f4f1;
+    color: #050505;
+    font-weight: 800;
+}
+
 .compact-action {
     min-height: 44px;
     padding: 10px 14px;
