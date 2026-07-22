@@ -122,6 +122,9 @@ public sealed class ApiClient
     public Task<ApiResult<IReadOnlyCollection<TournamentResponse>>> GetTournamentsAsync() =>
         SendAsync<IReadOnlyCollection<TournamentResponse>>(HttpMethod.Get, "api/tournaments", requiresAuth: false);
 
+    public Task<ApiResult<TournamentAdminDetailResponse>> GetTournamentAdminDetailAsync(Guid tournamentId) =>
+        SendAsync<TournamentAdminDetailResponse>(HttpMethod.Get, $"api/tournaments/{tournamentId}/admin-detail");
+
     public Task<ApiResult<TournamentRegistrationResponse>> RegisterTeamForTournamentAsync(Guid tournamentId, RegisterTeamForTournamentRequest request) =>
         SendAsync<TournamentRegistrationResponse>(HttpMethod.Post, $"api/tournaments/{tournamentId}/registrations", request);
 

@@ -1,0 +1,263 @@
+@page "/admin/tournaments/{TournamentId:guid}"
+@inject ApiClient Api
+@inject AuthState AuthState
+
+<PageTitle>TS Tournament Admin - Detail tournoi</PageTitle>
+
+<section class="admin-hero">
+    <div>
+        <p class="eyebrow">Admin TS Tournament</p>
+        <h1>@(Detail?.Tournament.Name ?? "Detail tournoi")</h1>
+        <p>Fiche centrale du tournoi: configuration, inscriptions, matchs, recuperation scores EA, audits et litiges.</p>
+    </div>
+    <div class="admin-status">
+        <span>Mode</span>
+        <strong>Detail</strong>
+        <nav class="admin-page-nav">
+            <a href="admin/tournaments">Pilotage</a>
+            <a href="admin/tournaments/new">Nouveau tournoi</a>
+            <a href="admin/tournaments/tracking">Suivi tournois</a>
+        </nav>
+    </div>
+</section>
+
+@if (!AuthState.IsAuthenticated)
+{
+    <section class="panel public-tournament-lock">
+        <div>
+            <p class="eyebrow">Connexion requise</p>
+            <h2>Connecte-toi en admin pour consulter ce tournoi.</h2>
+            <p>Les inscriptions, matchs et audits EA sont proteges.</p>
+        </div>
+        <div class="public-tournament-actions">
+            <a class="button-link primary" href="login">Se connecter</a>
+        </div>
+    </section>
+}
+else if (Busy && Detail is null)
+{
+    <section class="empty-state auth-loading-state">
+        <p class="eyebrow">Chargement</p>
+        <h1>On recupere le detail du tournoi</h1>
+        <p>Lecture des inscriptions, matchs et derniers audits.</p>
+    </section>
+}
+else if (Detail is null)
+{
+    <section class="panel public-tournament-lock">
+        <div>
+            <p class="eyebrow">Introuvable</p>
+            <h2>Tournoi non disponible</h2>
+            <p>@(Message ?? "Impossible de charger ce tournoi.")</p>
+        </div>
+        <div class="public-tournament-actions">
+            <a class="button-link primary" href="admin/tournaments/tracking">Retour suivi</a>
+        </div>
+    </section>
+}
+else
+{
+    <section class="section-grid admin-grid">
+        <article class="panel command-panel">
+            <div class="panel-heading compact">
+                <div>
+                    <p class="eyebrow">Configuration</p>
+                    <h2>@Detail.Tournament.Name</h2>
+                </div>
+                <button class="ghost-action" @onclick="LoadAsync" disabled="@Busy">Rafraichir</button>
+            </div>
+
+            <div class="launch-status">
+                <div>
+                    <span>Etat</span>
+                    <strong>@Detail.Tournament.Status</strong>
+                </div>
+                <div>
+                    <span>Date</span>
+                    <strong>@Detail.Tournament.StartsAt.LocalDateTime.ToString("dd/MM HH:mm")</strong>
+                </div>
+                <div>
+                    <span>Type</span>
+                    <strong>@(Detail.Tournament.IsCashPrize ? "Goodies" : "Simple")</strong>
+                </div>
+            </div>
+
+            <div class="metric-grid compact-metrics">
+                <div class="metric-card"><span>Equipes actives</span><strong>@Detail.RegistrationSummary.ActiveTeams / @Detail.Tournament.MaxTeams</strong></div>
+                <div class="metric-card"><span>Minimum</span><strong>@Detail.Tournament.MinTeams</strong></div>
+                <div class="metric-card"><span>Participation</span><strong>@Detail.Tournament.EntryFee @Detail.Tournament.Currency</strong></div>
+                <div class="metric-card"><span>Budget lots</span><strong>@(Detail.Tournament.EstimatedPrizeBudget?.ToString("0.##") ?? "-")</strong></div>
+                <div class="metric-card"><span>Scores EA</span><strong>@Detail.Tournament.ScoreRecoveryMode</strong></div>
+                <div class="metric-card"><span>Intervalle</span><strong>@Detail.Tournament.ScoreRecoveryIntervalMinutes min</strong></div>
+            </div>
+
+            <div class="row-actions">
+                <button class="primary-action launch-button" @onclick="RecoverScoresAsync" disabled="@Busy">Recuperer scores EA</button>
+                <a class="button-link" href="admin/tournaments/tracking">Suivi global</a>
+            </div>
+            <p class="muted">@Detail.Tournament.GoodiesDescription</p>
+        </article>
+
+        <article class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Inscriptions</p>
+                    <h2>Equipes</h2>
+                </div>
+            </div>
+            @if (Detail.RegistrationSummary.Teams.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucune equipe inscrite</strong>
+                    <p>Les inscriptions apparaitront ici des qu'elles seront validees via app ou Discord.</p>
+                </div>
+            }
+            else
+            {
+                <div class="registered-list">
+                    @foreach (var team in Detail.RegistrationSummary.Teams)
+                    {
+                        <article class="registered-row @(team.Status == TournamentRegistrationStatus.Waitlisted ? "waitlisted" : "")">
+                            <div>
+                                <strong>@team.TeamName</strong>
+                                <span>@team.Source - @team.Status</span>
+                            </div>
+                            <div>
+                                <span>Paiement</span>
+                                <strong>@(team.IsPaymentComplete ? "OK" : "A faire")</strong>
+                            </div>
+                            <small class="@(team.Status == TournamentRegistrationStatus.Accepted ? "ready" : "pending")">@team.CreatedAt.LocalDateTime.ToString("dd/MM HH:mm")</small>
+                        </article>
+                    }
+                </div>
+            }
+        </article>
+    </section>
+
+    <section class="section-grid admin-grid">
+        <article class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Matchs</p>
+                    <h2>Planning & scores</h2>
+                </div>
+            </div>
+            @if (Detail.Matches.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun match genere</strong>
+                    <p>Le tirage ou la creation de matchs alimentera cette section.</p>
+                </div>
+            }
+            else
+            {
+                <div class="performance-list">
+                    @foreach (var match in Detail.Matches.OrderBy(match => match.RoundNumber).ThenBy(match => match.MatchNumber))
+                    {
+                        <article class="clickable-card">
+                            <div>
+                                <strong>@match.Stage @(match.GroupName ?? "") - Match @match.MatchNumber</strong>
+                                <span>@match.ScheduledAt.LocalDateTime.ToString("dd/MM HH:mm") - @match.Status</span>
+                            </div>
+                            <div class="ea-data-strip">
+                                <b>@(match.HomeScore?.ToString() ?? "-") - @(match.AwayScore?.ToString() ?? "-")</b>
+                                <b>EA @match.EaLookupFrom.LocalDateTime.ToString("HH:mm") - @match.EaLookupUntil.LocalDateTime.ToString("HH:mm")</b>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </article>
+
+        <article class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">Litiges & audit</p>
+                    <h2>Rapprochement EA</h2>
+                </div>
+            </div>
+            @if (Detail.ScoreAudits.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aucun audit score</strong>
+                    <p>Lance une recuperation EA pour creer le premier journal de rapprochement.</p>
+                </div>
+            }
+            else
+            {
+                <div class="performance-list">
+                    @foreach (var audit in Detail.ScoreAudits)
+                    {
+                        <article class="clickable-card">
+                            <div>
+                                <strong>@audit.Status - @(audit.HomeScore?.ToString() ?? "-") / @(audit.AwayScore?.ToString() ?? "-")</strong>
+                                <span>@audit.AttemptedAt.LocalDateTime.ToString("dd/MM HH:mm") - @audit.Trigger - EA @(audit.EaMatchId ?? "non trouve")</span>
+                            </div>
+                            <div class="ea-data-strip">
+                                <b>Equipes @(audit.TeamsMatched ? "OK" : "KO")</b>
+                                <b>Heure @(audit.TimestampMatched ? "OK" : "KO")</b>
+                                <b>Score @(audit.ScoreMatched ? "OK" : "KO")</b>
+                                <b>Joueurs @(audit.PlayersMatched ? "OK" : "KO")</b>
+                                <b>Duree @(audit.DurationLooksComplete ? "OK" : "KO")</b>
+                                <b>Doublon @(audit.DuplicateCandidateDetected ? "Oui" : "Non")</b>
+                            </div>
+                            <p>@audit.Summary</p>
+                            @if (audit.Status != ScoreReconciliationStatus.PerfectMatch)
+                            {
+                                <small class="pending">@audit.IssuesJson</small>
+                            }
+                        </article>
+                    }
+                </div>
+            }
+        </article>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="notice">@Message</div>
+}
+
+@code {
+    [Parameter]
+    public Guid TournamentId { get; set; }
+
+    private TournamentAdminDetailResponse? Detail;
+    private bool Busy;
+    private string? Message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState.IsAuthenticated)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        Busy = true;
+        Message = null;
+        var result = await Api.GetTournamentAdminDetailAsync(TournamentId);
+        Busy = false;
+        if (result.Value is null)
+        {
+            Message = result.Error;
+            return;
+        }
+
+        Detail = result.Value;
+    }
+
+    private async Task RecoverScoresAsync()
+    {
+        Busy = true;
+        var result = await Api.RecoverTournamentScoresAsync(TournamentId);
+        Busy = false;
+        Message = result.Value is null
+            ? result.Error
+            : $"{result.Value.Count} match(s) verifies. Audit mis a jour.";
+        await LoadAsync();
+    }
+}

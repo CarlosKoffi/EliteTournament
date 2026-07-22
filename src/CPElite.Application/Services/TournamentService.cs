@@ -47,6 +47,25 @@ public sealed class TournamentService
             .ToArray());
     }
 
+    public async Task<Result<TournamentAdminDetailResponse>> GetTournamentAdminDetailAsync(Guid tournamentId, CancellationToken cancellationToken = default)
+    {
+        var tournament = await _tournaments.GetTournamentAsync(tournamentId, cancellationToken);
+        if (tournament is null)
+        {
+            return Result<TournamentAdminDetailResponse>.Failure(ErrorType.NotFound, "tournament.not_found", "Tournament was not found.");
+        }
+
+        var registrations = await _tournaments.GetRegistrationsAsync(tournamentId, cancellationToken);
+        var matches = await _tournaments.GetMatchesAsync(tournamentId, cancellationToken);
+        var audits = await _tournaments.GetScoreAuditsAsync(tournamentId, 150, cancellationToken);
+
+        return Result<TournamentAdminDetailResponse>.Success(new TournamentAdminDetailResponse(
+            ToTournamentResponse(tournament),
+            ToRegistrationSummary(tournament, registrations, _clock.UtcNow),
+            matches.Select(ToMatchResponse).ToArray(),
+            audits.Select(ToScoreAuditResponse).ToArray()));
+    }
+
     public async Task<Result<TournamentResponse>> CreateOfficialTournamentAsync(Guid createdByUserId, CreateTournamentRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Name))

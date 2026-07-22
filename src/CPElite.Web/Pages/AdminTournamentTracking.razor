@@ -90,6 +90,10 @@
             <div class="row-actions">
                 <button class="primary-action launch-button" @onclick="RecoverSelectedTournamentScoresAsync" disabled="@TrackingBusy">Recuperer scores EA</button>
                 <button class="ghost-action" @onclick="LoadProductionTrackingAsync" disabled="@TrackingBusy">Recharger tournois</button>
+                @if (SelectedTournamentId is not null)
+                {
+                    <a class="button-link" href="@($"admin/tournaments/{SelectedTournamentId}")">Ouvrir fiche tournoi</a>
+                }
             </div>
             <p class="muted">Le bouton lance une verification sur les matchs du tournoi. Chaque tentative est stockee en audit, meme si aucun match EA n'est trouve.</p>
         </article>

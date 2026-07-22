@@ -23,6 +23,12 @@ public sealed class TournamentsController : ApiControllerBase
         return ToActionResult(await _tournamentService.GetTournamentsAsync(cancellationToken));
     }
 
+    [HttpGet("{tournamentId:guid}/admin-detail")]
+    public async Task<IActionResult> GetAdminDetail(Guid tournamentId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.GetTournamentAdminDetailAsync(tournamentId, cancellationToken));
+    }
+
     [HttpPost("official")]
     public async Task<IActionResult> CreateOfficial(CreateTournamentRequest request, CancellationToken cancellationToken)
     {
