@@ -1,6 +1,7 @@
 @page "/account"
 @inject ApiClient Api
 @inject AuthState AuthState
+@inject NavigationManager Navigation
 
 <PageTitle>TS Tournament - Compte</PageTitle>
 
@@ -489,9 +490,101 @@ else
         if (AuthState.IsAuthenticated)
         {
             await LoadRealAccountDataAsync();
+            return;
         }
+
+        await ApplyInvitationPrefillAsync();
     }
 
+    private async Task ApplyInvitationPrefillAsync()
+    {
+        var query = ParseQuery(Navigation.Uri);
+        var hasInvite = query.ContainsKey("clubId") || query.ContainsKey("clubName") || query.ContainsKey("eaPlayerId") || query.ContainsKey("playerName");
+        if (!hasInvite)
+        {
+            return;
+        }
+
+        query.TryGetValue("clubId", out var clubId);
+        query.TryGetValue("clubName", out var clubName);
+        query.TryGetValue("eaPlayerId", out var eaPlayerId);
+        query.TryGetValue("playerName", out var playerName);
+        query.TryGetValue("tournamentName", out var tournamentName);
+
+        ClubSearchTerm = !string.IsNullOrWhiteSpace(clubName) ? clubName : clubId ?? "";
+        if (!string.IsNullOrWhiteSpace(playerName))
+        {
+            Register.DisplayName = playerName;
+            Register.Gamertag = playerName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(eaPlayerId))
+        {
+            Register.EaSportsId = eaPlayerId;
+        }
+
+        Message = string.IsNullOrWhiteSpace(tournamentName)
+            ? "Invitation recue: recherche du club preselectionne en cours."
+            : $"Invitation recue pour {tournamentName}: recherche du club preselectionne en cours.";
+
+        if (string.IsNullOrWhiteSpace(ClubSearchTerm))
+        {
+            Message = "Invitation recue, mais le lien ne contient pas assez d'informations club. Recherche ton club manuellement.";
+            return;
+        }
+
+        await SearchRegistrationClubAsync();
+        var selectedClub = ClubSearchResults.FirstOrDefault(club =>
+            (!string.IsNullOrWhiteSpace(clubId) && club.EaClubId.ToString() == clubId) ||
+            (!string.IsNullOrWhiteSpace(clubName) && string.Equals(club.Name, clubName, StringComparison.OrdinalIgnoreCase)))
+            ?? ClubSearchResults.FirstOrDefault();
+
+        if (selectedClub is null)
+        {
+            Message = "Invitation chargee, mais le club n'a pas ete retrouve via EA. Tu peux relancer la recherche manuellement.";
+            return;
+        }
+
+        await SelectRegistrationClubAsync(selectedClub);
+        var selectedPlayer = RegistrationRoster.FirstOrDefault(player =>
+            (!string.IsNullOrWhiteSpace(eaPlayerId) && string.Equals(player.EaPlayerId, eaPlayerId, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrWhiteSpace(playerName) && string.Equals(player.PlayerName, playerName, StringComparison.OrdinalIgnoreCase)))
+            ?? RegistrationRoster.FirstOrDefault(player => !player.IsInApplication);
+
+        if (selectedPlayer is null)
+        {
+            Message = "Club preselectionne. Choisis maintenant ton joueur dans le roster EA.";
+            return;
+        }
+
+        if (selectedPlayer.IsInApplication)
+        {
+            Message = $"Club preselectionne, mais {selectedPlayer.PlayerName} est deja rattache a un compte TS Tournament.";
+            return;
+        }
+
+        await SelectRegistrationPlayerAsync(selectedPlayer);
+    }
+
+    private static Dictionary<string, string> ParseQuery(string uri)
+    {
+        var parsed = new Uri(uri);
+        var query = parsed.Query.TrimStart('?');
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return query
+            .Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => part.Split('=', 2))
+            .Where(parts => parts.Length == 2)
+            .GroupBy(parts => Uri.UnescapeDataString(parts[0]), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => Uri.UnescapeDataString(group.First()[1].Replace("+", " ")),
+                StringComparer.OrdinalIgnoreCase);
+    }
     private async Task RegisterAsync()
     {
         if (SelectedRegistrationClub is null || SelectedRegistrationPlayer is null)
@@ -1378,4 +1471,3 @@ else
     private sealed record TournamentPerformanceDemo(string Tournament, string Match, string Stage, string Score, int Goals, int Assists, double Rating, string Status);
     private sealed record PlayerClaimChallenge(int CurrentHeight, string CurrentPosition, int TargetHeight, string TargetPosition, DateTimeOffset ExpiresAt);
 }
-

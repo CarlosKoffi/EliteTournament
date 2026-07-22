@@ -467,7 +467,7 @@ else
                     <div>
                         <span>GM en attente de validation</span>
                         <strong>Inscription provisoire autorisee</strong>
-                        <small>Tu peux preparer les 11 maintenant. A 4h du tournoi les membres seront relances; a 1h si le GM, le paiement ou les presences ne sont pas valides, l'equipe sera retiree.</small>
+                        <small>Tu peux preparer les 11 maintenant. Relance membres prevue le @FormatOperationalDeadline(ManagerReminderAt). Retrait automatique si GM, paiement ou presences non valides le @FormatOperationalDeadline(TeamRemovalAt).</small>
                     </div>
                 </div>
             }
@@ -567,44 +567,69 @@ else
             }
             else
             {
-                <div class="matchday-roster">
-                    @foreach (var player in Roster)
+                <div class="matchday-roster grouped-roster">
+                    @foreach (var group in RosterGroups)
                     {
-                    <article class="matchday-player @(player.Selected ? "selected" : "") @(SelectedPlayer == player ? "focused" : "") @(player.IsUnavailable ? "unavailable" : "") @(!player.HasApp ? "app-required" : "") @(player.Selected && !IsHeightEligibleForTournament(player) ? "height-warning" : "")" @onclick="() => OpenPlayerSheetAsync(player)">
-                        <label class="matchday-select">
-                            <input type="checkbox" checked="@player.Selected" @onclick:stopPropagation @onchange="args => TogglePlayer(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && (SelectedRosterCount >= 11 || !IsHeightEligibleForTournament(player))))" />
-                            <span></span>
-                        </label>
-                        <div class="club-avatar small">@GetInitials(player.DisplayName)</div>
-                        <div class="player-main">
-                            <strong>@player.DisplayName</strong>
-                            <small>@player.Gamertag</small>
-                            <div class="player-inline-data">
-                                <span class="app-state @(player.HasApp ? "in-app" : "outside-app")">@(player.HasApp ? "App installee" : "A inviter")</span>
-                                <span>EA @player.EaPosition</span>
-                                <span class="@(IsHeightEligibleForTournament(player) ? "" : "rule-alert")">@player.Height cm</span>
-                                <span>@player.Overall OVR</span>
-                                <span>@player.Matches MJ</span>
-                                @if (!player.HasApp)
-                                {
-                                    <span class="invite-needed">Lien pret apres soumission</span>
-                                }
+                        <section class="roster-position-group">
+                            <div class="roster-position-heading">
+                                <strong>@group.Label</strong>
+                                <span>@group.Players.Count joueur(s)</span>
                             </div>
-                        </div>
-                        <select @bind="player.Position" @onclick:stopPropagation>
-                            <option>GK</option>
-                            <option>DC</option>
-                            <option>DG</option>
-                            <option>DD</option>
-                            <option>MDC</option>
-                            <option>MC</option>
-                            <option>MOC</option>
-                            <option>AG</option>
-                            <option>AD</option>
-                            <option>BU</option>
-                        </select>
-                        <span class="presence-pill @player.StatusCss">@player.Status</span>
-                    </article>
+                            @foreach (var player in group.Players)
+                            {
+                        <article class="matchday-player @(player.Selected ? "selected" : "") @(SelectedPlayer == player ? "focused" : "") @(player.IsUnavailable ? "unavailable" : "") @(!player.HasApp ? "app-required" : "") @(player.Selected && !IsHeightEligibleForTournament(player) ? "height-warning" : "")" @onclick="() => OpenPlayerSheetAsync(player)">
+                            <label class="matchday-select">
+                                <input type="checkbox" checked="@player.Selected" @onclick:stopPropagation @onchange="args => TogglePlayerAsync(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && (SelectedRosterCount >= 11 || !IsHeightEligibleForTournament(player))))" />
+                                <span></span>
+                            </label>
+                            <div class="club-avatar small">@GetInitials(player.DisplayName)</div>
+                            <div class="player-main">
+                                <strong>@player.DisplayName</strong>
+                                <small>@player.Gamertag</small>
+                                <div class="player-inline-data">
+                                    <span class="app-state @(player.HasApp ? "in-app" : "outside-app")">@(player.HasApp ? "App installee" : "A inviter")</span>
+                                    <strong class="position-family-badge">@GetPositionGroupLabel(player.Position)</strong>
+                                    <span>EA @player.EaPosition</span>
+                                    <span class="@(IsHeightEligibleForTournament(player) ? "" : "rule-alert")">@player.Height cm</span>
+                                    <span>@player.Overall OVR</span>
+                                    <span>@player.Matches MJ</span>
+                                    @if (!player.HasApp)
+                                    {
+                                        <span class="invite-needed">Invitation disponible</span>
+                                    }
+                                </div>
+                            </div>
+                            <select value="@player.Position" @onclick:stopPropagation @onchange="args => UpdatePlayerPositionAsync(player, args)">
+                                <optgroup label="Gardien">
+                                    <option value="GK">GK</option>
+                                </optgroup>
+                                <optgroup label="DEFENSE">
+                                    <option value="DC">DC</option>
+                                    <option value="DG">DG</option>
+                                    <option value="DD">DD</option>
+                                </optgroup>
+                                <optgroup label="MILIEU">
+                                    <option value="MDC">MDC</option>
+                                    <option value="MC">MC</option>
+                                    <option value="MOC">MOC</option>
+                                </optgroup>
+                                <optgroup label="ATTAQUE">
+                                    <option value="AG">AG</option>
+                                    <option value="AD">AD</option>
+                                    <option value="BU">BU</option>
+                                </optgroup>
+                            </select>
+                            @if (player.HasApp)
+                            {
+                                <span class="presence-pill @player.StatusCss">@player.Status</span>
+                            }
+                            else
+                            {
+                                <button type="button" class="mini-action invite-player-action" @onclick:stopPropagation @onclick="() => OpenInvitePopup(player)">Inviter</button>
+                            }
+                        </article>
+                            }
+                        </section>
                     }
                 </div>
                 }
@@ -621,6 +646,17 @@ else
                     </div>
                     <p>Envoie ces liens aux joueurs selectionnes qui n'ont pas encore l'app. Ils arriveront sur la creation de compte avec le club, le joueur EA et le tournoi deja identifies.</p>
                     <div class="invite-link-list">
+                        @if (TeamInviteLink is not null)
+                        {
+                            <article class="team-generic-invite">
+                                <div>
+                                    <strong>Lien generique equipe</strong>
+                                    <span>Club preselectionne, le joueur choisira son profil EA dans le roster.</span>
+                                </div>
+                                <input value="@TeamInviteLink.Url" readonly />
+                                <button type="button" class="ghost-action" @onclick="() => CopyInviteLinkAsync(TeamInviteLink.Url)">Copier</button>
+                            </article>
+                        }
                         @foreach (var invite in InviteLinks)
                         {
                             <article>
@@ -643,7 +679,17 @@ else
                     <p class="eyebrow">Compo tournoi</p>
                     <h2>@SelectedFormation</h2>
                 </div>
-                <span class="owner-capacity @(HeightViolationCount > 0 ? "danger" : "")">@HeightViolationCount alerte(s)</span>
+                <div class="roster-heading-actions">
+                    <label class="formation-inline-select">Formation
+                        <select @bind="SelectedFormation">
+                            <option>4-2-3-1</option>
+                            <option>4-3-3</option>
+                            <option>3-5-2</option>
+                            <option>4-4-2</option>
+                        </select>
+                    </label>
+                    <span class="owner-capacity @(HeightViolationCount > 0 ? "danger" : "")">@HeightViolationCount alerte(s)</span>
+                </div>
             </div>
             <div class="lineup-board" style="--kit-primary: @KitPrimaryColor; --kit-accent: @KitAccentColor;">
                 @foreach (var row in LineupRows)
@@ -805,6 +851,31 @@ else
     </section>
 }
 
+@if (InvitePopup is not null)
+{
+    <section class="detail-drawer invite-popup-drawer">
+        <div class="detail-drawer-card invite-popup-card">
+            <div class="drawer-heading">
+                <div>
+                    <p class="eyebrow">Invitation joueur</p>
+                    <h2>@InvitePopup.PlayerName</h2>
+                </div>
+                <button class="ghost-action" @onclick="CloseInvitePopup">Fermer</button>
+            </div>
+            <p>Ce lien ouvre la creation de compte avec le club et le joueur EA deja preselectionnes.</p>
+            <div class="invite-popup-link">
+                <input value="@InvitePopup.Url" readonly />
+                <button type="button" class="primary-action" @onclick="() => CopyInviteLinkAsync(InvitePopup.Url)">Copier le lien</button>
+            </div>
+            <div class="drawer-metrics inline">
+                <div><span>Club</span><strong>@SelectedOwnerTeamName</strong></div>
+                <div><span>Joueur EA</span><strong>@InvitePopup.EaPlayerId</strong></div>
+                <div><span>Tournoi</span><strong>@SelectedTournamentName</strong></div>
+            </div>
+        </div>
+    </section>
+}
+
 @if (!string.IsNullOrWhiteSpace(Message))
 {
     <div class="notice">@Message</div>
@@ -823,6 +894,8 @@ else
     private List<RosterPlayerModel> Roster { get; } = [];
     private List<TournamentResponse> PublishedTournaments { get; } = [];
     private List<PlayerInviteLink> InviteLinks { get; } = [];
+    private PlayerInviteLink? InvitePopup;
+    private PlayerInviteLink? TeamInviteLink;
     private bool Busy;
     private bool IsPreparingTournament;
     private string? Message;
@@ -854,6 +927,16 @@ else
     private bool SelectedOwnerTeamHasPendingManagerClaim => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.HasPendingManagerClaim == true;
     private string SelectedTournamentKindLabel => SelectedTournamentIsGoodies ? "Tournoi goodies" : "Tournoi";
     private string SelectedTournamentKickoffLabel => $"coup d'envoi {SelectedTournamentStartsAt.LocalDateTime:dd/MM HH:mm}";
+    private DateTimeOffset ManagerReminderAt => SelectedTournamentStartsAt.AddHours(-4);
+    private DateTimeOffset TeamRemovalAt => SelectedTournamentStartsAt.AddHours(-1);
+    private string DraftStorageKey => $"ts.tournamentDraft.{SelectedTournamentId:N}.{SelectedOwnerTeamId:N}";
+    private IReadOnlyList<RosterPositionGroup> RosterGroups => Roster
+        .OrderBy(player => GetPositionGroupOrder(player.Position))
+        .ThenBy(player => player.Position)
+        .ThenBy(player => player.DisplayName)
+        .GroupBy(player => GetPositionGroupLabel(player.Position))
+        .Select(group => new RosterPositionGroup(group.Key, group.ToArray()))
+        .ToArray();
     private string SelectedOwnerTeamInitials => GetInitials(SelectedOwnerTeamName);
     private string OpenedClubName => SelectedClubProfile?.Name ?? SelectedOwnerTeamName;
     private IReadOnlyList<IReadOnlyList<LineupSlotModel>> LineupRows => BuildLineupRows();
@@ -1079,6 +1162,8 @@ else
         {
             Message = "Aucun effectif stocke trouve en base pour ce club. Mets a jour l'effectif EA pour appeler EA et sauvegarder le roster.";
         }
+
+        await LoadRosterDraftAsync();
     }
 
     private async Task RefreshSelectedTeamEaRosterAsync()
@@ -1225,9 +1310,90 @@ else
         OpenedSheet = null;
     }
 
-    private void TogglePlayer(RosterPlayerModel player, ChangeEventArgs args)
+    private async Task TogglePlayerAsync(RosterPlayerModel player, ChangeEventArgs args)
     {
         player.Selected = player.CanBeSelected && IsHeightEligibleForTournament(player) && args.Value is bool selected && selected;
+        await SaveRosterDraftAsync();
+    }
+
+    private async Task UpdatePlayerPositionAsync(RosterPlayerModel player, ChangeEventArgs args)
+    {
+        var nextPosition = args.Value?.ToString();
+        if (!string.IsNullOrWhiteSpace(nextPosition))
+        {
+            player.Position = nextPosition;
+            await SaveRosterDraftAsync();
+        }
+    }
+
+    private void OpenInvitePopup(RosterPlayerModel player)
+    {
+        InvitePopup = BuildInviteLink(player);
+    }
+
+    private void CloseInvitePopup()
+    {
+        InvitePopup = null;
+    }
+
+    private async Task SaveRosterDraftAsync()
+    {
+        if (SelectedOwnerTeamId is null || Roster.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var draft = Roster.Select(player => new RosterDraftItem(player.RosterKey, player.Selected, player.Position, player.Status)).ToArray();
+            await JS.InvokeVoidAsync("localStorage.setItem", DraftStorageKey, System.Text.Json.JsonSerializer.Serialize(draft));
+        }
+        catch
+        {
+            // Draft persistence is a comfort feature; the backend submission remains the source of truth.
+        }
+    }
+
+    private async Task LoadRosterDraftAsync()
+    {
+        if (SelectedOwnerTeamId is null || Roster.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", DraftStorageKey);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            var items = System.Text.Json.JsonSerializer.Deserialize<RosterDraftItem[]>(json) ?? [];
+            foreach (var item in items)
+            {
+                var player = Roster.FirstOrDefault(candidate => string.Equals(candidate.RosterKey, item.RosterKey, StringComparison.OrdinalIgnoreCase));
+                if (player is null)
+                {
+                    continue;
+                }
+
+                player.Selected = item.Selected && player.CanBeSelected && IsHeightEligibleForTournament(player);
+                if (!string.IsNullOrWhiteSpace(item.Position))
+                {
+                    player.Position = item.Position;
+                }
+
+                if (!string.IsNullOrWhiteSpace(item.Status))
+                {
+                    player.Status = item.Status;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore invalid local drafts and let the owner continue with live roster data.
+        }
     }
 
     private void RefreshPlayerEaInfo(RosterPlayerModel player)
@@ -1352,6 +1518,9 @@ else
             }
         }
 
+        TeamInviteLink = InviteLinks.Count > 0 ? BuildTeamInviteLink() : null;
+        await SaveRosterDraftAsync();
+
         Busy = false;
         var selectedAppPlayers = Roster.Count(player => player.Selected && player.HasApp);
         var invitePlayers = InviteLinks.Count;
@@ -1362,11 +1531,51 @@ else
                 : "Equipe inscrite et composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
     }
 
+    private static string FormatOperationalDeadline(DateTimeOffset value)
+    {
+        return $"{value.LocalDateTime:dd/MM/yyyy HH:mm}";
+    }
+
+    private static string GetPositionGroupLabel(string? position)
+    {
+        return NormalizeTournamentPosition(position) switch
+        {
+            "GK" => "GARDIEN",
+            "DC" or "DG" or "DD" => "DEFENSE",
+            "MDC" or "MC" or "MOC" => "MILIEU",
+            "AG" or "AD" or "BU" => "ATTAQUE",
+            _ => "AUTRES"
+        };
+    }
+
+    private static int GetPositionGroupOrder(string? position)
+    {
+        return GetPositionGroupLabel(position) switch
+        {
+            "GARDIEN" => 0,
+            "DEFENSE" => 1,
+            "MILIEU" => 2,
+            "ATTAQUE" => 3,
+            _ => 4
+        };
+    }
+
+    private static string NormalizeTournamentPosition(string? position)
+    {
+        return string.IsNullOrWhiteSpace(position) ? "" : position.Trim().ToUpperInvariant();
+    }
     private PlayerInviteLink BuildInviteLink(RosterPlayerModel player)
     {
         var clubId = SelectedOwnerTeamId?.ToString() ?? "";
         var url = $"{Navigation.BaseUri.TrimEnd('/')}/account?clubId={Uri.EscapeDataString(clubId)}&clubName={Uri.EscapeDataString(SelectedOwnerTeamName)}&eaPlayerId={Uri.EscapeDataString(player.EaPlayerId)}&playerName={Uri.EscapeDataString(player.DisplayName)}&tournamentId={Uri.EscapeDataString(SelectedTournamentId.ToString())}&tournamentName={Uri.EscapeDataString(SelectedTournamentName)}";
         return new PlayerInviteLink(player.DisplayName, player.EaPlayerId, player.Position, url);
+    }
+
+    private PlayerInviteLink BuildTeamInviteLink()
+    {
+        var clubId = SelectedOwnerTeamId?.ToString() ?? "";
+        var url = $"{Navigation.BaseUri.TrimEnd('/')}/account?clubId={Uri.EscapeDataString(clubId)}&clubName={Uri.EscapeDataString(SelectedOwnerTeamName)}&tournamentId={Uri.EscapeDataString(SelectedTournamentId.ToString())}&tournamentName={Uri.EscapeDataString(SelectedTournamentName)}";
+        return new PlayerInviteLink("Lien generique equipe", SelectedOwnerTeamName, "Club", url);
     }
 
     private async Task CopyInviteLinkAsync(string url)
@@ -1530,6 +1739,8 @@ else
 
     private sealed record OwnerTeamOption(Guid TeamId, string Name, bool HasPendingManagerClaim);
     private sealed record PlayerInviteLink(string PlayerName, string EaPlayerId, string Position, string Url);
+    private sealed record RosterDraftItem(string RosterKey, bool Selected, string Position, string Status);
+    private sealed record RosterPositionGroup(string Label, IReadOnlyList<RosterPlayerModel> Players);
 
     private sealed record LineupSlotModel(string Position, RosterPlayerModel? Player);
     private sealed record DemoGroupRow(int Rank, string Team, int Points, string Record);

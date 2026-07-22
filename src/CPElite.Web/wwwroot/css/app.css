@@ -7327,3 +7327,129 @@ body {
         justify-items: start;
     }
 }
+
+/* Tournament registration polish */
+.grouped-roster {
+    display: grid;
+    gap: 14px;
+}
+
+.roster-position-group {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    background: #ffffff;
+    border: 1px solid rgba(5, 5, 5, .12);
+}
+
+.roster-position-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    background: #050505;
+    color: #ffffff;
+}
+
+.roster-position-heading strong,
+.roster-position-heading span {
+    color: #ffffff;
+}
+
+.position-family-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    background: #050505;
+    color: #ffffff !important;
+    border-radius: 0;
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.formation-control,
+.formation-inline-select {
+    display: inline-grid;
+    gap: 6px;
+    color: #050505;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.formation-control select,
+.formation-inline-select select,
+.matchday-player select {
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid rgba(5, 5, 5, .18);
+    background: #ffffff;
+    color: #050505;
+    font-weight: 950;
+}
+
+.invite-player-action {
+    background: #ffffff;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .18);
+}
+
+.invite-popup-drawer {
+    z-index: 60;
+}
+
+.invite-popup-card {
+    max-width: 720px;
+    background: #ffffff;
+    color: #050505;
+}
+
+.invite-popup-card h2,
+.invite-popup-card p,
+.invite-popup-card strong,
+.invite-popup-card span {
+    color: #050505;
+}
+
+.invite-popup-link {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    margin: 14px 0;
+}
+
+.invite-popup-link input,
+.team-generic-invite input {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 12px;
+    background: #f4f4f1;
+    color: #050505;
+    border: 1px solid rgba(5, 5, 5, .18);
+    font-weight: 850;
+}
+
+.team-generic-invite {
+    border-left: 6px solid var(--app-pitch) !important;
+}
+
+@media (max-width: 760px) {
+    .invite-popup-link,
+    .invite-link-list article {
+        grid-template-columns: 1fr;
+    }
+
+    .matchday-player {
+        grid-template-columns: auto 44px minmax(0, 1fr);
+    }
+
+    .matchday-player select,
+    .matchday-player .mini-action,
+    .matchday-player .presence-pill {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+}
