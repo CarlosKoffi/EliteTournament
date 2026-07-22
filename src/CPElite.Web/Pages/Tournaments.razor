@@ -523,7 +523,10 @@ else
                     <p class="eyebrow">Effectif</p>
                     <h2>Disponibilites puis selection</h2>
                 </div>
-                <span class="owner-capacity @(SelectedRosterCount > 11 ? "danger" : "")">@SelectedRosterCount / 11</span>
+                <div class="roster-heading-actions">
+                    <span class="owner-capacity @(SelectedRosterCount > 11 ? "danger" : "")">@SelectedRosterCount / 11</span>
+                    <button type="button" class="ghost-action" @onclick="RefreshSelectedTeamEaRosterAsync" disabled="@(Busy || SelectedOwnerTeamId is null)">Mettre a jour effectif EA</button>
+                </div>
             </div>
 
             <div class="availability-strip">
@@ -555,8 +558,8 @@ else
             @if (Roster.Count == 0)
             {
                 <div class="empty-state">
-                    <strong>Aucun joueur app dans ce club</strong>
-                    <p>La base ne renvoie aucun membre actif pour le club selectionne. Ajoute les joueurs au club avant de preparer les 11 du tournoi.</p>
+                    <strong>Aucun joueur en base pour ce club</strong>
+                    <p>La base ne renvoie ni effectif EA stocke, ni membre app actif pour le club selectionne. Clique sur mettre a jour l'effectif EA pour appeler EA, sauvegarder le roster, puis recharger cette liste.</p>
                     <a class="button-link primary" href="teams">Gerer mon equipe</a>
                 </div>
             }
@@ -1005,10 +1008,29 @@ else
         SelectedPlayerEa = null;
         if (SelectedOwnerTeamId.HasValue && AuthState.IsAuthenticated)
         {
-            var result = await Api.GetTeamMembersAsync(SelectedOwnerTeamId.Value);
-            if (result.Value is not null && result.Value.Count > 0)
+            var membersResult = await Api.GetTeamMembersAsync(SelectedOwnerTeamId.Value);
+            var appMembers = membersResult.Value?.ToArray() ?? [];
+            var profilesResult = await Api.GetTeamEaPlayersAsync(SelectedOwnerTeamId.Value);
+            var profiles = profilesResult.Value?.ToArray() ?? [];
+
+            if (profiles.Length > 0)
             {
-                Roster.AddRange(result.Value.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, DefaultPosition(index), index < 11, DemoStatus(index))));
+                Roster.AddRange(profiles.Select((profile, index) =>
+                {
+                    var member = FindMatchingAppMember(profile, appMembers);
+                    return RosterPlayerModel.FromEaProfile(profile, member, DefaultPosition(index), member is not null && index < 11, member is not null ? DemoStatus(index) : "A inviter");
+                }));
+
+                var profileKeys = profiles.SelectMany(profile => BuildPlayerKeys(profile.PlayerName, profile.ProName, profile.EaPlayerId)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var missingAppMembers = appMembers
+                    .Where(member => !BuildPlayerKeys(member.DisplayName, member.Gamertag, null).Any(profileKeys.Contains))
+                    .ToArray();
+
+                Roster.AddRange(missingAppMembers.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, DefaultPosition(Roster.Count + index), false, "Disponible")));
+            }
+            else if (appMembers.Length > 0)
+            {
+                Roster.AddRange(appMembers.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, DefaultPosition(index), index < 11, DemoStatus(index))));
             }
         }
 
@@ -1019,8 +1041,53 @@ else
         }
         else if (Roster.Count == 0)
         {
-            Message = "Aucun membre actif trouve en base pour ce club. Impossible de preparer les 11 tant que l'effectif app est vide.";
+            Message = "Aucun effectif stocke trouve en base pour ce club. Mets a jour l'effectif EA pour appeler EA et sauvegarder le roster.";
         }
+    }
+
+    private async Task RefreshSelectedTeamEaRosterAsync()
+    {
+        if (SelectedOwnerTeamId is null)
+        {
+            Message = "Selectionne d'abord un club.";
+            return;
+        }
+
+        Busy = true;
+        Message = "Mise a jour EA de l'effectif en cours...";
+        var sync = await Api.SyncTeamEaAsync(SelectedOwnerTeamId.Value, forceRefresh: true);
+        Busy = false;
+        if (!sync.Success)
+        {
+            Message = sync.Error;
+            return;
+        }
+
+        await LoadRosterForSelectedTeamAsync();
+        Message = Roster.Count == 0
+            ? "EA a ete appele, mais aucun joueur n'est encore stocke pour ce club."
+            : $"Effectif EA mis a jour depuis la base: {Roster.Count} joueur(s).";
+    }
+
+    private static TeamMemberResponse? FindMatchingAppMember(EaPlayerProfileSnapshotResponse profile, IReadOnlyCollection<TeamMemberResponse> members)
+    {
+        var profileKeys = BuildPlayerKeys(profile.PlayerName, profile.ProName, profile.EaPlayerId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return members.FirstOrDefault(member => BuildPlayerKeys(member.DisplayName, member.Gamertag, null).Any(profileKeys.Contains));
+    }
+
+    private static IEnumerable<string> BuildPlayerKeys(params string?[] values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim())
+            .SelectMany(value => new[] { value, NormalizePlayerKey(value) })
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizePlayerKey(string value)
+    {
+        return new string(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
     }
 
     private async Task OpenTeamSheetAsync()
@@ -1486,6 +1553,35 @@ else
         public static RosterPlayerModel FromAppMember(Guid userId, string displayName, string gamertag, string position, bool selected, string status)
         {
             return new RosterPlayerModel(userId, displayName, gamertag, displayName, position, position, selected, true, status, 180, 82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+
+        public static RosterPlayerModel FromEaProfile(EaPlayerProfileSnapshotResponse profile, TeamMemberResponse? member, string fallbackPosition, bool selected, string status)
+        {
+            var displayName = profile.PlayerName;
+            var gamertag = member?.Gamertag ?? profile.EaPlayerId;
+            var position = string.IsNullOrWhiteSpace(profile.Position) ? fallbackPosition : profile.Position!;
+            return new RosterPlayerModel(
+                member?.UserId ?? Guid.Empty,
+                displayName,
+                gamertag,
+                string.IsNullOrWhiteSpace(profile.ProName) ? displayName : profile.ProName!,
+                position,
+                position,
+                selected,
+                member is not null,
+                status,
+                profile.Height ?? 180,
+                profile.Overall ?? 0,
+                profile.Matches ?? 0,
+                profile.WinRate ?? 0,
+                profile.Goals ?? 0,
+                profile.Assists ?? 0,
+                profile.AverageRating ?? 0,
+                profile.ShotSuccessRate ?? 0,
+                profile.PassSuccessRate ?? 0,
+                profile.TackleSuccessRate ?? 0,
+                profile.PlayerOfTheMatch ?? 0,
+                profile.PrevGoals ?? 0);
         }
 
         public void RefreshEaSnapshot()

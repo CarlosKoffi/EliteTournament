@@ -7253,6 +7253,14 @@ body {
     line-height: 1;
 }
 
+.roster-heading-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .compact-action {
     min-height: 44px;
     padding: 10px 14px;
