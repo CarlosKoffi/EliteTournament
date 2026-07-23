@@ -510,10 +510,11 @@ else
                 <div class="done"><strong>@AvailableRosterCount</strong><span>joueurs disponibles</span></div>
                 <div class="@(UnavailableRosterCount == 0 ? "done" : "warning")"><strong>@UnavailableRosterCount</strong><span>pas disponibles</span></div>
                 <div class="@(HeightViolationCount == 0 ? "done" : "warning")"><strong>@HeightViolationCount</strong><span>hors restriction taille</span></div>
+                <div class="@(MissingTournamentPositionCount == 0 ? "done" : "warning")"><strong>@MissingTournamentPositionCount</strong><span>postes a choisir</span></div>
             </div>
 
             <div class="row-actions">
-                <button class="primary-action" @onclick="SubmitRosterAsync" disabled="@(SelectedOwnerTeamId is null || SelectedRosterCount != 11 || HeightViolationCount > 0 || Busy)">Soumettre les 11</button>
+                <button class="primary-action" @onclick="SubmitRosterAsync" disabled="@(SelectedOwnerTeamId is null || SelectedRosterCount != 11 || MissingTournamentPositionCount > 0 || HeightViolationCount > 0 || Busy)">Soumettre les 11</button>
                 <button class="ghost-action" @onclick="RemindPendingAsync" disabled="@Busy">Relancer les joueurs</button>
             </div>
         </article>
@@ -550,7 +551,7 @@ else
                         {
                             <button @onclick="() => OpenPlayerSheetAsync(player)">
                                 <strong>@player.DisplayName</strong>
-                                <span>@player.Position · @player.Height cm / max @GetMaxHeightForPosition(player.Position) cm</span>
+                                <span>@FormatTournamentPosition(player.Position) · @player.Height cm / max @GetMaxHeightForPosition(GetRulePosition(player)) cm</span>
                             </button>
                         }
                     </div>
@@ -579,7 +580,7 @@ else
                             {
                         <article class="matchday-player @(player.Selected ? "selected" : "") @(SelectedPlayer == player ? "focused" : "") @(player.IsUnavailable ? "unavailable" : "") @(!player.HasApp ? "app-required" : "") @(player.Selected && !IsHeightEligibleForTournament(player) ? "height-warning" : "")" @onclick="() => OpenPlayerSheetAsync(player)">
                             <label class="matchday-select">
-                                <input type="checkbox" checked="@player.Selected" @onclick:stopPropagation @onchange="args => TogglePlayerAsync(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && (SelectedRosterCount >= 11 || !IsHeightEligibleForTournament(player))))" />
+                                <input type="checkbox" checked="@player.Selected" @onclick:stopPropagation @onchange="args => TogglePlayerAsync(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && SelectedRosterCount >= 11))" />
                                 <span></span>
                             </label>
                             <div class="club-avatar small">@GetInitials(player.DisplayName)</div>
@@ -588,7 +589,7 @@ else
                                 <small>@player.Gamertag</small>
                                 <div class="player-inline-data">
                                     <span class="app-state @(player.HasApp ? "in-app" : "outside-app")">@(player.HasApp ? "App installee" : "A inviter")</span>
-                                    <strong class="position-family-badge">@GetPositionGroupLabel(player.Position)</strong>
+                                    <strong class="position-family-badge">@GetPositionGroupLabel(player.EaPosition)</strong>
                                     <span>EA @player.EaPosition</span>
                                     <span class="@(IsHeightEligibleForTournament(player) ? "" : "rule-alert")">@player.Height cm</span>
                                     <span>@player.Overall OVR</span>
@@ -600,6 +601,7 @@ else
                                 </div>
                             </div>
                             <select value="@player.Position" @onclick:stopPropagation @onchange="args => UpdatePlayerPositionAsync(player, args)">
+                                <option value="">Poste tournoi</option>
                                 <optgroup label="Gardien">
                                     <option value="GK">GK</option>
                                 </optgroup>
@@ -799,7 +801,7 @@ else
             <div class="player-profile-header">
                 <div class="club-avatar large">@GetInitials(SelectedPlayer.DisplayName)</div>
                 <div>
-                    <span class="result-kind">Poste tournoi @SelectedPlayer.Position</span>
+                    <span class="result-kind">Poste tournoi @FormatTournamentPosition(SelectedPlayer.Position)</span>
                     <strong>@SelectedPlayer.Gamertag</strong>
                     <small>EA Sports ID: @SelectedPlayer.EaPlayerId · Poste EA: @SelectedPlayer.EaPosition · @(SelectedPlayer.HasApp ? "compte app actif" : "joueur EA sans compte app")</small>
                 </div>
@@ -829,7 +831,7 @@ else
                 <article>
                     <span class="result-kind">Controle owner</span>
                     <div class="drawer-metrics inline">
-                        <div><span>Poste tournoi</span><strong>@SelectedPlayer.Position</strong></div>
+                        <div><span>Poste tournoi</span><strong>@FormatTournamentPosition(SelectedPlayer.Position)</strong></div>
                         <div><span>Presence</span><strong>@SelectedPlayer.Status</strong></div>
                     </div>
                     <div class="player-skill-grid">
@@ -919,7 +921,8 @@ else
     private int UnavailableRosterCount => Roster.Count(player => player.IsUnavailable);
     private int SelectedInviteRequiredCount => Roster.Count(player => player.Selected && !player.HasApp);
     private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
-    private string ReadinessLabel => SelectedRosterCount == 11 && ConfirmedRosterCount == 11 && HeightViolationCount == 0 ? "Equipe prete" : "En attente joueurs";
+    private int MissingTournamentPositionCount => Roster.Count(player => player.Selected && string.IsNullOrWhiteSpace(player.Position));
+    private string ReadinessLabel => SelectedRosterCount == 11 && ConfirmedRosterCount == 11 && HeightViolationCount == 0 && MissingTournamentPositionCount == 0 ? "Equipe prete" : "En attente joueurs";
     private IReadOnlyList<TournamentResponse> LiveTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.InProgress).ToArray();
     private IReadOnlyList<TournamentResponse> UpcomingTournaments => PublishedTournaments.Where(tournament => tournament.Status is TournamentStatus.RegistrationOpen or TournamentStatus.RegistrationLocked && tournament.StartsAt >= DateTimeOffset.UtcNow).ToArray();
     private IReadOnlyList<TournamentResponse> PastTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.Completed).ToArray();
@@ -929,12 +932,12 @@ else
     private string SelectedTournamentKickoffLabel => $"coup d'envoi {SelectedTournamentStartsAt.LocalDateTime:dd/MM HH:mm}";
     private DateTimeOffset ManagerReminderAt => SelectedTournamentStartsAt.AddHours(-4);
     private DateTimeOffset TeamRemovalAt => SelectedTournamentStartsAt.AddHours(-1);
-    private string DraftStorageKey => $"ts.tournamentDraft.{SelectedTournamentId:N}.{SelectedOwnerTeamId:N}";
+    private string DraftStorageKey => $"ts.tournamentDraft.v2.{SelectedTournamentId:N}.{SelectedOwnerTeamId:N}";
     private IReadOnlyList<RosterPositionGroup> RosterGroups => Roster
-        .OrderBy(player => GetPositionGroupOrder(player.Position))
-        .ThenBy(player => player.Position)
+        .OrderBy(player => GetPositionGroupOrder(player.EaPosition))
+        .ThenBy(player => player.EaPosition)
         .ThenBy(player => player.DisplayName)
-        .GroupBy(player => GetPositionGroupLabel(player.Position))
+        .GroupBy(player => GetPositionGroupLabel(player.EaPosition))
         .Select(group => new RosterPositionGroup(group.Key, group.ToArray()))
         .ToArray();
     private string SelectedOwnerTeamInitials => GetInitials(SelectedOwnerTeamName);
@@ -1137,7 +1140,7 @@ else
                 Roster.AddRange(profiles.Select((profile, index) =>
                 {
                     var member = FindMatchingAppMember(profile, appMembers);
-                    return RosterPlayerModel.FromEaProfile(profile, member, DefaultPosition(index), member is not null && index < 11, member is not null ? DemoStatus(index) : "A inviter");
+                    return RosterPlayerModel.FromEaProfile(profile, member, member is not null && index < 11, member is not null ? DemoStatus(index) : "A inviter");
                 }));
 
                 var profileKeys = profiles.SelectMany(profile => BuildPlayerKeys(profile.PlayerName, profile.ProName, profile.EaPlayerId)).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -1145,11 +1148,11 @@ else
                     .Where(member => !BuildPlayerKeys(member.DisplayName, member.Gamertag, null).Any(profileKeys.Contains))
                     .ToArray();
 
-                Roster.AddRange(missingAppMembers.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, DefaultPosition(Roster.Count + index), false, "Disponible")));
+                Roster.AddRange(missingAppMembers.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, "", false, "Disponible")));
             }
             else if (appMembers.Length > 0)
             {
-                Roster.AddRange(appMembers.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, DefaultPosition(index), index < 11, DemoStatus(index))));
+                Roster.AddRange(appMembers.Select((member, index) => RosterPlayerModel.FromAppMember(member.UserId, member.DisplayName, member.Gamertag ?? member.DisplayName, "", index < 11, DemoStatus(index))));
             }
         }
 
@@ -1426,7 +1429,12 @@ else
 
     private bool IsHeightEligibleForTournament(RosterPlayerModel player)
     {
-        return player.Height <= GetMaxHeightForPosition(player.Position);
+        return player.Height <= GetMaxHeightForPosition(GetRulePosition(player));
+    }
+
+    private string GetRulePosition(RosterPlayerModel player)
+    {
+        return string.IsNullOrWhiteSpace(player.Position) ? player.EaPosition : player.Position;
     }
 
     private int GetMaxHeightForPosition(string position)
@@ -1531,6 +1539,10 @@ else
                 : "Equipe inscrite et composition soumise. Les 11 joueurs doivent maintenant valider leur presence.";
     }
 
+    private static string FormatTournamentPosition(string? position)
+    {
+        return string.IsNullOrWhiteSpace(position) ? "A choisir" : position;
+    }
     private static string FormatOperationalDeadline(DateTimeOffset value)
     {
         return $"{value.LocalDateTime:dd/MM/yyyy HH:mm}";
@@ -1538,14 +1550,28 @@ else
 
     private static string GetPositionGroupLabel(string? position)
     {
-        return NormalizeTournamentPosition(position) switch
+        var normalized = NormalizeTournamentPosition(position);
+        if (normalized is "GK" || normalized.Contains("GARD") || normalized.Contains("KEEPER"))
         {
-            "GK" => "GARDIEN",
-            "DC" or "DG" or "DD" => "DEFENSE",
-            "MDC" or "MC" or "MOC" => "MILIEU",
-            "AG" or "AD" or "BU" => "ATTAQUE",
-            _ => "AUTRES"
-        };
+            return "GARDIEN";
+        }
+
+        if (normalized is "DC" or "DG" or "DD" || normalized.Contains("DEF") || normalized.Contains("BACK") || normalized.Contains("LAT"))
+        {
+            return "DEFENSE";
+        }
+
+        if (normalized is "MDC" or "MC" or "MOC" || normalized.Contains("MIL") || normalized.Contains("MID"))
+        {
+            return "MILIEU";
+        }
+
+        if (normalized is "AG" or "AD" or "BU" || normalized.Contains("ATT") || normalized.Contains("AIL") || normalized.Contains("FORWARD") || normalized.Contains("STRIKER"))
+        {
+            return "ATTAQUE";
+        }
+
+        return "AUTRES";
     }
 
     private static int GetPositionGroupOrder(string? position)
@@ -1611,11 +1637,6 @@ else
                 || error.Contains("déjà", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string DefaultPosition(int index)
-    {
-        var positions = new[] { "GK", "DG", "DC", "DC", "DD", "MDC", "MC", "MOC", "AG", "AD", "BU" };
-        return positions[index % positions.Length];
-    }
 
     private static string DemoStatus(int index)
     {
@@ -1838,18 +1859,18 @@ else
             return new RosterPlayerModel(userId, displayName, gamertag, displayName, position, position, selected, true, status, 180, 82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
-        public static RosterPlayerModel FromEaProfile(EaPlayerProfileSnapshotResponse profile, TeamMemberResponse? member, string fallbackPosition, bool selected, string status)
+        public static RosterPlayerModel FromEaProfile(EaPlayerProfileSnapshotResponse profile, TeamMemberResponse? member, bool selected, string status)
         {
             var displayName = profile.PlayerName;
             var gamertag = member?.Gamertag ?? profile.EaPlayerId;
-            var position = string.IsNullOrWhiteSpace(profile.Position) ? fallbackPosition : profile.Position!;
+            var eaPosition = string.IsNullOrWhiteSpace(profile.Position) ? "" : profile.Position!;
             return new RosterPlayerModel(
                 member?.UserId ?? Guid.Empty,
                 displayName,
                 gamertag,
                 string.IsNullOrWhiteSpace(profile.ProName) ? displayName : profile.ProName!,
-                position,
-                position,
+                "",
+                eaPosition,
                 selected,
                 member is not null,
                 status,
