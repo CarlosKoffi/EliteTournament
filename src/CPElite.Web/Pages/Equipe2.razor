@@ -5,7 +5,7 @@
 
 <PageTitle>Elite Tournament - Equipe New</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260723-2" />
+    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-1" />
 </HeadContent>
 
 <main class="el-team-page">
@@ -89,8 +89,10 @@
                         <article class="el-card el-donut-card">
                             <span class="el-source el-source-game">Bilan recent</span>
                             <div class="el-donut" style="@DonutStyle">
-                                <strong>@WinRateLabel</strong>
-                                <span>win rate</span>
+                                <div class="el-donut-core">
+                                    <strong>@WinRateLabel</strong>
+                                    <span>Victoires</span>
+                                </div>
                             </div>
                             <div class="el-legend">
                                 <span><b class="win"></b>@WinsLabel victoires</span>
@@ -306,7 +308,7 @@
     private string WinRateLabel => TotalMatches == 0 ? "-" : $"{Math.Round((double)Wins / TotalMatches * 100)}%";
     private string DonutStyle => TotalMatches == 0
         ? "background: conic-gradient(rgba(255,255,255,.08) 0 100%);"
-        : $"background: conic-gradient(#00e676 0 {WinSlice}%, #f5c518 {WinSlice}% {DrawSlice}%, #ff5252 {DrawSlice}% 100%);";
+        : $"background: conic-gradient(#00e676 0 {CssPercent(WinSlice)}%, #f5c518 {CssPercent(WinSlice)}% {CssPercent(DrawSlice)}%, #ff5252 {CssPercent(DrawSlice)}% 100%);";
     private double WinSlice => TotalMatches == 0 ? 0 : (double)Wins / TotalMatches * 100;
     private double DrawSlice => TotalMatches == 0 ? 0 : (double)(Wins + Draws) / TotalMatches * 100;
 
@@ -476,4 +478,5 @@
     private static string HeightLabel(int? height) => height is null or <= 0 ? "-" : $"{height} cm";
     private static string WeightLabel(int? weight) => weight is null or <= 0 ? "-" : $"{weight} kg";
     private static string PercentLabel(double? value) => value is null ? "-" : $"{value:0}%";
+    private static string CssPercent(double value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 }
