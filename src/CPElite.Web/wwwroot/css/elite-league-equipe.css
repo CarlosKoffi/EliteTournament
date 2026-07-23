@@ -498,6 +498,33 @@ body:has(.el-team-page) .content {
     margin: 16px 0;
 }
 
+.el-player-stat-section {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 12px;
+    background: #0b0b12;
+}
+
+.el-player-stat-section.tournament {
+    border-color: rgba(0, 230, 118, .24);
+    background:
+        radial-gradient(circle at 92% 12%, rgba(0, 230, 118, .12), transparent 36%),
+        #0b1210;
+}
+
+.el-player-stat-section.general {
+    border-color: rgba(125, 211, 252, .16);
+}
+
+.el-player-stat-section p {
+    margin: 0;
+    color: #8888aa;
+    font-size: .86rem;
+}
+
 .el-primary,
 .el-secondary {
     min-height: 42px;

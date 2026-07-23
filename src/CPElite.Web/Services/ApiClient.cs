@@ -191,6 +191,9 @@ public sealed class ApiClient
     public Task<ApiResult<IReadOnlyCollection<EaPlayerProfileSnapshotResponse>>> GetTeamEaPlayersAsync(Guid teamId) =>
         SendAsync<IReadOnlyCollection<EaPlayerProfileSnapshotResponse>>(HttpMethod.Get, $"api/teams/{teamId}/ea/players");
 
+    public Task<ApiResult<IReadOnlyCollection<EaTournamentPlayerStatsResponse>>> GetTeamEaTournamentPlayerStatsAsync(Guid teamId) =>
+        SendAsync<IReadOnlyCollection<EaTournamentPlayerStatsResponse>>(HttpMethod.Get, $"api/teams/{teamId}/ea/tournament-player-stats");
+
     public Task<ApiResult<IReadOnlyCollection<EaFriendlyMatchResponse>>> GetTeamEaFriendliesAsync(Guid teamId, int take = 20, Guid? tournamentMatchId = null)
     {
         var url = $"api/teams/{teamId}/ea/friendlies?take={take}";

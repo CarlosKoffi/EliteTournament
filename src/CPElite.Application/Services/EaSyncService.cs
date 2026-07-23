@@ -232,6 +232,34 @@ public sealed class EaSyncService
         return Result<IReadOnlyCollection<EaPlayerProfileSnapshotResponse>>.Success(profiles.Select(ToPlayerProfileResponse).ToArray());
     }
 
+    public async Task<Result<IReadOnlyCollection<EaTournamentPlayerStatsResponse>>> GetTournamentPlayerStatsAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
+        var stats = await _snapshots.GetTournamentPlayerStatsAsync(teamId, cancellationToken);
+        return Result<IReadOnlyCollection<EaTournamentPlayerStatsResponse>>.Success(stats.Select(stat => new EaTournamentPlayerStatsResponse(
+            stat.EaPlayerId,
+            stat.PlayerName,
+            stat.Position,
+            stat.Matches,
+            stat.Goals,
+            stat.Assists,
+            stat.AverageRating,
+            stat.PlayerOfTheMatch,
+            stat.Shots,
+            stat.PassesMade,
+            stat.PassAttempts,
+            stat.PassSuccessRate,
+            stat.TacklesMade,
+            stat.TackleAttempts,
+            stat.TackleSuccessRate,
+            stat.Saves,
+            stat.GoalsConceded,
+            stat.CleanSheetsAny,
+            stat.CleanSheetsDef,
+            stat.CleanSheetsGk,
+            stat.RedCards,
+            stat.SecondsPlayed)).ToArray());
+    }
+
     public async Task<Result<IReadOnlyCollection<EaFriendlyMatchResponse>>> GetFriendlyMatchesAsync(Guid teamId, int take = 20, Guid? tournamentMatchId = null, CancellationToken cancellationToken = default)
     {
         var matches = await _snapshots.GetFriendlyMatchesAsync(teamId, Math.Clamp(take, 1, 50), cancellationToken, tournamentMatchId);

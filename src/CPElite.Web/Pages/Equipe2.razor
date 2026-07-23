@@ -5,7 +5,7 @@
 
 <PageTitle>Elite Tournament - Equipe New</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-1" />
+    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-2" />
 </HeadContent>
 
 <main class="el-team-page">
@@ -213,20 +213,48 @@
                                         <p>@(SelectedPlayer.ProName ?? SelectedPlayer.EaPlayerId)</p>
                                     </div>
                                 </div>
-                                <div class="el-player-facts">
-                                    <span>@HeightLabel(SelectedPlayer.Height)</span>
-                                    <span>@WeightLabel(SelectedPlayer.Weight)</span>
-                                    <span>@(SelectedPlayer.Matches?.ToString() ?? "-") matchs</span>
-                                    <span>@(SelectedPlayer.IsManager ? "Manager EA" : "Joueur")</span>
-                                </div>
-                                <dl class="el-detail-list">
-                                    <div><dt>Buts</dt><dd>@(SelectedPlayer.Goals?.ToString() ?? "-")</dd></div>
-                                    <div><dt>Assists</dt><dd>@(SelectedPlayer.Assists?.ToString() ?? "-")</dd></div>
-                                    <div><dt>Passes</dt><dd>@PercentLabel(SelectedPlayer.PassSuccessRate)</dd></div>
-                                    <div><dt>Tacles</dt><dd>@PercentLabel(SelectedPlayer.TackleSuccessRate)</dd></div>
-                                    <div><dt>Clean sheets</dt><dd>@(SelectedPlayer.CleanSheets?.ToString() ?? "-")</dd></div>
-                                    <div><dt>Homme du match</dt><dd>@(SelectedPlayer.PlayerOfTheMatch?.ToString() ?? "-")</dd></div>
-                                </dl>
+                                <section class="el-player-stat-section tournament">
+                                    <span class="el-source el-source-app">Statistiques Tournois</span>
+                                    @if (SelectedTournamentStats is null)
+                                    {
+                                        <p>Aucun match de tournoi lie pour ce joueur.</p>
+                                    }
+                                    else
+                                    {
+                                        <dl class="el-detail-list">
+                                            <div><dt>Matchs</dt><dd>@SelectedTournamentStats.Matches</dd></div>
+                                            <div><dt>Note moy.</dt><dd>@RatingLabel(SelectedTournamentStats.AverageRating)</dd></div>
+                                            <div><dt>Buts</dt><dd>@SelectedTournamentStats.Goals</dd></div>
+                                            <div><dt>Assists</dt><dd>@SelectedTournamentStats.Assists</dd></div>
+                                            <div><dt>Tirs</dt><dd>@SelectedTournamentStats.Shots</dd></div>
+                                            <div><dt>Homme du match</dt><dd>@SelectedTournamentStats.PlayerOfTheMatch</dd></div>
+                                            <div><dt>Passes</dt><dd>@TournamentPassingLabel(SelectedTournamentStats)</dd></div>
+                                            <div><dt>Tacles</dt><dd>@TournamentTackleLabel(SelectedTournamentStats)</dd></div>
+                                            <div><dt>Arrets</dt><dd>@SelectedTournamentStats.Saves</dd></div>
+                                            <div><dt>Buts encaisses</dt><dd>@SelectedTournamentStats.GoalsConceded</dd></div>
+                                            <div><dt>Clean sheets</dt><dd>@CleanSheetLabel(SelectedTournamentStats)</dd></div>
+                                            <div><dt>Minutes</dt><dd>@MinutesLabel(SelectedTournamentStats.SecondsPlayed)</dd></div>
+                                        </dl>
+                                    }
+                                </section>
+
+                                <section class="el-player-stat-section general">
+                                    <span class="el-source el-source-game">Statistiques generales</span>
+                                    <div class="el-player-facts">
+                                        <span>@HeightLabel(SelectedPlayer.Height)</span>
+                                        <span>@WeightLabel(SelectedPlayer.Weight)</span>
+                                        <span>@(SelectedPlayer.Matches?.ToString() ?? "-") matchs EA</span>
+                                        <span>@(SelectedPlayer.IsManager ? "Manager EA" : "Joueur")</span>
+                                    </div>
+                                    <dl class="el-detail-list">
+                                        <div><dt>Buts</dt><dd>@(SelectedPlayer.Goals?.ToString() ?? "-")</dd></div>
+                                        <div><dt>Assists</dt><dd>@(SelectedPlayer.Assists?.ToString() ?? "-")</dd></div>
+                                        <div><dt>Passes</dt><dd>@PercentLabel(SelectedPlayer.PassSuccessRate)</dd></div>
+                                        <div><dt>Tacles</dt><dd>@PercentLabel(SelectedPlayer.TackleSuccessRate)</dd></div>
+                                        <div><dt>Clean sheets</dt><dd>@(SelectedPlayer.CleanSheets?.ToString() ?? "-")</dd></div>
+                                        <div><dt>Homme du match</dt><dd>@(SelectedPlayer.PlayerOfTheMatch?.ToString() ?? "-")</dd></div>
+                                    </dl>
+                                </section>
                             }
                         </aside>
                     </div>
@@ -280,6 +308,7 @@
     private EaClubSnapshotResponse? Club { get; set; }
     private List<EaPlayerProfileSnapshotResponse> Players { get; } = new();
     private List<EaFriendlyMatchResponse> Friendlies { get; } = new();
+    private Dictionary<string, EaTournamentPlayerStatsResponse> TournamentPlayerStats { get; } = new(StringComparer.OrdinalIgnoreCase);
     private EaPlayerProfileSnapshotResponse? SelectedPlayer { get; set; }
 
     private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
@@ -311,6 +340,9 @@
         : $"background: conic-gradient(#00e676 0 {CssPercent(WinSlice)}%, #f5c518 {CssPercent(WinSlice)}% {CssPercent(DrawSlice)}%, #ff5252 {CssPercent(DrawSlice)}% 100%);";
     private double WinSlice => TotalMatches == 0 ? 0 : (double)Wins / TotalMatches * 100;
     private double DrawSlice => TotalMatches == 0 ? 0 : (double)(Wins + Draws) / TotalMatches * 100;
+    private EaTournamentPlayerStatsResponse? SelectedTournamentStats => SelectedPlayer is null
+        ? null
+        : TournamentPlayerStats.GetValueOrDefault(SelectedPlayer.EaPlayerId);
 
     protected override async Task OnInitializedAsync()
     {
@@ -357,6 +389,16 @@
             }
 
             SelectedPlayer = Players.FirstOrDefault();
+
+            var tournamentStatsResult = await Api.GetTeamEaTournamentPlayerStatsAsync(CurrentTeamId.Value);
+            TournamentPlayerStats.Clear();
+            if (tournamentStatsResult.Value is not null)
+            {
+                foreach (var stat in tournamentStatsResult.Value)
+                {
+                    TournamentPlayerStats[stat.EaPlayerId] = stat;
+                }
+            }
 
             var friendliesResult = await Api.GetTeamEaFriendliesAsync(CurrentTeamId.Value, take: 20);
             Friendlies.Clear();
@@ -472,6 +514,7 @@
     private static string PositionLabel(string? position) => string.IsNullOrWhiteSpace(position) ? "Poste non renseigne" : position;
     private static string PositionCss(string? position) => PositionGroup(position).ToLowerInvariant();
     private static string RatingLabel(EaPlayerProfileSnapshotResponse player) => player.AverageRating?.ToString("0.0") ?? player.Overall?.ToString() ?? "-";
+    private static string RatingLabel(double? rating) => rating?.ToString("0.0") ?? "-";
     private static string OverallLabel(EaPlayerProfileSnapshotResponse player) => player.Overall?.ToString() ?? "-";
     private static string PotentialLabel(EaPlayerProfileSnapshotResponse player) => "-";
     private static string ArchetypeLabel(EaPlayerProfileSnapshotResponse player) => player.IsManager ? "Manager" : "-";
@@ -479,4 +522,17 @@
     private static string WeightLabel(int? weight) => weight is null or <= 0 ? "-" : $"{weight} kg";
     private static string PercentLabel(double? value) => value is null ? "-" : $"{value:0}%";
     private static string CssPercent(double value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+    private static string TournamentPassingLabel(EaTournamentPlayerStatsResponse stats) =>
+        stats.PassAttempts <= 0 ? "-" : $"{stats.PassSuccessRate:0}% - {stats.PassesMade}/{stats.PassAttempts}";
+
+    private static string TournamentTackleLabel(EaTournamentPlayerStatsResponse stats) =>
+        stats.TackleAttempts <= 0 ? "-" : $"{stats.TackleSuccessRate:0}% - {stats.TacklesMade}/{stats.TackleAttempts}";
+
+    private static string CleanSheetLabel(EaTournamentPlayerStatsResponse stats)
+    {
+        var total = stats.CleanSheetsAny + stats.CleanSheetsDef + stats.CleanSheetsGk;
+        return total <= 0 ? "-" : total.ToString();
+    }
+
+    private static string MinutesLabel(int seconds) => seconds <= 0 ? "-" : $"{Math.Round(seconds / 60d)} min";
 }

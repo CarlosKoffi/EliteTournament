@@ -134,3 +134,27 @@ public sealed record EaPlayerProfileSnapshotResponse(
     double? AllClubsGoalContributionsPerMatch,
     DateTimeOffset SyncedAt,
     bool IsManager = false);
+
+public sealed record EaTournamentPlayerStatsResponse(
+    string EaPlayerId,
+    string PlayerName,
+    string? Position,
+    int Matches,
+    int Goals,
+    int Assists,
+    double? AverageRating,
+    int PlayerOfTheMatch,
+    int Shots,
+    int PassesMade,
+    int PassAttempts,
+    double? PassSuccessRate,
+    int TacklesMade,
+    int TackleAttempts,
+    double? TackleSuccessRate,
+    int Saves,
+    int GoalsConceded,
+    int CleanSheetsAny,
+    int CleanSheetsDef,
+    int CleanSheetsGk,
+    int RedCards,
+    int SecondsPlayed);
