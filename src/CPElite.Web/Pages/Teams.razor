@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 @inject IWebAssemblyHostEnvironment HostEnvironment
 
-<PageTitle>TS Tournament - Clubs</PageTitle>
+<PageTitle>Elite Tournament - Mon equipe</PageTitle>
 
 <section class="team-hero">
     <div class="team-hero-copy">
@@ -208,6 +208,13 @@
             </div>
         </div>
 
+        <div class="team-view-tabs">
+            <button type="button" class="@(ActiveTeamTab == "tournaments" ? "active" : "")" @onclick='() => ActiveTeamTab = "tournaments"'>Tournois</button>
+            <button type="button" class="@(ActiveTeamTab == "friendlies" ? "active" : "")" @onclick='() => ActiveTeamTab = "friendlies"'>Matchs amicaux EA</button>
+        </div>
+
+        @if (ActiveTeamTab == "tournaments")
+        {
         <div class="club-stats-split">
             <article class="club-stat-panel">
                 <span class="result-kind">Stats generales EA</span>
@@ -220,14 +227,15 @@
                 </div>
             </article>
             <article class="club-stat-panel accent">
-                <span class="result-kind">Stats TS Tournament</span>
-                <h3>Performance dans nos tournois</h3>
+                <span class="result-kind">Stats Elite Tournament</span>
+                <h3>Performance en tournois</h3>
                 <div class="drawer-metrics inline">
-                    <div><span>Tournois</span><strong>@AppTournamentStats.TournamentsPlayed</strong></div>
-                    <div><span>Record</span><strong>@AppTournamentStats.Record</strong></div>
-                    <div><span>Meilleur resultat</span><strong>@AppTournamentStats.BestRun</strong></div>
-                    <div><span>Joueur cle</span><button type="button" class="inline-player-link strong-link" @onclick="() => OpenPlayerSheet(AppTournamentStats.KeyPlayer)">@AppTournamentStats.KeyPlayer</button></div>
+                    <div><span>Tournois</span><strong>-</strong></div>
+                    <div><span>Record</span><strong>-</strong></div>
+                    <div><span>Meilleur resultat</span><strong>-</strong></div>
+                    <div><span>Joueur cle</span><strong>-</strong></div>
                 </div>
+                <p class="muted">Ces donnees seront calculees depuis les vrais matchs et tournois stockes en base.</p>
             </article>
         </div>
 
@@ -319,7 +327,10 @@
                 }
             </div>
         }
+        }
 
+        @if (ActiveTeamTab == "friendlies")
+        {
         @if (EaFriendlies.Count > 0)
         {
             <div class="panel-heading compact">
@@ -450,6 +461,7 @@
                 </div>
             </div>
         }
+        }
 
     </section>
 }
@@ -568,6 +580,7 @@
     private bool EaClubLocked;
     private bool Busy;
     private bool EaSyncBusy;
+    private string ActiveTeamTab { get; set; } = "tournaments";
     private string? Message;
     private IReadOnlyList<TeamMemberResponse> ManagedMemberships => Memberships
         .Where(member => member.Role is TeamRole.Owner or TeamRole.Manager)
@@ -592,7 +605,6 @@
     private IReadOnlyList<FriendlyTeamSectionModel> FriendlyTeamSections => SelectedFriendlyDetails is null
         ? Array.Empty<FriendlyTeamSectionModel>()
         : BuildFriendlyTeamSections(SelectedFriendlyDetails);
-    private DemoTournamentTeamStats AppTournamentStats { get; } = new(4, "9V 2N 3D", "Finaliste Friday Goodies Cup #3", "KoffiMarvelous");
     private static readonly Guid DemoTeamId = Guid.Parse("37d9a7d7-8b8b-47d3-9e25-214820700001");
     private const long DemoClubId = 2148207;
     private static readonly HashSet<string> DemoAppPlayers = new(StringComparer.OrdinalIgnoreCase)
@@ -1455,8 +1467,6 @@
     {
         public string InviteCode { get; set; } = "";
     }
-
-    private sealed record DemoTournamentTeamStats(int TournamentsPlayed, string Record, string BestRun, string KeyPlayer);
 
     private sealed record PlayerMetricGroup(string Title, IReadOnlyCollection<PlayerMetric> Metrics);
 
