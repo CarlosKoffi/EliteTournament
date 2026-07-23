@@ -15,6 +15,7 @@ public static class DatabaseInitializer
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseInitializer");
         var dbContext = services.GetRequiredService<CPEliteDbContext>();
         var configuration = services.GetRequiredService<IConfiguration>();
+        var environment = services.GetRequiredService<IWebHostEnvironment>();
         var passwordHasher = services.GetRequiredService<IPasswordHasher>();
 
         try
@@ -24,6 +25,7 @@ public static class DatabaseInitializer
 
             await SeedAdminUserAsync(dbContext, configuration, passwordHasher, logger, cancellationToken);
             await SeedLocalizedContentAsync(dbContext, logger, cancellationToken);
+            await SeedTheSurvivorsDemoTournamentAsync(dbContext, environment, logger, cancellationToken);
 
             logger.LogInformation("Database initialization completed.");
         }
@@ -32,6 +34,37 @@ public static class DatabaseInitializer
             logger.LogCritical(ex, "Database initialization failed. Check the PostgreSQL connection string, credentials, network access and migration permissions.");
             throw;
         }
+    }
+
+    private static async Task SeedTheSurvivorsDemoTournamentAsync(
+        CPEliteDbContext dbContext,
+        IWebHostEnvironment environment,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var seedDirectory = Path.Combine(environment.ContentRootPath, "Seed");
+        var scripts = new[]
+        {
+            Path.Combine(seedDirectory, "seed-thesurvivors-ea-matches.sql"),
+            Path.Combine(seedDirectory, "seed-thesurvivors-past-tournament.sql")
+        };
+
+        foreach (var script in scripts)
+        {
+            if (!File.Exists(script))
+            {
+                throw new FileNotFoundException($"TheSurvivors seed script was not found in the published API output: {script}", script);
+            }
+        }
+
+        foreach (var script in scripts)
+        {
+            logger.LogInformation("Running TheSurvivors seed script {ScriptName}.", Path.GetFileName(script));
+            var sql = await File.ReadAllTextAsync(script, cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        }
+
+        logger.LogInformation("TheSurvivors demo tournament seed completed.");
     }
 
     private static async Task SeedAdminUserAsync(CPEliteDbContext dbContext, IConfiguration configuration, IPasswordHasher passwordHasher, ILogger logger, CancellationToken cancellationToken)
