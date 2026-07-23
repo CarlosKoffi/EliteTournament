@@ -1,12 +1,22 @@
-.team-hero,
-.club-branding-editor,
-.section-grid,
-.team-data-panel {
+body:has(.team-hero) {
+    background: #07070e;
+}
+
+body:has(.team-hero) .page,
+body:has(.team-hero) main,
+body:has(.team-hero) .content {
+    background: #07070e;
+}
+
+body:has(.team-hero) .team-hero,
+body:has(.team-hero) .club-branding-editor,
+body:has(.team-hero) .section-grid,
+body:has(.team-hero) .team-data-panel {
     width: min(100%, 1760px);
     margin-inline: auto;
 }
 
-.team-hero {
+body:has(.team-hero) .team-hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, .34fr);
     gap: clamp(18px, 4vw, 48px);
@@ -22,7 +32,7 @@
     color: var(--et-text);
 }
 
-.team-hero h1 {
+body:has(.team-hero) .team-hero h1 {
     max-width: 980px;
     margin: 0;
     color: var(--et-text);
@@ -32,7 +42,7 @@
     text-transform: uppercase;
 }
 
-.team-hero p {
+body:has(.team-hero) .team-hero p {
     max-width: 760px;
     margin: 16px 0 0;
     color: var(--et-text-sub);
@@ -40,7 +50,7 @@
     line-height: 1.7;
 }
 
-.club-data-ticket {
+body:has(.team-hero) .club-data-ticket {
     display: grid;
     gap: 8px;
     padding: 22px;
@@ -49,58 +59,58 @@
     background: rgba(0, 230, 118, .08);
 }
 
-.club-data-ticket span,
-.team-data-panel .eyebrow,
-.club-stat-panel .result-kind {
+body:has(.team-hero) .club-data-ticket span,
+body:has(.team-hero) .team-data-panel .eyebrow,
+body:has(.team-hero) .club-stat-panel .result-kind {
     color: var(--et-green);
 }
 
-.club-data-ticket strong {
+body:has(.team-hero) .club-data-ticket strong {
     color: var(--et-text);
     font-size: 1.2rem;
     font-weight: 900;
     text-transform: uppercase;
 }
 
-.club-branding-editor,
-.section-grid {
+body:has(.team-hero) .club-branding-editor,
+body:has(.team-hero) .section-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
     gap: 20px;
     margin-top: 22px;
 }
 
-.club-preview,
-.panel,
-.team-data-panel,
-.club-stat-panel,
-.gm-validation-panel,
-.friendly-match-detail {
+body:has(.team-hero) .club-preview,
+body:has(.team-hero) .panel,
+body:has(.team-hero) .team-data-panel,
+body:has(.team-hero) .club-stat-panel,
+body:has(.team-hero) .gm-validation-panel,
+body:has(.team-hero) .friendly-match-detail {
     border: 1px solid rgba(255, 255, 255, .07);
     border-radius: 14px;
     background: #0f0f1a;
     color: var(--et-text);
 }
 
-.panel,
-.team-data-panel {
+body:has(.team-hero) .panel,
+body:has(.team-hero) .team-data-panel {
     padding: 24px;
 }
 
-.panel h2,
-.panel h3,
-.team-data-panel h2,
-.team-data-panel h3,
-.team-data-panel h4,
-.club-stat-panel h3 {
+body:has(.team-hero) .panel h2,
+body:has(.team-hero) .panel h3,
+body:has(.team-hero) .team-data-panel h2,
+body:has(.team-hero) .team-data-panel h3,
+body:has(.team-hero) .team-data-panel h4,
+body:has(.team-hero) .club-stat-panel h3 {
     color: var(--et-text);
     font-weight: 900;
 }
 
-.panel p,
-.team-data-panel p,
-.team-data-panel small,
-.muted {
+body:has(.team-hero) .panel p,
+body:has(.team-hero) .team-data-panel p,
+body:has(.team-hero) .team-data-panel small,
+body:has(.team-hero) .muted {
     color: var(--et-muted);
 }
 
