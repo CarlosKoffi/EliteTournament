@@ -45,6 +45,7 @@
                         <span>Date <strong>@FormatTournamentDate(tournament.StartsAt)</strong></span>
                         <span>Coup d'envoi <strong>@FormatTournamentTime(tournament.StartsAt) @tournament.TimeZone</strong></span>
                         <span>Type <strong>@(tournament.IsCashPrize ? "Goodies" : "Tournoi")</strong></span>
+                        <span>Lots <strong>@BuildTournamentPrizeLabel(tournament)</strong></span>
                     </div>
 
                     <div class="et-slot-block">
@@ -1021,6 +1022,21 @@
         }
 
         return "Tournoi ouvert aux equipes Pro Clubs. Connecte-toi pour inscrire ton club et preparer ton roster.";
+    }
+
+    private static string BuildTournamentPrizeLabel(TournamentResponse tournament)
+    {
+        if (tournament.EstimatedPrizeBudget is > 0)
+        {
+            return $"{tournament.EstimatedPrizeBudget:0.##} {tournament.Currency}";
+        }
+
+        if (tournament.IsCashPrize && !string.IsNullOrWhiteSpace(tournament.GoodiesDescription))
+        {
+            return "Goodies";
+        }
+
+        return "Sans lots";
     }
 
     private static string FormatTournamentDate(DateTimeOffset startsAt)
