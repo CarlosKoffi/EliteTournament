@@ -10,10 +10,12 @@ namespace CPElite.Api.Controllers;
 public sealed class TeamsController : ApiControllerBase
 {
     private readonly TeamService _teamService;
+    private readonly TournamentService _tournamentService;
 
-    public TeamsController(TeamService teamService)
+    public TeamsController(TeamService teamService, TournamentService tournamentService)
     {
         _teamService = teamService;
+        _tournamentService = tournamentService;
     }
 
     [HttpPost]
@@ -103,6 +105,12 @@ public sealed class TeamsController : ApiControllerBase
     public async Task<IActionResult> GetMembers(Guid teamId, CancellationToken cancellationToken)
     {
         return ToActionResult(await _teamService.GetMembersAsync(teamId, cancellationToken));
+    }
+
+    [HttpGet("{teamId:guid}/tournament-summary")]
+    public async Task<IActionResult> GetTournamentSummary(Guid teamId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.GetTeamTournamentSummaryAsync(teamId, cancellationToken));
     }
 
     [HttpPost("{teamId:guid}/manager-claims")]

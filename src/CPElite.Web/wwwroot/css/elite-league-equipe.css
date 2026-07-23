@@ -322,10 +322,15 @@ body:has(.el-team-page) .content {
 
 .el-stat-grid,
 .el-trophy-grid,
-.el-friendly-grid {
+.el-friendly-grid,
+.el-history-list {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
+}
+
+.el-history-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .el-stat,
@@ -373,6 +378,65 @@ body:has(.el-team-page) .content {
 .el-trophy.gold { border-top: 3px solid #f5c518; }
 .el-trophy.silver { border-top: 3px solid #b0bec5; }
 .el-trophy.bronze { border-top: 3px solid #cd7f32; }
+
+.el-history-card {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: center;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 14px;
+    background: #0f0f1a;
+    color: #f0f0f8;
+}
+
+.el-history-card.champion {
+    border-color: rgba(0, 230, 118, .42);
+    background: linear-gradient(135deg, rgba(0, 230, 118, .11), #0f0f1a 52%);
+}
+
+.el-history-card span {
+    color: #00e676;
+    font-size: .68rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.el-history-card h3 {
+    margin: 5px 0 4px;
+    color: #f0f0f8;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.el-history-card p {
+    margin: 0;
+    color: #aaaac7;
+}
+
+.el-history-card > strong {
+    color: #f5c518;
+    font-size: 1.2rem;
+    white-space: nowrap;
+}
+
+.el-section-head.small h2 {
+    font-size: 1.2rem;
+}
+
+.el-friendly-card.win {
+    border-color: rgba(0, 230, 118, .28);
+}
+
+.el-friendly-card.draw {
+    border-color: rgba(245, 197, 24, .28);
+}
+
+.el-friendly-card.loss {
+    border-color: rgba(255, 82, 82, .28);
+}
 
 .el-roster-table {
     overflow: hidden;

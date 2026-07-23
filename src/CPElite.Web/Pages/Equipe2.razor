@@ -115,13 +115,13 @@
                         <div>
                             <span class="el-source el-source-app">Application Elite Tournament</span>
                             <h3>Statistiques de tournois</h3>
-                            <p>Cette zone sera calculee automatiquement depuis les vrais tournois et matchs stockes en base.</p>
+                            <p>@TournamentSummaryLabel</p>
                         </div>
                         <div class="el-mini-stats">
-                            <span><b>-</b> tournois</span>
-                            <span><b>-</b> titres</span>
-                            <span><b>-</b> points EL</span>
-                            <span><b>-</b> meilleur tier</span>
+                            <span><b>@(TournamentSummary?.TournamentsPlayed.ToString() ?? "-")</b> tournois</span>
+                            <span><b>@(TournamentSummary?.Titles.ToString() ?? "-")</b> titres</span>
+                            <span><b>@(TournamentSummary?.Wins.ToString() ?? "-")</b> victoires</span>
+                            <span><b>@(TournamentSummary?.GoalsFor.ToString() ?? "-")</b> buts</span>
                         </div>
                     </article>
                 </section>
@@ -136,16 +136,53 @@
                     </div>
 
                     <div class="el-trophy-grid">
-                        <article class="el-trophy diamond"><span>Diamant</span><strong>0</strong></article>
-                        <article class="el-trophy gold"><span>Or</span><strong>0</strong></article>
-                        <article class="el-trophy silver"><span>Argent</span><strong>0</strong></article>
-                        <article class="el-trophy bronze"><span>Bronze</span><strong>0</strong></article>
+                        <article class="el-trophy diamond"><span>Titres</span><strong>@(TournamentSummary?.Titles.ToString() ?? "-")</strong></article>
+                        <article class="el-trophy gold"><span>Finales</span><strong>@(TournamentSummary?.Finals.ToString() ?? "-")</strong></article>
+                        <article class="el-trophy silver"><span>Podiums</span><strong>@(TournamentSummary?.Podiums.ToString() ?? "-")</strong></article>
+                        <article class="el-trophy bronze"><span>Matchs</span><strong>@(TournamentSummary?.Matches.ToString() ?? "-")</strong></article>
                     </div>
 
-                    <section class="el-empty-state compact">
-                        <strong>Aucun tournoi termine pour ce club</strong>
-                        <p>Les trophees, finales, podiums et points apparaitront ici des que les tournois reels seront termines.</p>
-                    </section>
+                    @if (TournamentSummary is null || TournamentSummary.RecentTournaments.Count == 0)
+                    {
+                        <section class="el-empty-state compact">
+                            <strong>Aucun tournoi stocke pour ce club</strong>
+                            <p>Des que le club aura des inscriptions ou matchs lies en base, ils apparaitront ici.</p>
+                        </section>
+                    }
+                    else
+                    {
+                        <div class="el-history-list">
+                            @foreach (var tournament in TournamentSummary.RecentTournaments)
+                            {
+                                <article class="el-history-card @(tournament.IsChampion ? "champion" : "")">
+                                    <div>
+                                        <span>@tournament.StartsAt.LocalDateTime.ToString("dd/MM/yyyy")</span>
+                                        <h3>@tournament.Name</h3>
+                                        <p>@tournament.FinishLabel - @tournament.Matches match(s) - @tournament.Wins V / @tournament.Draws N / @tournament.Losses D</p>
+                                    </div>
+                                    <strong>@tournament.GoalsFor - @tournament.GoalsAgainst</strong>
+                                </article>
+                            }
+                        </div>
+                    }
+
+                    @if (TournamentSummary?.RecentMatches.Count > 0)
+                    {
+                        <div class="el-section-head small">
+                            <span>Matchs tournoi</span>
+                            <h2>Derniers matchs application</h2>
+                        </div>
+                        <div class="el-friendly-grid">
+                            @foreach (var match in TournamentSummary.RecentMatches.Take(8))
+                            {
+                                <article class="el-friendly-card @(match.IsWin ? "win" : match.IsDraw ? "draw" : "loss")">
+                                    <span>@StageLabel(match.Stage) - @match.ScheduledAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
+                                    <h3>@(match.HomeTeamName ?? "Equipe") @ScoreLabel(match.HomeScore) - @ScoreLabel(match.AwayScore) @(match.AwayTeamName ?? "Equipe")</h3>
+                                    <p>@match.TournamentName - @ResultLabel(match)</p>
+                                </article>
+                            }
+                        </div>
+                    }
                 </section>
             }
 
@@ -311,6 +348,7 @@
     private List<EaFriendlyMatchResponse> Friendlies { get; } = new();
     private Dictionary<string, EaTournamentPlayerStatsResponse> TournamentPlayerStats { get; } = new(StringComparer.OrdinalIgnoreCase);
     private EaPlayerProfileSnapshotResponse? SelectedPlayer { get; set; }
+    private TeamTournamentSummaryResponse? TournamentSummary { get; set; }
 
     private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
     private string ClubInitials => string.Join("", ClubName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
@@ -336,6 +374,9 @@
     private string GoalsForLabel => TotalMatches == 0 ? "-" : GoalsFor.ToString();
     private string GoalsAgainstLabel => TotalMatches == 0 ? "-" : GoalsAgainst.ToString();
     private string WinRateLabel => TotalMatches == 0 ? "-" : $"{Math.Round((double)Wins / TotalMatches * 100)}%";
+    private string TournamentSummaryLabel => TournamentSummary is null || TournamentSummary.Matches == 0
+        ? "Aucun match de tournoi application n'est encore lie a ce club."
+        : $"{TournamentSummary.Matches} matchs joues en tournoi, {TournamentSummary.Wins} victoires, {TournamentSummary.Titles} titre(s).";
     private string DonutStyle => TotalMatches == 0
         ? "background: conic-gradient(rgba(255,255,255,.08) 0 100%);"
         : $"background: conic-gradient(#00e676 0 {CssPercent(WinSlice)}%, #f5c518 {CssPercent(WinSlice)}% {CssPercent(DrawSlice)}%, #ff5252 {CssPercent(DrawSlice)}% 100%);";
@@ -378,6 +419,9 @@
 
             var teamResult = await Api.GetTeamAsync(CurrentTeamId.Value);
             Team = teamResult.Value;
+
+            var tournamentSummaryResult = await Api.GetTeamTournamentSummaryAsync(CurrentTeamId.Value);
+            TournamentSummary = tournamentSummaryResult.Value;
 
             var clubResult = await Api.GetTeamEaClubAsync(CurrentTeamId.Value);
             Club = clubResult.Value;
@@ -553,4 +597,32 @@
 
         return string.IsNullOrWhiteSpace(stats.VproAttributes) ? "-" : stats.VproAttributes;
     }
+
+    private static string ScoreLabel(int? score) => score?.ToString() ?? "-";
+
+    private static string ResultLabel(TeamTournamentMatchSummaryResponse match)
+    {
+        if (!match.HomeScore.HasValue || !match.AwayScore.HasValue)
+        {
+            return "Score en attente";
+        }
+
+        if (match.IsDraw)
+        {
+            return "Match nul";
+        }
+
+        return match.IsWin ? "Victoire" : "Defaite";
+    }
+
+    private static string StageLabel(CPElite.Contracts.Common.TournamentStage stage) => stage switch
+    {
+        CPElite.Contracts.Common.TournamentStage.Group => "Poule",
+        CPElite.Contracts.Common.TournamentStage.RoundOf16 => "Phase finale",
+        CPElite.Contracts.Common.TournamentStage.QuarterFinal => "Quart",
+        CPElite.Contracts.Common.TournamentStage.SemiFinal => "Demi",
+        CPElite.Contracts.Common.TournamentStage.Final => "Finale",
+        CPElite.Contracts.Common.TournamentStage.ThirdPlace => "Petite finale",
+        _ => stage.ToString()
+    };
 }

@@ -70,6 +70,9 @@ public sealed class ApiClient
     public Task<ApiResult<IReadOnlyCollection<TeamMemberResponse>>> GetTeamMembersAsync(Guid teamId) =>
         SendAsync<IReadOnlyCollection<TeamMemberResponse>>(HttpMethod.Get, $"api/teams/{teamId}/members");
 
+    public Task<ApiResult<TeamTournamentSummaryResponse>> GetTeamTournamentSummaryAsync(Guid teamId) =>
+        SendAsync<TeamTournamentSummaryResponse>(HttpMethod.Get, $"api/teams/{teamId}/tournament-summary");
+
     public Task<ApiResult<IReadOnlyCollection<TeamManagerClaimResponse>>> GetTeamManagerClaimsAsync(Guid teamId) =>
         SendAsync<IReadOnlyCollection<TeamManagerClaimResponse>>(HttpMethod.Get, $"api/teams/{teamId}/manager-claims");
 

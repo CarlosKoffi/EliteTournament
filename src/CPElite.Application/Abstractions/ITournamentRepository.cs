@@ -8,6 +8,9 @@ public interface ITournamentRepository
     Task<Tournament?> GetTournamentAsync(Guid tournamentId, CancellationToken cancellationToken = default);
     Task<TournamentMatch?> GetMatchAsync(Guid matchId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentMatch>> GetMatchesAsync(Guid tournamentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TournamentRegistration>> GetTeamRegistrationsAsync(Guid teamId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TournamentMatch>> GetTeamMatchesAsync(Guid teamId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ChampionTitle>> GetTeamChampionTitlesAsync(Guid teamId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentMatch>> GetEaVerificationDueMatchesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentScoreAudit>> GetScoreAuditsAsync(Guid tournamentId, int take = 100, CancellationToken cancellationToken = default);
     Task<TournamentRegistration?> GetRegistrationAsync(Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default);

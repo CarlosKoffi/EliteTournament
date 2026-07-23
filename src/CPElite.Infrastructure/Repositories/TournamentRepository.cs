@@ -40,6 +40,32 @@ public sealed class TournamentRepository : ITournamentRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<TournamentRegistration>> GetTeamRegistrationsAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TournamentRegistrations
+            .Include(registration => registration.Tournament)
+            .Where(registration => registration.TeamId == teamId)
+            .OrderByDescending(registration => registration.Tournament!.StartsAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<TournamentMatch>> GetTeamMatchesAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.TournamentMatches
+            .Include(match => match.Tournament)
+            .Where(match => match.HomeTeamId == teamId || match.AwayTeamId == teamId)
+            .OrderByDescending(match => match.ScheduledAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ChampionTitle>> GetTeamChampionTitlesAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.ChampionTitles
+            .Where(title => title.TeamId == teamId)
+            .OrderByDescending(title => title.CrownedAt)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<TournamentMatch>> GetEaVerificationDueMatchesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken = default)
     {
         var startsAt = now.AddMinutes(-15);

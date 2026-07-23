@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CPElite.Application.Abstractions;
+using CPElite.Contracts.Teams;
 using CPElite.Contracts.Tournaments;
 using CPElite.Domain.Entities;
 using DomainPaymentMode = CPElite.Domain.Enums.TournamentPaymentMode;
@@ -14,6 +15,7 @@ using ContractRegistrationOutcome = CPElite.Contracts.Common.DiscordTournamentRe
 using ContractRegistrationStatus = CPElite.Contracts.Common.TournamentRegistrationStatus;
 using ContractTournamentStatus = CPElite.Contracts.Common.TournamentStatus;
 using ContractTournamentType = CPElite.Contracts.Common.TournamentType;
+using ContractTournamentTier = CPElite.Contracts.Common.TournamentTier;
 using DomainMomentType = CPElite.Domain.Enums.TournamentMomentType;
 using DomainRegistrationStatus = CPElite.Domain.Enums.TournamentRegistrationStatus;
 using DomainStage = CPElite.Domain.Enums.TournamentStage;
@@ -50,6 +52,94 @@ public sealed class TournamentService
         }
 
         return Result<IReadOnlyCollection<TournamentResponse>>.Success(responses.ToArray());
+    }
+
+    public async Task<Result<TeamTournamentSummaryResponse>> GetTeamTournamentSummaryAsync(Guid teamId, CancellationToken cancellationToken = default)
+    {
+        var team = await _teams.GetByIdAsync(teamId, cancellationToken);
+        if (team is null || team.IsArchived)
+        {
+            return Result<TeamTournamentSummaryResponse>.Failure(ErrorType.NotFound, "team.not_found", "Team was not found.");
+        }
+
+        var registrations = await _tournaments.GetTeamRegistrationsAsync(teamId, cancellationToken);
+        var matches = await _tournaments.GetTeamMatchesAsync(teamId, cancellationToken);
+        var championTitles = await _tournaments.GetTeamChampionTitlesAsync(teamId, cancellationToken);
+        var championTournamentIds = championTitles.Select(title => title.TournamentId).ToHashSet();
+        var tournamentIds = registrations.Select(registration => registration.TournamentId)
+            .Concat(matches.Select(match => match.TournamentId))
+            .Concat(championTournamentIds)
+            .Distinct()
+            .ToArray();
+
+        var registrationTeamsByTournament = new Dictionary<Guid, Dictionary<Guid, string>>();
+        foreach (var tournamentId in tournamentIds)
+        {
+            var tournamentRegistrations = await _tournaments.GetRegistrationsAsync(tournamentId, cancellationToken);
+            registrationTeamsByTournament[tournamentId] = tournamentRegistrations
+                .Where(registration => registration.Team is not null)
+                .GroupBy(registration => registration.TeamId)
+                .ToDictionary(group => group.Key, group => group.First().Team!.Name);
+        }
+
+        var scoredMatches = matches
+            .Where(match => match.HomeScore.HasValue && match.AwayScore.HasValue)
+            .ToArray();
+
+        var recentMatches = matches
+            .Take(12)
+            .Select(match => ToTeamTournamentMatchSummary(match, teamId, registrationTeamsByTournament))
+            .ToArray();
+
+        var history = registrations
+            .Where(registration => registration.Tournament is not null)
+            .Select(registration =>
+            {
+                var tournamentMatches = matches.Where(match => match.TournamentId == registration.TournamentId).ToArray();
+                var scoredTournamentMatches = tournamentMatches.Where(match => match.HomeScore.HasValue && match.AwayScore.HasValue).ToArray();
+                var isChampion = championTournamentIds.Contains(registration.TournamentId) || tournamentMatches.Any(match => match.Stage == DomainStage.Final && match.WinnerTeamId == teamId);
+                var reachedFinal = tournamentMatches.Any(match => match.Stage == DomainStage.Final);
+                var reachedSemi = tournamentMatches.Any(match => match.Stage == DomainStage.SemiFinal);
+                var reachedQuarter = tournamentMatches.Any(match => match.Stage == DomainStage.QuarterFinal);
+                var reachedRoundOf16 = tournamentMatches.Any(match => match.Stage == DomainStage.RoundOf16);
+
+                return new TeamTournamentHistoryItemResponse(
+                    registration.TournamentId,
+                    registration.Tournament!.Name,
+                    (ContractTournamentType)(int)registration.Tournament.Type,
+                    (ContractTournamentStatus)(int)registration.Tournament.Status,
+                    (ContractTournamentTier)(int)registration.Tournament.Tier,
+                    registration.Tournament.StartsAt,
+                    isChampion,
+                    ResolveFinishLabel(isChampion, reachedFinal, reachedSemi, reachedQuarter, reachedRoundOf16),
+                    scoredTournamentMatches.Length,
+                    scoredTournamentMatches.Count(match => IsTeamWin(match, teamId)),
+                    scoredTournamentMatches.Count(match => match.HomeScore == match.AwayScore),
+                    scoredTournamentMatches.Count(match => !IsTeamWin(match, teamId) && match.HomeScore != match.AwayScore),
+                    scoredTournamentMatches.Sum(match => GoalsFor(match, teamId)),
+                    scoredTournamentMatches.Sum(match => GoalsAgainst(match, teamId)));
+            })
+            .OrderByDescending(item => item.StartsAt)
+            .Take(8)
+            .ToArray();
+
+        var response = new TeamTournamentSummaryResponse(
+            teamId,
+            registrations.Count,
+            championTitles.Count,
+            history.Count(item => item.FinishLabel is "Champion" or "Finaliste"),
+            history.Count(item => item.FinishLabel is "Champion" or "Finaliste" or "Demi-finaliste"),
+            scoredMatches.Length,
+            scoredMatches.Count(match => IsTeamWin(match, teamId)),
+            scoredMatches.Count(match => match.HomeScore == match.AwayScore),
+            scoredMatches.Count(match => !IsTeamWin(match, teamId) && match.HomeScore != match.AwayScore),
+            scoredMatches.Sum(match => GoalsFor(match, teamId)),
+            scoredMatches.Sum(match => GoalsAgainst(match, teamId)),
+            scoredMatches.Count(match => GoalsAgainst(match, teamId) == 0),
+            history,
+            recentMatches);
+
+        return Result<TeamTournamentSummaryResponse>.Success(response);
     }
 
     public async Task<Result<TournamentAdminDetailResponse>> GetTournamentAdminDetailAsync(Guid tournamentId, CancellationToken cancellationToken = default)
@@ -1090,6 +1180,88 @@ public sealed class TournamentService
     private static TournamentMatchResponse ToMatchResponse(TournamentMatch match)
     {
         return new TournamentMatchResponse(match.Id, match.TournamentId, match.HomeTeamId, match.AwayTeamId, match.RoundNumber, match.ScheduledAt, match.EaLookupFrom, match.EaLookupUntil, match.HomeScore, match.AwayScore, (ContractMatchStatus)(int)match.Status, match.WinnerTeamId, (CPElite.Contracts.Common.TournamentStage)(int)match.Stage, match.GroupName, match.MatchNumber);
+    }
+
+    private static TeamTournamentMatchSummaryResponse ToTeamTournamentMatchSummary(TournamentMatch match, Guid teamId, IReadOnlyDictionary<Guid, Dictionary<Guid, string>> teamNamesByTournament)
+    {
+        teamNamesByTournament.TryGetValue(match.TournamentId, out var teamNames);
+        teamNames ??= [];
+
+        teamNames.TryGetValue(match.HomeTeamId, out var homeTeamName);
+        teamNames.TryGetValue(match.AwayTeamId, out var awayTeamName);
+
+        return new TeamTournamentMatchSummaryResponse(
+            match.Id,
+            match.TournamentId,
+            match.Tournament?.Name ?? "Tournoi",
+            (CPElite.Contracts.Common.TournamentStage)(int)match.Stage,
+            match.GroupName,
+            match.MatchNumber,
+            match.ScheduledAt,
+            match.HomeTeamId,
+            match.AwayTeamId,
+            homeTeamName,
+            awayTeamName,
+            match.HomeScore,
+            match.AwayScore,
+            (ContractMatchStatus)(int)match.Status,
+            match.WinnerTeamId,
+            IsTeamWin(match, teamId),
+            match.HomeScore.HasValue && match.AwayScore.HasValue && match.HomeScore == match.AwayScore,
+            GoalsFor(match, teamId),
+            GoalsAgainst(match, teamId));
+    }
+
+    private static bool IsTeamWin(TournamentMatch match, Guid teamId) => match.WinnerTeamId == teamId;
+
+    private static int GoalsFor(TournamentMatch match, Guid teamId)
+    {
+        if (!match.HomeScore.HasValue || !match.AwayScore.HasValue)
+        {
+            return 0;
+        }
+
+        return match.HomeTeamId == teamId ? match.HomeScore.Value : match.AwayTeamId == teamId ? match.AwayScore.Value : 0;
+    }
+
+    private static int GoalsAgainst(TournamentMatch match, Guid teamId)
+    {
+        if (!match.HomeScore.HasValue || !match.AwayScore.HasValue)
+        {
+            return 0;
+        }
+
+        return match.HomeTeamId == teamId ? match.AwayScore.Value : match.AwayTeamId == teamId ? match.HomeScore.Value : 0;
+    }
+
+    private static string ResolveFinishLabel(bool isChampion, bool reachedFinal, bool reachedSemi, bool reachedQuarter, bool reachedRoundOf16)
+    {
+        if (isChampion)
+        {
+            return "Champion";
+        }
+
+        if (reachedFinal)
+        {
+            return "Finaliste";
+        }
+
+        if (reachedSemi)
+        {
+            return "Demi-finaliste";
+        }
+
+        if (reachedQuarter)
+        {
+            return "Quart de finale";
+        }
+
+        if (reachedRoundOf16)
+        {
+            return "Phase finale";
+        }
+
+        return "Phase de poules";
     }
 
     private static TournamentScoreAuditResponse ToScoreAuditResponse(TournamentScoreAudit audit)
