@@ -15,7 +15,7 @@ DECLARE
     v_user_id uuid;
     v_tournament_id uuid := '10000000-0000-0000-0000-214820700001'::uuid;
     v_now timestamptz := now();
-    v_starts_at timestamptz := now() - interval '7 days';
+    v_starts_at timestamptz;
     v_match record;
     v_match_id uuid;
     v_opponent_team_id uuid;
@@ -70,6 +70,16 @@ BEGIN
         RETURN;
     END IF;
 
+    SELECT min("PlayedAt")
+    INTO v_starts_at
+    FROM (
+        SELECT "PlayedAt"
+        FROM "EaFriendlyMatches"
+        WHERE "TeamId" = v_team_id
+        ORDER BY "PlayedAt" DESC
+        LIMIT 8
+    ) latest;
+
     UPDATE "EaFriendlyMatches"
     SET "TournamentMatchId" = NULL
     WHERE "TournamentMatchId" IN (
@@ -107,10 +117,14 @@ BEGIN
 
     FOR v_match IN
         SELECT *
-        FROM "EaFriendlyMatches"
-        WHERE "TeamId" = v_team_id
-        ORDER BY "PlayedAt" DESC
-        LIMIT 8
+        FROM (
+            SELECT *
+            FROM "EaFriendlyMatches"
+            WHERE "TeamId" = v_team_id
+            ORDER BY "PlayedAt" DESC
+            LIMIT 8
+        ) latest
+        ORDER BY "PlayedAt" ASC
     LOOP
         v_index := v_index + 1;
         v_match_id := gen_random_uuid();
@@ -147,8 +161,9 @@ BEGIN
         v_stage := CASE
             WHEN v_index <= 3 THEN 1
             WHEN v_index = 4 THEN 2
-            WHEN v_index = 5 THEN 3
-            WHEN v_index = 6 THEN 4
+            WHEN v_index = 5 THEN 2
+            WHEN v_index = 6 THEN 3
+            WHEN v_index = 7 THEN 4
             ELSE 5
         END;
         v_group_name := CASE WHEN v_index <= 3 THEN 'A' ELSE NULL END;
