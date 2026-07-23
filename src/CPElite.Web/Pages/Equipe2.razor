@@ -197,27 +197,35 @@
                         <button class="el-secondary" @onclick="RefreshEaAsync" disabled="@Refreshing">@RefreshLabel</button>
                     </div>
 
+                    <div class="el-roster-summary">
+                        <article><span>Profils EA</span><strong>@Players.Count</strong></article>
+                        <article><span>Joueurs tournoi</span><strong>@TournamentPlayerStats.Count</strong></article>
+                        <article><span>Buts TS</span><strong>@TournamentGoalsLabel</strong></article>
+                        <article><span>Assists TS</span><strong>@TournamentAssistsLabel</strong></article>
+                        <article><span>Note moy. TS</span><strong>@TournamentAverageRatingLabel</strong></article>
+                    </div>
+
                     <div class="el-roster-layout">
                         <article class="el-roster-table">
                             <div class="el-player-row el-player-head">
                                 <span>#</span>
                                 <span>POS</span>
                                 <span>NOM</span>
-                                <span>RATING</span>
+                                <span>NOTE TS</span>
                                 <span>OVR</span>
-                                <span>POT</span>
+                                <span>MATCHS</span>
                                 <span>ARCHETYPE</span>
                             </div>
-                            @if (Players.Count == 0)
+                            @if (RosterPlayers.Count == 0)
                             {
                                 <div class="el-empty-state compact">
                                     <strong>Aucun joueur stocke</strong>
-                                    <p>Rafraichis les donnees EA du club pour alimenter l'effectif depuis la base.</p>
+                                    <p>Rafraichis les donnees EA du club pour alimenter l'effectif et les stats tournoi depuis la base.</p>
                                 </div>
                             }
                             else
                             {
-                                @foreach (var player in Players.Select((value, index) => new { value, index }))
+                                @foreach (var player in RosterPlayers.Select((value, index) => new { value, index }))
                                 {
                                     <button type="button" class="el-player-row @(SelectedPlayer?.EaPlayerId == player.value.EaPlayerId ? "selected" : "")" @onclick="() => SelectPlayer(player.value)">
                                         <span>@((player.index + 1).ToString("00"))</span>
@@ -225,7 +233,7 @@
                                         <strong>@player.value.PlayerName</strong>
                                         <span class="el-rating-value">@RatingLabel(player.value)</span>
                                         <span class="el-ovr-value">@OverallLabel(player.value)</span>
-                                        <span>@PotentialLabel(player.value)</span>
+                                        <span>@MatchesLabel(player.value)</span>
                                         <span>@ArchetypeLabel(player.value)</span>
                                     </button>
                                 }
@@ -247,7 +255,7 @@
                                     <div>
                                         <span>@PositionLabel(SelectedPlayer.Position)</span>
                                         <h3>@SelectedPlayer.PlayerName</h3>
-                                        <p>@(SelectedPlayer.ProName ?? SelectedPlayer.EaPlayerId)</p>
+                                        <p>@(SelectedPlayer.ProName ?? SelectedPlayer.EaPlayerId) - @SelectedPlayer.SourceLabel</p>
                                     </div>
                                 </div>
                                 <section class="el-player-stat-section tournament">
@@ -281,7 +289,7 @@
                                     <div class="el-player-facts">
                                         <span>@HeightLabel(SelectedPlayer.Height)</span>
                                         <span>@WeightLabel(SelectedPlayer.Weight)</span>
-                                        <span>@(SelectedPlayer.Matches?.ToString() ?? "-") matchs EA</span>
+                                        <span>@(SelectedPlayer.EaMatches?.ToString() ?? "-") matchs EA</span>
                                         <span>@(SelectedPlayer.IsManager ? "Manager EA" : "Joueur")</span>
                                     </div>
                                     <dl class="el-detail-list">
@@ -345,22 +353,23 @@
     private TeamResponse? Team { get; set; }
     private EaClubSnapshotResponse? Club { get; set; }
     private List<EaPlayerProfileSnapshotResponse> Players { get; } = new();
+    private List<RosterPlayerView> RosterPlayers { get; } = new();
     private List<EaFriendlyMatchResponse> Friendlies { get; } = new();
     private Dictionary<string, EaTournamentPlayerStatsResponse> TournamentPlayerStats { get; } = new(StringComparer.OrdinalIgnoreCase);
-    private EaPlayerProfileSnapshotResponse? SelectedPlayer { get; set; }
+    private RosterPlayerView? SelectedPlayer { get; set; }
     private TeamTournamentSummaryResponse? TournamentSummary { get; set; }
 
     private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
     private string ClubInitials => string.Join("", ClubName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
     private string ClubTag => Team?.ShortName ?? Club?.Abbreviation ?? (ClubName.Length <= 4 ? ClubName.ToUpperInvariant() : ClubName[..Math.Min(4, ClubName.Length)].ToUpperInvariant());
     private string PlatformLabel => Team?.Platform.ToString() ?? Club?.Platform ?? "Plateforme";
-    private string ReputationLabel => Players.Count >= 30 ? "World Renowned" : Players.Count >= 18 ? "Established" : "Emerging";
+    private string ReputationLabel => RosterPlayers.Count >= 30 ? "World Renowned" : RosterPlayers.Count >= 18 ? "Established" : "Emerging";
     private string EaClubIdLabel => (Team?.EaClubId ?? Club?.EaClubId)?.ToString() ?? "-";
     private string SkillRatingLabel => "-";
     private string DivisionLabel => Club?.Division?.ToString() ?? "-";
     private string LastSyncLabel => Club?.SyncedAt.LocalDateTime.ToString("dd/MM HH:mm") ?? "-";
     private string RefreshLabel => Refreshing ? "Synchronisation..." : "Mettre a jour EA";
-    private string RosterTitle => Players.Count == 0 ? "Effectif non charge" : $"Effectif actif ({Players.Count})";
+    private string RosterTitle => RosterPlayers.Count == 0 ? "Effectif non charge" : $"Effectif actif ({RosterPlayers.Count})";
     private int TotalMatches => Friendlies.Count;
     private int Wins => Friendlies.Count(IsWin);
     private int Draws => Friendlies.Count(match => match.HomeScore == match.AwayScore);
@@ -377,6 +386,11 @@
     private string TournamentSummaryLabel => TournamentSummary is null || TournamentSummary.Matches == 0
         ? "Aucun match de tournoi application n'est encore lie a ce club."
         : $"{TournamentSummary.Matches} matchs joues en tournoi, {TournamentSummary.Wins} victoires, {TournamentSummary.Titles} titre(s).";
+    private string TournamentGoalsLabel => TournamentPlayerStats.Count == 0 ? "-" : TournamentPlayerStats.Values.Sum(stats => stats.Goals).ToString();
+    private string TournamentAssistsLabel => TournamentPlayerStats.Count == 0 ? "-" : TournamentPlayerStats.Values.Sum(stats => stats.Assists).ToString();
+    private string TournamentAverageRatingLabel => TournamentPlayerStats.Values.Any(stats => stats.AverageRating.HasValue)
+        ? TournamentPlayerStats.Values.Where(stats => stats.AverageRating.HasValue).Average(stats => stats.AverageRating!.Value).ToString("0.0")
+        : "-";
     private string DonutStyle => TotalMatches == 0
         ? "background: conic-gradient(rgba(255,255,255,.08) 0 100%);"
         : $"background: conic-gradient(#00e676 0 {CssPercent(WinSlice)}%, #f5c518 {CssPercent(WinSlice)}% {CssPercent(DrawSlice)}%, #ff5252 {CssPercent(DrawSlice)}% 100%);";
@@ -433,8 +447,6 @@
                 Players.AddRange(playersResult.Value.OrderBy(PositionSort).ThenByDescending(player => player.AverageRating ?? 0).ThenBy(player => player.PlayerName));
             }
 
-            SelectedPlayer = Players.FirstOrDefault();
-
             var tournamentStatsResult = await Api.GetTeamEaTournamentPlayerStatsAsync(CurrentTeamId.Value);
             TournamentPlayerStats.Clear();
             if (tournamentStatsResult.Value is not null)
@@ -444,6 +456,9 @@
                     TournamentPlayerStats[stat.EaPlayerId] = stat;
                 }
             }
+
+            RebuildRosterPlayers();
+            SelectedPlayer = RosterPlayers.FirstOrDefault();
 
             var friendliesResult = await Api.GetTeamEaFriendliesAsync(CurrentTeamId.Value, take: 20);
             Friendlies.Clear();
@@ -475,9 +490,34 @@
         Message ??= "Donnees EA mises a jour depuis la base.";
     }
 
-    private void SelectPlayer(EaPlayerProfileSnapshotResponse player)
+    private void SelectPlayer(RosterPlayerView player)
     {
         SelectedPlayer = player;
+    }
+
+    private void RebuildRosterPlayers()
+    {
+        RosterPlayers.Clear();
+        var byEaId = new Dictionary<string, RosterPlayerView>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var profile in Players)
+        {
+            var stats = TournamentPlayerStats.GetValueOrDefault(profile.EaPlayerId);
+            byEaId[profile.EaPlayerId] = RosterPlayerView.FromProfile(profile, stats);
+        }
+
+        foreach (var stat in TournamentPlayerStats.Values)
+        {
+            if (!byEaId.ContainsKey(stat.EaPlayerId))
+            {
+                byEaId[stat.EaPlayerId] = RosterPlayerView.FromTournamentStats(stat);
+            }
+        }
+
+        RosterPlayers.AddRange(byEaId.Values
+            .OrderBy(PositionSort)
+            .ThenByDescending(player => player.TournamentStats?.AverageRating ?? player.AverageRating ?? 0)
+            .ThenBy(player => player.PlayerName));
     }
 
     private string TabClass(string tab) => ActiveTab == tab ? "active" : "";
@@ -525,6 +565,15 @@
         _ => 4
     };
 
+    private static int PositionSort(RosterPlayerView player) => PositionGroup(player.Position) switch
+    {
+        "GK" => 0,
+        "DEF" => 1,
+        "MIL" => 2,
+        "ATT" => 3,
+        _ => 4
+    };
+
     private static string PositionGroup(string? position)
     {
         if (string.IsNullOrWhiteSpace(position))
@@ -558,15 +607,15 @@
 
     private static string PositionLabel(string? position) => string.IsNullOrWhiteSpace(position) ? "Poste non renseigne" : position;
     private static string PositionCss(string? position) => PositionGroup(position).ToLowerInvariant();
-    private static string RatingLabel(EaPlayerProfileSnapshotResponse player) => player.AverageRating?.ToString("0.0") ?? player.Overall?.ToString() ?? "-";
+    private static string RatingLabel(RosterPlayerView player) => player.TournamentStats?.AverageRating?.ToString("0.0") ?? player.AverageRating?.ToString("0.0") ?? player.Overall?.ToString() ?? "-";
     private static string RatingLabel(double? rating) => rating?.ToString("0.0") ?? "-";
-    private static string OverallLabel(EaPlayerProfileSnapshotResponse player) => player.Overall?.ToString() ?? "-";
-    private static string PotentialLabel(EaPlayerProfileSnapshotResponse player) => "-";
-    private string ArchetypeLabel(EaPlayerProfileSnapshotResponse player)
+    private static string OverallLabel(RosterPlayerView player) => player.Overall?.ToString() ?? "-";
+    private static string MatchesLabel(RosterPlayerView player) => player.TournamentStats?.Matches.ToString() ?? player.EaMatches?.ToString() ?? "-";
+    private static string ArchetypeLabel(RosterPlayerView player)
     {
-        if (TournamentPlayerStats.TryGetValue(player.EaPlayerId, out var stats))
+        if (player.TournamentStats is not null)
         {
-            return TournamentArchetypeLabel(stats);
+            return TournamentArchetypeLabel(player.TournamentStats);
         }
 
         return player.IsManager ? "Manager" : "-";
@@ -625,4 +674,67 @@
         CPElite.Contracts.Common.TournamentStage.ThirdPlace => "Petite finale",
         _ => stage.ToString()
     };
+
+    private sealed record RosterPlayerView(
+        string EaPlayerId,
+        string PlayerName,
+        string? ProName,
+        string? Position,
+        int? EaMatches,
+        int? Goals,
+        int? Assists,
+        double? AverageRating,
+        int? Height,
+        int? Weight,
+        int? Overall,
+        double? PassSuccessRate,
+        double? TackleSuccessRate,
+        int? CleanSheets,
+        int? PlayerOfTheMatch,
+        bool IsManager,
+        EaTournamentPlayerStatsResponse? TournamentStats,
+        string SourceLabel)
+    {
+        public static RosterPlayerView FromProfile(EaPlayerProfileSnapshotResponse profile, EaTournamentPlayerStatsResponse? tournamentStats) =>
+            new(
+                profile.EaPlayerId,
+                profile.PlayerName,
+                profile.ProName,
+                profile.Position ?? tournamentStats?.Position,
+                profile.Matches,
+                profile.Goals,
+                profile.Assists,
+                profile.AverageRating,
+                profile.Height,
+                profile.Weight,
+                profile.Overall,
+                profile.PassSuccessRate,
+                profile.TackleSuccessRate,
+                profile.CleanSheets,
+                profile.PlayerOfTheMatch,
+                profile.IsManager,
+                tournamentStats,
+                tournamentStats is null ? "Profil EA general" : "Profil EA + tournois");
+
+        public static RosterPlayerView FromTournamentStats(EaTournamentPlayerStatsResponse stats) =>
+            new(
+                stats.EaPlayerId,
+                stats.PlayerName,
+                null,
+                stats.Position,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                stats,
+                "Stats tournoi");
+    }
 }

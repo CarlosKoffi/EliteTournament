@@ -422,6 +422,36 @@ body:has(.el-team-page) .content {
     white-space: nowrap;
 }
 
+.el-roster-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.el-roster-summary article {
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 14px;
+    background: #0f0f1a;
+}
+
+.el-roster-summary span {
+    display: block;
+    color: #8888aa;
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.el-roster-summary strong {
+    display: block;
+    margin-top: 6px;
+    color: #00e676;
+    font-size: 1.45rem;
+    font-weight: 900;
+}
+
 .el-section-head.small h2 {
     font-size: 1.2rem;
 }
@@ -641,7 +671,9 @@ body:has(.el-team-page) .content {
 
     .el-stat-grid,
     .el-trophy-grid,
-    .el-friendly-grid {
+    .el-friendly-grid,
+    .el-roster-summary,
+    .el-history-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
@@ -673,6 +705,8 @@ body:has(.el-team-page) .content {
     .el-stat-grid,
     .el-trophy-grid,
     .el-friendly-grid,
+    .el-roster-summary,
+    .el-history-list,
     .el-identity-card dl,
     .el-detail-list {
         grid-template-columns: 1fr;
