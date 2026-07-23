@@ -17,12 +17,15 @@
     border: 1px solid var(--et-border);
     border-radius: 18px;
     background:
-        linear-gradient(to top, var(--et-bg), transparent 42%),
-        linear-gradient(135deg, rgba(0, 230, 118, .08) 0%, transparent 50%, rgba(245, 197, 24, .04) 100%),
-        linear-gradient(90deg, rgba(7, 7, 14, .96), rgba(7, 7, 14, .72)),
-        url('https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1800&q=82');
-    background-size: cover;
-    background-position: center 30%;
+        linear-gradient(90deg, rgba(7, 7, 14, .98) 0%, rgba(7, 7, 14, .86) 48%, rgba(7, 7, 14, .6) 100%),
+        radial-gradient(circle at 50% 50%, transparent 0 94px, rgba(255, 255, 255, .14) 95px 97px, transparent 98px),
+        linear-gradient(90deg, transparent 0 calc(50% - 1px), rgba(255, 255, 255, .12) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+        linear-gradient(0deg, rgba(255, 255, 255, .12) 0 2px, transparent 2px calc(100% - 2px), rgba(255, 255, 255, .12) calc(100% - 2px) 100%),
+        repeating-linear-gradient(90deg, rgba(0, 230, 118, .08) 0 90px, rgba(0, 184, 89, .05) 90px 180px),
+        linear-gradient(135deg, #07140e 0%, #081d13 48%, #0b2a17 100%);
+    background-size: cover, auto, auto, calc(100% - 80px) calc(100% - 80px), auto, cover;
+    background-position: center, center, center, center, center, center;
+    background-repeat: no-repeat;
 }
 
 .et-hero::after {

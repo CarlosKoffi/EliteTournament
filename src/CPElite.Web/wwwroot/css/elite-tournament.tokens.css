@@ -161,10 +161,12 @@ textarea {
 
 .nav-scrollable {
     min-width: 0;
-    display: flex;
+    display: flex !important;
     align-items: center;
     flex: 1 1 auto;
     gap: 14px;
+    max-height: none !important;
+    overflow: visible !important;
 }
 
 .nav-list {
@@ -189,6 +191,13 @@ textarea {
     font-weight: 800;
     letter-spacing: .1em;
     text-transform: uppercase;
+}
+
+.sidebar .nav-link,
+.sidebar .nav-link span,
+.sidebar .brand-name,
+.sidebar .brand-subtitle {
+    visibility: visible;
 }
 
 .nav-link.active,
@@ -397,14 +406,15 @@ textarea {
     }
 
     .nav-scrollable {
-        display: block;
+        display: block !important;
         overflow: hidden;
         max-height: 560px;
         transition: max-height .22s ease;
     }
 
     .nav-scrollable.nav-collapsed {
-        max-height: 0;
+        max-height: 0 !important;
+        overflow: hidden !important;
     }
 
     .nav-list {
