@@ -2,6 +2,7 @@ using CPElite.Application.Abstractions;
 using CPElite.Domain.Entities;
 using CPElite.Domain.Enums;
 using CPElite.Infrastructure.Data;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace CPElite.Api;
@@ -61,10 +62,24 @@ public static class DatabaseInitializer
         {
             logger.LogInformation("Running TheSurvivors seed script {ScriptName}.", Path.GetFileName(script));
             var sql = await File.ReadAllTextAsync(script, cancellationToken);
-            await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+            await ExecuteSqlScriptAsync(dbContext, sql, cancellationToken);
         }
 
         logger.LogInformation("TheSurvivors demo tournament seed completed.");
+    }
+
+    private static async Task ExecuteSqlScriptAsync(CPEliteDbContext dbContext, string sql, CancellationToken cancellationToken)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.CommandTimeout = 300;
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task SeedAdminUserAsync(CPEliteDbContext dbContext, IConfiguration configuration, IPasswordHasher passwordHasher, ILogger logger, CancellationToken cancellationToken)
