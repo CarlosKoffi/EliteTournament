@@ -7453,3 +7453,137 @@ body {
         width: 100%;
     }
 }
+
+/* Owner tournament preparation: full-width vertical flow */
+.owner-submit-shell {
+    width: 100%;
+    max-width: none;
+}
+
+.owner-submit-hero {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+}
+
+.owner-readiness-card {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+}
+
+.owner-readiness-card strong {
+    font-size: clamp(36px, 6vw, 56px);
+}
+
+.owner-submit-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px;
+    align-items: stretch;
+}
+
+.owner-control-panel {
+    position: static !important;
+    top: auto !important;
+    width: 100%;
+}
+
+.owner-control-panel > .panel-heading,
+.roster-submit-panel > .panel-heading,
+.lineup-overview-panel > .panel-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+}
+
+.owner-control-panel label,
+.owner-control-panel select {
+    width: 100%;
+}
+
+.owner-control-panel .team-entry-card,
+.owner-control-panel .rules-alert,
+.owner-control-panel .tournament-rule-card,
+.owner-control-panel .owner-checklist,
+.owner-control-panel .row-actions,
+.roster-submit-panel,
+.lineup-overview-panel {
+    width: 100%;
+}
+
+.tournament-rule-card {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.tournament-rule-summary,
+.owner-checklist,
+.availability-strip {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.roster-submit-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.matchday-roster.grouped-roster,
+.roster-position-group {
+    width: 100%;
+}
+
+.roster-position-group {
+    padding: 12px;
+}
+
+.matchday-player {
+    width: 100%;
+    grid-template-columns: auto 44px minmax(0, 1fr) minmax(110px, 140px) auto;
+}
+
+.lineup-overview-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.lineup-overview-panel .lineup-board {
+    width: 100%;
+    max-width: 980px;
+    margin-inline: auto;
+}
+
+@media (max-width: 900px) {
+    .owner-control-panel > .panel-heading,
+    .roster-submit-panel > .panel-heading,
+    .lineup-overview-panel > .panel-heading {
+        grid-template-columns: 1fr;
+    }
+
+    .owner-readiness-card {
+        grid-template-columns: 1fr;
+    }
+
+    .roster-heading-actions,
+    .owner-control-panel .row-actions {
+        justify-content: stretch;
+    }
+
+    .roster-heading-actions > *,
+    .owner-control-panel .row-actions > * {
+        width: 100%;
+    }
+}
+
+@media (max-width: 760px) {
+    .matchday-player {
+        grid-template-columns: auto 44px minmax(0, 1fr);
+    }
+
+    .owner-submit-hero {
+        padding: 18px;
+    }
+
+    .owner-submit-hero h2 {
+        font-size: clamp(38px, 15vw, 64px);
+    }
+}
