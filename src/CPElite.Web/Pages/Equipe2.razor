@@ -1,0 +1,474 @@
+@page "/equipe2"
+@inject ApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Elite Tournament - Equipe New</PageTitle>
+<HeadContent>
+    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260723-1" />
+</HeadContent>
+
+<main class="el-team-page">
+    <section class="el-team-shell">
+        <header class="el-club-header">
+            <div class="el-club-logo">@ClubInitials</div>
+            <div class="el-club-title">
+                <span class="el-kicker">Mon equipe</span>
+                <h1>@ClubName</h1>
+                <div class="el-club-meta">
+                    <span>@ClubTag</span>
+                    <span>@PlatformLabel</span>
+                    <span>@ReputationLabel</span>
+                    <span>EA ID @EaClubIdLabel</span>
+                </div>
+            </div>
+            <div class="el-rating-card">
+                <span>Skill rating</span>
+                <strong>@SkillRatingLabel</strong>
+            </div>
+        </header>
+
+        @if (!AuthState.IsInitialized || Loading)
+        {
+            <section class="el-empty-state">
+                <strong>Chargement du club</strong>
+                <p>On recupere ton club, son effectif EA et les derniers matchs stockes.</p>
+            </section>
+        }
+        else if (!AuthState.IsAuthenticated)
+        {
+            <section class="el-empty-state">
+                <strong>Connexion requise</strong>
+                <p>Connecte-toi pour voir les donnees equipe stockees en base.</p>
+                <button class="el-primary" @onclick='() => Navigation.NavigateTo("login")'>Se connecter</button>
+            </section>
+        }
+        else if (CurrentTeamId is null)
+        {
+            <section class="el-empty-state">
+                <strong>Aucun club actif</strong>
+                <p>Associe ton compte a un club pour afficher cette nouvelle fiche equipe.</p>
+                <button class="el-primary" @onclick='() => Navigation.NavigateTo("account")'>Associer mon club</button>
+            </section>
+        }
+        else
+        {
+            <nav class="el-tab-bar" aria-label="Navigation equipe">
+                <button class="@TabClass("club")" @onclick='() => ActiveTab = "club"'>Club</button>
+                <button class="@TabClass("palmares")" @onclick='() => ActiveTab = "palmares"'>Palmares</button>
+                <button class="@TabClass("effectif")" @onclick='() => ActiveTab = "effectif"'>Effectif</button>
+                <button class="@TabClass("amicaux")" @onclick='() => ActiveTab = "amicaux"'>Matchs amicaux</button>
+            </nav>
+
+            @if (!string.IsNullOrWhiteSpace(Message))
+            {
+                <div class="el-message">@Message</div>
+            }
+
+            @if (ActiveTab == "club")
+            {
+                <section class="el-tab-panel">
+                    <div class="el-section-head">
+                        <span>Donnees generales EA</span>
+                        <h2>Identite et forme du club</h2>
+                    </div>
+
+                    <div class="el-club-grid">
+                        <article class="el-card el-identity-card">
+                            <span class="el-source el-source-game">EA / Club</span>
+                            <h3>@ClubName</h3>
+                            <dl>
+                                <div><dt>Tag</dt><dd>@ClubTag</dd></div>
+                                <div><dt>Plateforme</dt><dd>@PlatformLabel</dd></div>
+                                <div><dt>Division</dt><dd>@DivisionLabel</dd></div>
+                                <div><dt>Derniere synchro</dt><dd>@LastSyncLabel</dd></div>
+                            </dl>
+                            <button class="el-secondary" @onclick="RefreshEaAsync" disabled="@Refreshing">@RefreshLabel</button>
+                        </article>
+
+                        <article class="el-card el-donut-card">
+                            <span class="el-source el-source-game">Bilan recent</span>
+                            <div class="el-donut" style="@DonutStyle">
+                                <strong>@WinRateLabel</strong>
+                                <span>win rate</span>
+                            </div>
+                            <div class="el-legend">
+                                <span><b class="win"></b>@WinsLabel victoires</span>
+                                <span><b class="draw"></b>@DrawsLabel nuls</span>
+                                <span><b class="loss"></b>@LossesLabel defaites</span>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="el-stat-grid">
+                        <article class="el-stat"><span>Total matchs EA</span><strong>@TotalMatchesLabel</strong></article>
+                        <article class="el-stat good"><span>Victoires</span><strong>@WinsLabel</strong></article>
+                        <article class="el-stat warn"><span>Nuls</span><strong>@DrawsLabel</strong></article>
+                        <article class="el-stat danger"><span>Defaites</span><strong>@LossesLabel</strong></article>
+                        <article class="el-stat"><span>Buts marques</span><strong>@GoalsForLabel</strong></article>
+                        <article class="el-stat"><span>Buts encaisses</span><strong>@GoalsAgainstLabel</strong></article>
+                    </div>
+
+                    <article class="el-card el-platform-stats">
+                        <div>
+                            <span class="el-source el-source-app">Application Elite Tournament</span>
+                            <h3>Statistiques de tournois</h3>
+                            <p>Cette zone sera calculee automatiquement depuis les vrais tournois et matchs stockes en base.</p>
+                        </div>
+                        <div class="el-mini-stats">
+                            <span><b>-</b> tournois</span>
+                            <span><b>-</b> titres</span>
+                            <span><b>-</b> points EL</span>
+                            <span><b>-</b> meilleur tier</span>
+                        </div>
+                    </article>
+                </section>
+            }
+
+            @if (ActiveTab == "palmares")
+            {
+                <section class="el-tab-panel">
+                    <div class="el-section-head">
+                        <span>Application Elite Tournament</span>
+                        <h2>Palmares</h2>
+                    </div>
+
+                    <div class="el-trophy-grid">
+                        <article class="el-trophy diamond"><span>Diamant</span><strong>0</strong></article>
+                        <article class="el-trophy gold"><span>Or</span><strong>0</strong></article>
+                        <article class="el-trophy silver"><span>Argent</span><strong>0</strong></article>
+                        <article class="el-trophy bronze"><span>Bronze</span><strong>0</strong></article>
+                    </div>
+
+                    <section class="el-empty-state compact">
+                        <strong>Aucun tournoi termine pour ce club</strong>
+                        <p>Les trophees, finales, podiums et points apparaitront ici des que les tournois reels seront termines.</p>
+                    </section>
+                </section>
+            }
+
+            @if (ActiveTab == "effectif")
+            {
+                <section class="el-tab-panel">
+                    <div class="el-section-head with-action">
+                        <div>
+                            <span>Effectif</span>
+                            <h2>@RosterTitle</h2>
+                        </div>
+                        <button class="el-secondary" @onclick="RefreshEaAsync" disabled="@Refreshing">@RefreshLabel</button>
+                    </div>
+
+                    <div class="el-roster-layout">
+                        <article class="el-roster-table">
+                            <div class="el-player-row el-player-head">
+                                <span>#</span>
+                                <span>POS</span>
+                                <span>NOM</span>
+                                <span>RATING</span>
+                                <span>TAILLE</span>
+                                <span>ROLE</span>
+                            </div>
+                            @if (Players.Count == 0)
+                            {
+                                <div class="el-empty-state compact">
+                                    <strong>Aucun joueur stocke</strong>
+                                    <p>Rafraichis les donnees EA du club pour alimenter l'effectif depuis la base.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var player in Players.Select((value, index) => new { value, index }))
+                                {
+                                    <button type="button" class="el-player-row @(SelectedPlayer?.EaPlayerId == player.value.EaPlayerId ? "selected" : "")" @onclick="() => SelectPlayer(player.value)">
+                                        <span>@(player.index + 1).ToString("00")</span>
+                                        <span class="el-pos @PositionCss(player.value.Position)">@PositionGroup(player.value.Position)</span>
+                                        <strong>@player.value.PlayerName</strong>
+                                        <span>@RatingLabel(player.value)</span>
+                                        <span>@HeightLabel(player.value.Height)</span>
+                                        <span>@(player.value.IsManager ? "Manager" : "Joueur")</span>
+                                    </button>
+                                }
+                            }
+                        </article>
+
+                        <aside class="el-player-detail">
+                            @if (SelectedPlayer is null)
+                            {
+                                <div class="el-empty-state compact">
+                                    <strong>Selectionne un joueur</strong>
+                                    <p>Sa fiche detaillee apparaitra ici.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="el-player-top @PositionCss(SelectedPlayer.Position)">
+                                    <div class="el-player-rating">@RatingLabel(SelectedPlayer)</div>
+                                    <div>
+                                        <span>@PositionLabel(SelectedPlayer.Position)</span>
+                                        <h3>@SelectedPlayer.PlayerName</h3>
+                                        <p>@(SelectedPlayer.ProName ?? SelectedPlayer.EaPlayerId)</p>
+                                    </div>
+                                </div>
+                                <div class="el-player-facts">
+                                    <span>@HeightLabel(SelectedPlayer.Height)</span>
+                                    <span>@WeightLabel(SelectedPlayer.Weight)</span>
+                                    <span>@(SelectedPlayer.Matches?.ToString() ?? "-") matchs</span>
+                                    <span>@(SelectedPlayer.IsManager ? "Manager EA" : "Joueur")</span>
+                                </div>
+                                <dl class="el-detail-list">
+                                    <div><dt>Buts</dt><dd>@(SelectedPlayer.Goals?.ToString() ?? "-")</dd></div>
+                                    <div><dt>Assists</dt><dd>@(SelectedPlayer.Assists?.ToString() ?? "-")</dd></div>
+                                    <div><dt>Passes</dt><dd>@PercentLabel(SelectedPlayer.PassSuccessRate)</dd></div>
+                                    <div><dt>Tacles</dt><dd>@PercentLabel(SelectedPlayer.TackleSuccessRate)</dd></div>
+                                    <div><dt>Clean sheets</dt><dd>@(SelectedPlayer.CleanSheets?.ToString() ?? "-")</dd></div>
+                                    <div><dt>Homme du match</dt><dd>@(SelectedPlayer.PlayerOfTheMatch?.ToString() ?? "-")</dd></div>
+                                </dl>
+                            }
+                        </aside>
+                    </div>
+                </section>
+            }
+
+            @if (ActiveTab == "amicaux")
+            {
+                <section class="el-tab-panel">
+                    <div class="el-section-head with-action">
+                        <div>
+                            <span>Matchs amicaux EA</span>
+                            <h2>Historique stocke</h2>
+                        </div>
+                        <button class="el-secondary" @onclick="RefreshEaAsync" disabled="@Refreshing">@RefreshLabel</button>
+                    </div>
+
+                    @if (Friendlies.Count == 0)
+                    {
+                        <section class="el-empty-state compact">
+                            <strong>Aucun match amical stocke</strong>
+                            <p>Rafraichis le club pour recuperer les matchs disponibles depuis l'API EA puis les afficher depuis la base.</p>
+                        </section>
+                    }
+                    else
+                    {
+                        <div class="el-friendly-grid">
+                            @foreach (var match in Friendlies)
+                            {
+                                <article class="el-friendly-card">
+                                    <span>@match.PlayedAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
+                                    <h3>@match.HomeClubName @match.HomeScore - @match.AwayScore @match.AwayClubName</h3>
+                                    <p>@match.PlayerStatCount stats joueurs stockees - ID @match.EaMatchId</p>
+                                </article>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        }
+    </section>
+</main>
+
+@code {
+    private string ActiveTab { get; set; } = "club";
+    private bool Loading { get; set; } = true;
+    private bool Refreshing { get; set; }
+    private string? Message { get; set; }
+    private Guid? CurrentTeamId { get; set; }
+    private TeamResponse? Team { get; set; }
+    private EaClubSnapshotResponse? Club { get; set; }
+    private List<EaPlayerProfileSnapshotResponse> Players { get; } = new();
+    private List<EaFriendlyMatchResponse> Friendlies { get; } = new();
+    private EaPlayerProfileSnapshotResponse? SelectedPlayer { get; set; }
+
+    private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
+    private string ClubInitials => string.Join("", ClubName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
+    private string ClubTag => Team?.ShortName ?? Club?.Abbreviation ?? (ClubName.Length <= 4 ? ClubName.ToUpperInvariant() : ClubName[..Math.Min(4, ClubName.Length)].ToUpperInvariant());
+    private string PlatformLabel => Team?.Platform.ToString() ?? Club?.Platform ?? "Plateforme";
+    private string ReputationLabel => Players.Count >= 30 ? "World Renowned" : Players.Count >= 18 ? "Established" : "Emerging";
+    private string EaClubIdLabel => (Team?.EaClubId ?? Club?.EaClubId)?.ToString() ?? "-";
+    private string SkillRatingLabel => "-";
+    private string DivisionLabel => Club?.Division?.ToString() ?? "-";
+    private string LastSyncLabel => Club?.SyncedAt.LocalDateTime.ToString("dd/MM HH:mm") ?? "-";
+    private string RefreshLabel => Refreshing ? "Synchronisation..." : "Mettre a jour EA";
+    private string RosterTitle => Players.Count == 0 ? "Effectif non charge" : $"Effectif actif ({Players.Count})";
+    private int TotalMatches => Friendlies.Count;
+    private int Wins => Friendlies.Count(IsWin);
+    private int Draws => Friendlies.Count(match => match.HomeScore == match.AwayScore);
+    private int Losses => Math.Max(TotalMatches - Wins - Draws, 0);
+    private int GoalsFor => Friendlies.Sum(GoalsForMatch);
+    private int GoalsAgainst => Friendlies.Sum(GoalsAgainstMatch);
+    private string TotalMatchesLabel => TotalMatches == 0 ? "-" : TotalMatches.ToString();
+    private string WinsLabel => TotalMatches == 0 ? "-" : Wins.ToString();
+    private string DrawsLabel => TotalMatches == 0 ? "-" : Draws.ToString();
+    private string LossesLabel => TotalMatches == 0 ? "-" : Losses.ToString();
+    private string GoalsForLabel => TotalMatches == 0 ? "-" : GoalsFor.ToString();
+    private string GoalsAgainstLabel => TotalMatches == 0 ? "-" : GoalsAgainst.ToString();
+    private string WinRateLabel => TotalMatches == 0 ? "-" : $"{Math.Round((double)Wins / TotalMatches * 100)}%";
+    private string DonutStyle => TotalMatches == 0
+        ? "background: conic-gradient(rgba(255,255,255,.08) 0 100%);"
+        : $"background: conic-gradient(#00e676 0 {WinSlice}%, #f5c518 {WinSlice}% {DrawSlice}%, #ff5252 {DrawSlice}% 100%);";
+    private double WinSlice => TotalMatches == 0 ? 0 : (double)Wins / TotalMatches * 100;
+    private double DrawSlice => TotalMatches == 0 ? 0 : (double)(Wins + Draws) / TotalMatches * 100;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(forceSync: false);
+    }
+
+    private async Task LoadAsync(bool forceSync)
+    {
+        Loading = true;
+        Message = null;
+
+        try
+        {
+            if (!AuthState.IsInitialized || !AuthState.IsAuthenticated)
+            {
+                return;
+            }
+
+            var me = await Api.GetMeAsync();
+            var membership = me.Value?.Memberships.FirstOrDefault(member => member.TeamId.HasValue);
+            CurrentTeamId = membership?.TeamId;
+
+            if (CurrentTeamId is null)
+            {
+                return;
+            }
+
+            if (forceSync)
+            {
+                await Api.SyncTeamEaAsync(CurrentTeamId.Value, forceRefresh: true);
+            }
+
+            var teamResult = await Api.GetTeamAsync(CurrentTeamId.Value);
+            Team = teamResult.Value;
+
+            var clubResult = await Api.GetTeamEaClubAsync(CurrentTeamId.Value);
+            Club = clubResult.Value;
+
+            var playersResult = await Api.GetTeamEaPlayersAsync(CurrentTeamId.Value);
+            Players.Clear();
+            if (playersResult.Value is not null)
+            {
+                Players.AddRange(playersResult.Value.OrderBy(PositionSort).ThenByDescending(player => player.AverageRating ?? 0).ThenBy(player => player.PlayerName));
+            }
+
+            SelectedPlayer = Players.FirstOrDefault();
+
+            var friendliesResult = await Api.GetTeamEaFriendliesAsync(CurrentTeamId.Value, take: 20);
+            Friendlies.Clear();
+            if (friendliesResult.Value is not null)
+            {
+                Friendlies.AddRange(friendliesResult.Value.OrderByDescending(match => match.PlayedAt));
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Impossible de charger la page equipe: {ex.Message}";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task RefreshEaAsync()
+    {
+        if (CurrentTeamId is null)
+        {
+            return;
+        }
+
+        Refreshing = true;
+        await LoadAsync(forceSync: true);
+        Refreshing = false;
+        Message ??= "Donnees EA mises a jour depuis la base.";
+    }
+
+    private void SelectPlayer(EaPlayerProfileSnapshotResponse player)
+    {
+        SelectedPlayer = player;
+    }
+
+    private string TabClass(string tab) => ActiveTab == tab ? "active" : "";
+
+    private bool IsWin(EaFriendlyMatchResponse match)
+    {
+        var clubId = Team?.EaClubId ?? Club?.EaClubId;
+        if (clubId is null)
+        {
+            return false;
+        }
+
+        return match.HomeEaClubId == clubId && match.HomeScore > match.AwayScore
+            || match.AwayEaClubId == clubId && match.AwayScore > match.HomeScore;
+    }
+
+    private int GoalsForMatch(EaFriendlyMatchResponse match)
+    {
+        var clubId = Team?.EaClubId ?? Club?.EaClubId;
+        if (clubId is null)
+        {
+            return 0;
+        }
+
+        return match.HomeEaClubId == clubId ? match.HomeScore : match.AwayEaClubId == clubId ? match.AwayScore : 0;
+    }
+
+    private int GoalsAgainstMatch(EaFriendlyMatchResponse match)
+    {
+        var clubId = Team?.EaClubId ?? Club?.EaClubId;
+        if (clubId is null)
+        {
+            return 0;
+        }
+
+        return match.HomeEaClubId == clubId ? match.AwayScore : match.AwayEaClubId == clubId ? match.HomeScore : 0;
+    }
+
+    private static int PositionSort(EaPlayerProfileSnapshotResponse player) => PositionGroup(player.Position) switch
+    {
+        "GK" => 0,
+        "DEF" => 1,
+        "MIL" => 2,
+        "ATT" => 3,
+        _ => 4
+    };
+
+    private static string PositionGroup(string? position)
+    {
+        if (string.IsNullOrWhiteSpace(position))
+        {
+            return "-";
+        }
+
+        var normalized = position.ToUpperInvariant();
+        if (normalized.Contains("GK") || normalized.Contains("GARDIEN"))
+        {
+            return "GK";
+        }
+
+        if (normalized.Contains("CB") || normalized.Contains("DC") || normalized.Contains("LB") || normalized.Contains("RB") || normalized.Contains("DEF") || normalized.Contains("DD") || normalized.Contains("DG"))
+        {
+            return "DEF";
+        }
+
+        if (normalized.Contains("CM") || normalized.Contains("CDM") || normalized.Contains("CAM") || normalized.Contains("MC") || normalized.Contains("MOC") || normalized.Contains("MDC") || normalized.Contains("MIL"))
+        {
+            return "MIL";
+        }
+
+        if (normalized.Contains("ST") || normalized.Contains("LW") || normalized.Contains("RW") || normalized.Contains("BU") || normalized.Contains("AG") || normalized.Contains("AD") || normalized.Contains("ATT"))
+        {
+            return "ATT";
+        }
+
+        return normalized.Length > 3 ? normalized[..3] : normalized;
+    }
+
+    private static string PositionLabel(string? position) => string.IsNullOrWhiteSpace(position) ? "Poste non renseigne" : position;
+    private static string PositionCss(string? position) => PositionGroup(position).ToLowerInvariant();
+    private static string RatingLabel(EaPlayerProfileSnapshotResponse player) => player.AverageRating?.ToString("0.0") ?? player.Overall?.ToString() ?? "-";
+    private static string HeightLabel(int? height) => height is null or <= 0 ? "-" : $"{height} cm";
+    private static string WeightLabel(int? weight) => weight is null or <= 0 ? "-" : $"{weight} kg";
+    private static string PercentLabel(double? value) => value is null ? "-" : $"{value:0}%";
+}
