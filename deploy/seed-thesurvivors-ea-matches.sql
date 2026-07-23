@@ -9,6 +9,7 @@ begin;
 do $$
 declare
     v_team_id uuid;
+    v_user_id uuid;
     v_ea_club_id bigint := 2148207;
     v_platform text := 'common-gen5';
     v_synced_at timestamptz := now();
@@ -21,12 +22,48 @@ begin
     into v_team_id
     from "Teams"
     where "EaClubId" = v_ea_club_id
-      and "IsArchived" = false
-    order by "CreatedAt"
+       or lower("Name") = lower('TheSurvivors')
+       or "NormalizedName" = 'THESURVIVORS'
+    order by
+        case when "EaClubId" = v_ea_club_id then 0 else 1 end,
+        case when "IsArchived" = false then 0 else 1 end,
+        "CreatedAt"
     limit 1;
 
-    if v_team_id is null then
-        raise exception 'Cannot import EA matches: no active team found with EaClubId=%', v_ea_club_id;
+    if v_team_id is not null then
+        update "Teams"
+        set "EaClubId" = v_ea_club_id,
+            "IsArchived" = false
+        where "Id" = v_team_id;
+
+        raise notice 'TheSurvivors team found for EA match seed: %.', v_team_id;
+    else
+        select "Id"
+        into v_user_id
+        from "Users"
+        order by "IsAdmin" desc, "CreatedAt"
+        limit 1;
+
+        if v_user_id is null then
+            raise notice 'Seed skipped: no user exists to own TheSurvivors team.';
+            return;
+        end if;
+
+        insert into "Teams" (
+            "Id", "Name", "NormalizedName", "ShortName", "Platform", "Region", "InviteCode",
+            "InviteCodeExpiresAt", "EaClubId", "Description", "LogoUrl", "BannerUrl", "DiscordUrl",
+            "TwitchUrl", "TikTokUrl", "TwitterUrl", "RequireJoinApproval", "IsArchived", "ArchivedAt",
+            "CreatedByUserId", "CreatedAt")
+        values (
+            gen_random_uuid(), 'TheSurvivors', 'THESURVIVORS', 'TS', 4, 'Europe', 'SEED' || left(replace(gen_random_uuid()::text, '-', ''), 12),
+            null, v_ea_club_id, 'Club cree automatiquement pour charger les donnees EA de demonstration TheSurvivors.',
+            null, null, null, null, null, null, false, false, null, v_user_id, v_synced_at)
+        on conflict ("NormalizedName") do update
+            set "EaClubId" = coalesce("Teams"."EaClubId", excluded."EaClubId"),
+                "IsArchived" = false
+        returning "Id" into v_team_id;
+
+        raise notice 'TheSurvivors team created for EA match seed.';
     end if;
 
     create temp table tmp_seed_ea_matches
