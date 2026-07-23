@@ -257,7 +257,9 @@ public sealed class EaSyncService
             stat.CleanSheetsDef,
             stat.CleanSheetsGk,
             stat.RedCards,
-            stat.SecondsPlayed)).ToArray());
+            stat.SecondsPlayed,
+            stat.ArchetypeId,
+            stat.VproAttributes)).ToArray());
     }
 
     public async Task<Result<IReadOnlyCollection<EaFriendlyMatchResponse>>> GetFriendlyMatchesAsync(Guid teamId, int take = 20, Guid? tournamentMatchId = null, CancellationToken cancellationToken = default)

@@ -81,7 +81,9 @@ public sealed class EaSyncRepository : IEaSyncRepository
                     Sum(group, stat => stat.CleanSheetsDef),
                     Sum(group, stat => stat.CleanSheetsGk),
                     Sum(group, stat => stat.RedCards),
-                    Sum(group, stat => stat.SecondsPlayed));
+                    Sum(group, stat => stat.SecondsPlayed),
+                    group.OrderByDescending(stat => stat.Match?.PlayedAt ?? DateTimeOffset.MinValue).FirstOrDefault(stat => stat.ArchetypeId.HasValue)?.ArchetypeId,
+                    group.OrderByDescending(stat => stat.Match?.PlayedAt ?? DateTimeOffset.MinValue).FirstOrDefault(stat => !string.IsNullOrWhiteSpace(stat.VproAttributes))?.VproAttributes);
             })
             .OrderByDescending(stat => stat.Goals + stat.Assists)
             .ThenByDescending(stat => stat.AverageRating ?? 0)

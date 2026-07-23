@@ -157,4 +157,6 @@ public sealed record EaTournamentPlayerStatsResponse(
     int CleanSheetsDef,
     int CleanSheetsGk,
     int RedCards,
-    int SecondsPlayed);
+    int SecondsPlayed,
+    int? ArchetypeId,
+    string? VproAttributes);

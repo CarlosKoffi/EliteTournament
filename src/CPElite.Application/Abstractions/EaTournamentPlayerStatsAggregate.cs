@@ -22,4 +22,6 @@ public sealed record EaTournamentPlayerStatsAggregate(
     int CleanSheetsDef,
     int CleanSheetsGk,
     int RedCards,
-    int SecondsPlayed);
+    int SecondsPlayed,
+    int? ArchetypeId,
+    string? VproAttributes);

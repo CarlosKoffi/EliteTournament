@@ -234,6 +234,7 @@
                                             <div><dt>Buts encaisses</dt><dd>@SelectedTournamentStats.GoalsConceded</dd></div>
                                             <div><dt>Clean sheets</dt><dd>@CleanSheetLabel(SelectedTournamentStats)</dd></div>
                                             <div><dt>Minutes</dt><dd>@MinutesLabel(SelectedTournamentStats.SecondsPlayed)</dd></div>
+                                            <div><dt>Archetype brut</dt><dd>@TournamentArchetypeLabel(SelectedTournamentStats)</dd></div>
                                         </dl>
                                     }
                                 </section>
@@ -517,7 +518,15 @@
     private static string RatingLabel(double? rating) => rating?.ToString("0.0") ?? "-";
     private static string OverallLabel(EaPlayerProfileSnapshotResponse player) => player.Overall?.ToString() ?? "-";
     private static string PotentialLabel(EaPlayerProfileSnapshotResponse player) => "-";
-    private static string ArchetypeLabel(EaPlayerProfileSnapshotResponse player) => player.IsManager ? "Manager" : "-";
+    private string ArchetypeLabel(EaPlayerProfileSnapshotResponse player)
+    {
+        if (TournamentPlayerStats.TryGetValue(player.EaPlayerId, out var stats))
+        {
+            return TournamentArchetypeLabel(stats);
+        }
+
+        return player.IsManager ? "Manager" : "-";
+    }
     private static string HeightLabel(int? height) => height is null or <= 0 ? "-" : $"{height} cm";
     private static string WeightLabel(int? weight) => weight is null or <= 0 ? "-" : $"{weight} kg";
     private static string PercentLabel(double? value) => value is null ? "-" : $"{value:0}%";
@@ -535,4 +544,13 @@
     }
 
     private static string MinutesLabel(int seconds) => seconds <= 0 ? "-" : $"{Math.Round(seconds / 60d)} min";
+    private static string TournamentArchetypeLabel(EaTournamentPlayerStatsResponse stats)
+    {
+        if (stats.ArchetypeId.HasValue)
+        {
+            return stats.ArchetypeId.Value.ToString();
+        }
+
+        return string.IsNullOrWhiteSpace(stats.VproAttributes) ? "-" : stats.VproAttributes;
+    }
 }
