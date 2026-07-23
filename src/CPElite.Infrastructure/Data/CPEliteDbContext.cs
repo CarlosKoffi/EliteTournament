@@ -339,6 +339,7 @@ public sealed class CPEliteDbContext : DbContext
             entity.Property(tournament => tournament.ScoreRecoveryMode).HasDefaultValue(Domain.Enums.TournamentScoreRecoveryMode.ManualOnly);
             entity.Property(tournament => tournament.ScoreRecoveryIntervalMinutes).HasDefaultValue(2);
             entity.Property(tournament => tournament.AutoPublishPerfectScore).HasDefaultValue(false);
+            entity.Property(tournament => tournament.Tier).HasDefaultValue(Domain.Enums.TournamentTier.Gold);
         });
 
         modelBuilder.Entity<TournamentRegistration>(entity =>

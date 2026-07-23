@@ -55,6 +55,49 @@ public sealed class TournamentFlowTests : IClassFixture<ApiTestFactory>
     }
 
     [Fact]
+    public async Task Tournament_list_exposes_tier_slots_and_waitlist_from_database()
+    {
+        var owner = await _client.RegisterPlayerAsync($"owner-{Guid.NewGuid():N}@test.com");
+        _client.AuthorizeAs(owner);
+        var first = await _client.CreateTeamAsync($"Tier First {Guid.NewGuid():N}");
+        var second = await _client.CreateTeamAsync($"Tier Second {Guid.NewGuid():N}");
+        var waitlisted = await _client.CreateTeamAsync($"Tier Wait {Guid.NewGuid():N}");
+
+        var tournamentResponse = await _client.PostAsJsonAsync("/api/tournaments/official", new CreateTournamentRequest(
+            "Diamond Invitational",
+            TournamentType.Goodies,
+            DateTimeOffset.UtcNow.AddDays(1),
+            "Europe/Zurich",
+            2,
+            50m,
+            "EUR",
+            "High prestige",
+            2,
+            Tier: TournamentTier.Diamond), JsonOptions);
+        tournamentResponse.EnsureSuccessStatusCode();
+        var tournament = (await tournamentResponse.Content.ReadFromJsonAsync<TournamentResponse>(JsonOptions))!;
+        Assert.Equal(TournamentTier.Diamond, tournament.Tier);
+
+        foreach (var team in new[] { first, second, waitlisted })
+        {
+            var registrationResponse = await _client.PostAsJsonAsync($"/api/tournaments/{tournament.Id}/registrations", new RegisterTeamForTournamentRequest(team.Id, TournamentPaymentMode.ClubManagerPays), JsonOptions);
+            registrationResponse.EnsureSuccessStatusCode();
+        }
+
+        var listResponse = await _client.GetAsync("/api/tournaments");
+        listResponse.EnsureSuccessStatusCode();
+        var tournaments = (await listResponse.Content.ReadFromJsonAsync<IReadOnlyCollection<TournamentResponse>>(JsonOptions))!;
+        var listed = Assert.Single(tournaments, item => item.Id == tournament.Id);
+
+        Assert.Equal(TournamentTier.Diamond, listed.Tier);
+        Assert.Equal(2, listed.RegisteredTeams);
+        Assert.Equal(1, listed.WaitlistedTeams);
+        Assert.Equal(0, listed.SlotsLeft);
+        Assert.Equal(100, listed.FillPercentage);
+        Assert.True(listed.IsUrgent);
+    }
+
+    [Fact]
     public async Task Ea_verification_falls_back_to_owner_confirmation_until_matching_is_confident()
     {
         var owner = await _client.RegisterPlayerAsync($"owner-{Guid.NewGuid():N}@test.com");

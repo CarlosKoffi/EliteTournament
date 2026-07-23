@@ -42,9 +42,14 @@ public sealed class TournamentService
     public async Task<Result<IReadOnlyCollection<TournamentResponse>>> GetTournamentsAsync(CancellationToken cancellationToken = default)
     {
         var tournaments = await _tournaments.GetTournamentsAsync(cancellationToken);
-        return Result<IReadOnlyCollection<TournamentResponse>>.Success(tournaments
-            .Select(ToTournamentResponse)
-            .ToArray());
+        var responses = new List<TournamentResponse>(tournaments.Count);
+        foreach (var tournament in tournaments)
+        {
+            var registrations = await _tournaments.GetRegistrationsAsync(tournament.Id, cancellationToken);
+            responses.Add(ToTournamentResponse(tournament, registrations));
+        }
+
+        return Result<IReadOnlyCollection<TournamentResponse>>.Success(responses.ToArray());
     }
 
     public async Task<Result<TournamentAdminDetailResponse>> GetTournamentAdminDetailAsync(Guid tournamentId, CancellationToken cancellationToken = default)
@@ -120,7 +125,8 @@ public sealed class TournamentService
             NormalizeOptional(request.BannerUrl),
             (DomainScoreRecoveryMode)(int)request.ScoreRecoveryMode,
             Math.Clamp(request.ScoreRecoveryIntervalMinutes, 1, 60),
-            request.AutoPublishPerfectScore);
+            request.AutoPublishPerfectScore,
+            (CPElite.Domain.Enums.TournamentTier)(int)request.Tier);
 
         tournament.OpenRegistration();
         await _tournaments.AddTournamentAsync(tournament, cancellationToken);
@@ -1052,9 +1058,13 @@ public sealed class TournamentService
 
     private sealed record DrawGroup(string Name, List<TournamentGroupTeamResponse> Teams);
 
-    private static TournamentResponse ToTournamentResponse(Tournament tournament)
+    private static TournamentResponse ToTournamentResponse(Tournament tournament, IReadOnlyCollection<TournamentRegistration>? registrations = null)
     {
-        return new TournamentResponse(tournament.Id, tournament.Name, (ContractTournamentType)(int)tournament.Type, (ContractTournamentStatus)(int)tournament.Status, tournament.StartsAt, tournament.TimeZone, tournament.MinTeams, tournament.MaxTeams, tournament.EntryFee, tournament.Currency, tournament.GoodiesDescription, tournament.RegistrationLockAt, tournament.EstimatedPrizeBudget, tournament.EaMonitoringStartsMinutesBefore, tournament.EaMonitoringEndsMinutesAfter, tournament.PlayerRestrictionsJson, tournament.IsCashPrize, tournament.RegistrationStartsAt, tournament.RegistrationEndsAt, tournament.BannerUrl, (CPElite.Contracts.Common.TournamentScoreRecoveryMode)(int)tournament.ScoreRecoveryMode, tournament.ScoreRecoveryIntervalMinutes, tournament.AutoPublishPerfectScore);
+        var registeredTeams = registrations is null ? 0 : CountActiveRegistrations(registrations);
+        var waitlistedTeams = registrations?.Count(registration => registration.Status == DomainRegistrationStatus.Waitlisted) ?? 0;
+        var slotsLeft = Math.Max(0, tournament.MaxTeams - registeredTeams);
+        var fillPercentage = tournament.MaxTeams <= 0 ? 0 : (int)Math.Round((decimal)registeredTeams / tournament.MaxTeams * 100m);
+        return new TournamentResponse(tournament.Id, tournament.Name, (ContractTournamentType)(int)tournament.Type, (ContractTournamentStatus)(int)tournament.Status, tournament.StartsAt, tournament.TimeZone, tournament.MinTeams, tournament.MaxTeams, tournament.EntryFee, tournament.Currency, tournament.GoodiesDescription, tournament.RegistrationLockAt, tournament.EstimatedPrizeBudget, tournament.EaMonitoringStartsMinutesBefore, tournament.EaMonitoringEndsMinutesAfter, tournament.PlayerRestrictionsJson, tournament.IsCashPrize, tournament.RegistrationStartsAt, tournament.RegistrationEndsAt, tournament.BannerUrl, (CPElite.Contracts.Common.TournamentScoreRecoveryMode)(int)tournament.ScoreRecoveryMode, tournament.ScoreRecoveryIntervalMinutes, tournament.AutoPublishPerfectScore, (CPElite.Contracts.Common.TournamentTier)(int)tournament.Tier, registeredTeams, waitlistedTeams, slotsLeft, fillPercentage, slotsLeft <= 2);
     }
 
     private static TournamentRegistrationResponse ToRegistrationResponse(TournamentRegistration registration)

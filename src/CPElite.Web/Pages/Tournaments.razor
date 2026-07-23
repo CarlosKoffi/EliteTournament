@@ -6,125 +6,85 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
-<PageTitle>TS Tournament - Tournois</PageTitle>
+<PageTitle>Elite Tournament - Tournois</PageTitle>
 
-<section class="page-title">
-    <p class="eyebrow">Espace joueur</p>
-    <h1>Tournois disponibles</h1>
-    <p>@(AuthState.IsAuthenticated ? "Le owner peut gerer plusieurs clubs, inscrire le bon club au bon tournoi, puis soumettre les 11 joueurs qui doivent confirmer leur presence." : "Consulte les prochains tournois disponibles. Cree ton compte pour inscrire ton equipe et acceder au suivi complet.")</p>
-</section>
-
-@if (ShowDemoData)
-{
-    <section class="tournament-catalog">
-        <article class="tournament-product simple" style="@CommunityCupBannerStyle">
-            <div>
-                <p class="eyebrow">Tournoi simple</p>
-                <h2>Community Cup</h2>
-                <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
-            </div>
-            <div class="product-rules">
-                <span>Date: Dimanche 05/07</span>
-                <span>Coup d'envoi: 22:30 CET</span>
-                <strong>Dans 7 jours</strong>
-                <span>Il reste 14 places</span>
-            </div>
-            @if (AuthState.IsAuthenticated)
-            {
-                <button type="button" class="button-link primary" @onclick="PrepareDemoTournamentAsync">Preparer mon equipe</button>
-            }
-            else
-            {
-                <a class="button-link primary" href="account">Creer ton compte et ramener ton equipe</a>
-            }
-        </article>
-
-        <article class="tournament-product goodies" style="@GoodiesCupBannerStyle">
-            <div>
-                <p class="eyebrow">Tournoi goodies</p>
-                <h2>Friday Goodies Cup</h2>
-                <p>Tournoi ouvert aux equipes Pro Clubs. Il reste des places: cree ton compte et ramene ton equipe pour participer.</p>
-            </div>
-            <div class="product-rules">
-                <strong>Goodies</strong>
-                <span>Date: Vendredi 03/07</span>
-                <span>Coup d'envoi: 22:30 CET</span>
-                <strong>Dans 5 jours</strong>
-                <span>Il reste 21 places</span>
-            </div>
-            @if (AuthState.IsAuthenticated)
-            {
-                <button type="button" class="button-link primary" @onclick="PrepareDemoTournamentAsync">Preparer mon equipe</button>
-            }
-            else
-            {
-                <a class="button-link primary" href="account">Creer ton compte et ramener ton equipe</a>
-            }
-        </article>
+<main class="et-tournaments-page">
+    <section class="et-tournaments-head">
+        <p class="eyebrow">Competitions disponibles</p>
+        <div>
+            <h1>Tous les tournois</h1>
+            <p>@(AuthState.IsAuthenticated ? "Inscris ton club, prepare les 11 joueurs, suis les places restantes et le niveau de prestige de chaque tournoi." : "Consulte les competitions ouvertes. Cree ton compte pour inscrire ton club et acceder au suivi complet.")</p>
+        </div>
     </section>
-}
-else if (PublishedTournaments.Count > 0)
-{
-    <section class="tournament-catalog">
-        @foreach (var tournament in PublishedTournaments)
+
+    <section class="et-tournament-filters" aria-label="Filtres tournois">
+        <button type="button" class="@(SelectedTierFilter is null ? "active" : "")" @onclick="() => SelectedTierFilter = null">Tous</button>
+        @foreach (var tier in TierFilters)
         {
-            <article class="tournament-product @(tournament.IsCashPrize ? "goodies" : "simple")" style="@BuildTournamentBannerStyle(tournament.BannerUrl)">
-                <div>
-                    <p class="eyebrow">@(tournament.IsCashPrize ? "Tournoi goodies" : "Tournoi")</p>
-                    <h2>@tournament.Name</h2>
-                    <p>@BuildTournamentSubtitle(tournament)</p>
-                </div>
-                <div class="product-rules">
-                    @if (tournament.IsCashPrize)
-                    {
-                        <strong>Goodies</strong>
-                    }
-                    <span>Date: @FormatTournamentDate(tournament.StartsAt)</span>
-                    <span>Coup d'envoi: @FormatTournamentTime(tournament.StartsAt) @tournament.TimeZone</span>
-                    <strong>@BuildCountdownLabel(tournament.StartsAt)</strong>
-                    <span>Il reste des places</span>
-                </div>
-                @if (AuthState.IsAuthenticated)
-                {
-                    <button type="button" class="button-link primary" @onclick="() => PrepareTournamentAsync(tournament)">Preparer mon equipe</button>
-                }
-                else
-                {
-                    <a class="button-link primary" href="account">Creer ton compte et ramener ton equipe</a>
-                }
-            </article>
+            <button type="button" class="@(SelectedTierFilter == tier ? "active" : "")" @onclick="() => SelectedTierFilter = tier">@GetTierLabel(tier)</button>
         }
     </section>
-}
-else
-{
-    <section class="panel public-tournament-lock">
-        <div>
-            <p class="eyebrow">Tournois</p>
-            <h2>Aucun tournoi publie pour le moment</h2>
-            <p>@(AuthState.IsAuthenticated ? "Tu es bien connecte. Les prochains tournois apparaitront ici des qu'un admin TS Tournament les aura crees et ouverts aux inscriptions." : "Les prochains tournois apparaitront ici des qu'un admin TS Tournament les aura crees et ouverts aux inscriptions.")</p>
-        </div>
-        <div class="public-tournament-actions">
-            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Voir mon equipe" : "Creer un compte")</a>
-            <a class="button-link" href="/">Retour accueil</a>
-        </div>
-    </section>
-}
 
-@if (!AuthState.IsAuthenticated && ShowDemoData)
-{
-    <section class="panel public-tournament-lock">
-        <div>
-            <p class="eyebrow">Acces public</p>
-            <h2>Des places sont encore disponibles</h2>
-            <p>Pour inscrire une equipe, voir tes tournois, gerer ton roster ou valider les presences, il faut creer un compte TS Tournament.</p>
-        </div>
-        <div class="public-tournament-actions">
-            <a class="button-link primary" href="account">Creer un compte</a>
-            <a class="button-link" href="login">Se connecter</a>
-        </div>
-    </section>
-}
+    @if (VisibleTournaments.Count > 0)
+    {
+        <section class="et-tournament-grid">
+            @foreach (var tournament in VisibleTournaments)
+            {
+                <article class="et-tournament-card @GetTierCss(tournament.Tier)" style="@BuildTournamentBannerStyle(tournament.BannerUrl)">
+                    <div class="et-tournament-card-top">
+                        <span class="et-tier-pill">@GetTierLabel(tournament.Tier)</span>
+                        <span class="et-tournament-status">@GetTournamentStatusLabel(tournament)</span>
+                    </div>
+
+                    <div class="et-tournament-card-body">
+                        <h2>@tournament.Name</h2>
+                        <p>@BuildTournamentSubtitle(tournament)</p>
+                    </div>
+
+                    <div class="et-tournament-info">
+                        <span>Date <strong>@FormatTournamentDate(tournament.StartsAt)</strong></span>
+                        <span>Coup d'envoi <strong>@FormatTournamentTime(tournament.StartsAt) @tournament.TimeZone</strong></span>
+                        <span>Type <strong>@(tournament.IsCashPrize ? "Goodies" : "Tournoi")</strong></span>
+                    </div>
+
+                    <div class="et-slot-block">
+                        <div>
+                            <span>Places</span>
+                            <strong>@BuildSlotsLabel(tournament)</strong>
+                        </div>
+                        <div class="et-slot-track">
+                            <span style="width:@Math.Clamp(tournament.FillPercentage, 0, 100)%"></span>
+                        </div>
+                        @if (tournament.WaitlistedTeams > 0)
+                        {
+                            <small>@tournament.WaitlistedTeams equipe(s) en liste d'attente</small>
+                        }
+                    </div>
+
+                    @if (AuthState.IsAuthenticated)
+                    {
+                        <button type="button" class="et-tournament-action @(tournament.IsUrgent ? "urgent" : "")" disabled="@IsTournamentClosed(tournament)" @onclick="() => PrepareTournamentAsync(tournament)">
+                            @BuildTournamentActionLabel(tournament)
+                        </button>
+                    }
+                    else
+                    {
+                        <a class="et-tournament-action" href="account">Creer un compte</a>
+                    }
+                </article>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="et-tournament-empty">
+            <p class="eyebrow">Tournois</p>
+            <h2>@(PublishedTournaments.Count == 0 ? "Aucun tournoi publie pour le moment" : "Aucun tournoi dans cette categorie")</h2>
+            <p>Les tournois crees en base apparaitront ici avec leur tier, leurs places restantes et leur statut d'inscription.</p>
+            <a class="button-link primary" href="@(AuthState.IsAuthenticated ? "teams" : "account")">@(AuthState.IsAuthenticated ? "Voir mon equipe" : "Creer un compte")</a>
+        </section>
+    }
+</main>
 
 @if (AuthState.IsAuthenticated)
 {
@@ -904,7 +864,8 @@ else
     private string? OpenedSheet;
     private RosterPlayerModel? SelectedPlayer;
     private string PlayerTournamentTab { get; set; } = "live";
-    private bool ShowDemoData => !HostEnvironment.IsProduction();
+    private bool ShowDemoData => false;
+    private TournamentTier? SelectedTierFilter { get; set; }
     private EaClubSnapshotResponse? TeamClubSnapshot;
     private EaMemberStatsSummaryResponse? TeamEaMembers;
     private EaPlayerLookupResponse? SelectedPlayerEa;
@@ -926,6 +887,18 @@ else
     private IReadOnlyList<TournamentResponse> LiveTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.InProgress).ToArray();
     private IReadOnlyList<TournamentResponse> UpcomingTournaments => PublishedTournaments.Where(tournament => tournament.Status is TournamentStatus.RegistrationOpen or TournamentStatus.RegistrationLocked && tournament.StartsAt >= DateTimeOffset.UtcNow).ToArray();
     private IReadOnlyList<TournamentResponse> PastTournaments => PublishedTournaments.Where(tournament => tournament.Status == TournamentStatus.Completed).ToArray();
+    private IReadOnlyList<TournamentResponse> VisibleTournaments => PublishedTournaments
+        .Where(tournament => SelectedTierFilter is null || tournament.Tier == SelectedTierFilter)
+        .OrderByDescending(tournament => tournament.Tier)
+        .ThenBy(tournament => tournament.StartsAt)
+        .ToArray();
+    private static IReadOnlyList<TournamentTier> TierFilters { get; } =
+    [
+        TournamentTier.Diamond,
+        TournamentTier.Gold,
+        TournamentTier.Silver,
+        TournamentTier.Bronze
+    ];
     private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? (ShowDemoData ? "TheSurvivors" : "Aucun club");
     private bool SelectedOwnerTeamHasPendingManagerClaim => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.HasPendingManagerClaim == true;
     private string SelectedTournamentKindLabel => SelectedTournamentIsGoodies ? "Tournoi goodies" : "Tournoi";
@@ -1074,6 +1047,81 @@ else
         }
 
         return remaining.TotalMinutes > 0 ? "Bientot" : "En cours";
+    }
+
+    private static string GetTierCss(TournamentTier tier) => tier switch
+    {
+        TournamentTier.Diamond => "tier-diamond",
+        TournamentTier.Gold => "tier-gold",
+        TournamentTier.Silver => "tier-silver",
+        TournamentTier.Bronze => "tier-bronze",
+        _ => "tier-gold"
+    };
+
+    private static string GetTierLabel(TournamentTier tier) => tier switch
+    {
+        TournamentTier.Diamond => "Diamant",
+        TournamentTier.Gold => "Or",
+        TournamentTier.Silver => "Argent",
+        TournamentTier.Bronze => "Bronze",
+        _ => "Or"
+    };
+
+    private static string GetTournamentStatusLabel(TournamentResponse tournament)
+    {
+        if (tournament.Status == TournamentStatus.InProgress)
+        {
+            return "En cours";
+        }
+
+        if (tournament.Status == TournamentStatus.Completed)
+        {
+            return "Termine";
+        }
+
+        if (tournament.Status == TournamentStatus.Cancelled)
+        {
+            return "Annule";
+        }
+
+        if (tournament.SlotsLeft == 0 || tournament.Status == TournamentStatus.RegistrationLocked)
+        {
+            return "Complet";
+        }
+
+        if (tournament.RegistrationStartsAt is not null && DateTimeOffset.UtcNow < tournament.RegistrationStartsAt)
+        {
+            return "Bientot";
+        }
+
+        return tournament.IsUrgent ? "Dernieres places" : "Ouvert";
+    }
+
+    private static string BuildSlotsLabel(TournamentResponse tournament)
+    {
+        if (tournament.SlotsLeft <= 0)
+        {
+            return "Complet";
+        }
+
+        return $"{tournament.SlotsLeft} place(s) restantes";
+    }
+
+    private static bool IsTournamentClosed(TournamentResponse tournament)
+    {
+        return tournament.Status is TournamentStatus.Cancelled or TournamentStatus.Completed
+            || tournament.SlotsLeft <= 0
+            || (tournament.RegistrationEndsAt is not null && DateTimeOffset.UtcNow >= tournament.RegistrationEndsAt);
+    }
+
+    private static string BuildTournamentActionLabel(TournamentResponse tournament)
+    {
+        if (IsTournamentClosed(tournament))
+        {
+            return tournament.SlotsLeft <= 0 ? "Complet" : "Inscriptions fermees";
+        }
+
+        return tournament.IsUrgent ? "Dernieres places" : "Preparer mon equipe";
     }
 
     private async Task LoadOwnerContextAsync()

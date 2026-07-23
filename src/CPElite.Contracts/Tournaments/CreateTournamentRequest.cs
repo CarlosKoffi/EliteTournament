@@ -23,4 +23,5 @@ public sealed record CreateTournamentRequest(
     string? BannerUrl = null,
     TournamentScoreRecoveryMode ScoreRecoveryMode = TournamentScoreRecoveryMode.ManualOnly,
     int ScoreRecoveryIntervalMinutes = 2,
-    bool AutoPublishPerfectScore = false);
+    bool AutoPublishPerfectScore = false,
+    TournamentTier Tier = TournamentTier.Gold);

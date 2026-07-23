@@ -49,6 +49,14 @@ else
 
             <div class="form-grid">
                 <label>Nom <input value="@Tournament.Name" @oninput="value => Tournament.Name = ReadText(value)" /></label>
+                <label>Tier
+                    <select @bind="Tournament.Tier">
+                        <option value="@TournamentTier.Diamond">Diamant</option>
+                        <option value="@TournamentTier.Gold">Or</option>
+                        <option value="@TournamentTier.Silver">Argent</option>
+                        <option value="@TournamentTier.Bronze">Bronze</option>
+                    </select>
+                </label>
                 <label>Banniere URL <input value="@Tournament.BannerUrl" placeholder="https://..." @oninput="value => Tournament.BannerUrl = ReadNullableText(value)" /></label>
                 <label>Date <input type="date" value="@FormatDate(Tournament.StartsDate)" @oninput="value => Tournament.StartsDate = ReadDate(value, Tournament.StartsDate)" /></label>
                 <label>Heure CET <input value="@Tournament.StartsTime" @oninput="value => Tournament.StartsTime = ReadText(value)" /></label>
@@ -241,7 +249,8 @@ else
             Tournament.BannerUrl,
             Tournament.ScoreRecoveryMode,
             Tournament.ScoreRecoveryIntervalMinutes,
-            Tournament.AutoPublishPerfectScore);
+            Tournament.AutoPublishPerfectScore,
+            Tournament.Tier);
 
         var result = await Api.CreateTournamentAsync(request);
         Busy = false;
@@ -269,6 +278,7 @@ else
     {
         public string Name { get; set; } = "Nouveau tournoi goodies";
         public TournamentType Type { get; set; } = TournamentType.Goodies;
+        public TournamentTier Tier { get; set; } = TournamentTier.Gold;
         public DateTime StartsDate { get; set; } = DateTime.Today.AddDays(1);
         public string StartsTime { get; set; } = "22:30";
         public DateTime RegistrationStartDate { get; set; } = DateTime.Today;

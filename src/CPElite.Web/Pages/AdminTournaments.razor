@@ -74,6 +74,14 @@ else
             </div>
             <div class="form-grid">
                 <label>Nom <InputText @bind-Value="Tournament.Name" /></label>
+                <label>Tier
+                    <select @bind="Tournament.Tier">
+                        <option value="@TournamentTier.Diamond">Diamant</option>
+                        <option value="@TournamentTier.Gold">Or</option>
+                        <option value="@TournamentTier.Silver">Argent</option>
+                        <option value="@TournamentTier.Bronze">Bronze</option>
+                    </select>
+                </label>
                 <label>Banniere URL <InputText @bind-Value="Tournament.BannerUrl" placeholder="https://..." /></label>
                 <label>Date <InputDate @bind-Value="Tournament.StartsDate" /></label>
                 <label>Heure CET <InputText @bind-Value="Tournament.StartsTime" /></label>
@@ -507,7 +515,8 @@ else
             Tournament.IsCashPrize,
             registrationStartsAt,
             registrationEndsAt,
-            Tournament.BannerUrl);
+            Tournament.BannerUrl,
+            Tier: Tournament.Tier);
 
         var result = await Api.CreateTournamentAsync(request);
         Busy = false;
@@ -590,6 +599,7 @@ else
     {
         public string Name { get; set; } = "Friday Goodies Cup";
         public TournamentType Type { get; set; } = TournamentType.Goodies;
+        public TournamentTier Tier { get; set; } = TournamentTier.Gold;
         public DateTime StartsDate { get; set; } = DateTime.Today.AddDays(1);
         public string StartsTime { get; set; } = "22:30";
         public DateTime RegistrationStartDate { get; set; } = DateTime.Today;
