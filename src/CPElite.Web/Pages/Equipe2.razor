@@ -5,7 +5,7 @@
 
 <PageTitle>Elite Tournament - Equipe New</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260723-1" />
+    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260723-2" />
 </HeadContent>
 
 <main class="el-team-page">
@@ -165,8 +165,9 @@
                                 <span>POS</span>
                                 <span>NOM</span>
                                 <span>RATING</span>
-                                <span>TAILLE</span>
-                                <span>ROLE</span>
+                                <span>OVR</span>
+                                <span>POT</span>
+                                <span>ARCHETYPE</span>
                             </div>
                             @if (Players.Count == 0)
                             {
@@ -180,12 +181,13 @@
                                 @foreach (var player in Players.Select((value, index) => new { value, index }))
                                 {
                                     <button type="button" class="el-player-row @(SelectedPlayer?.EaPlayerId == player.value.EaPlayerId ? "selected" : "")" @onclick="() => SelectPlayer(player.value)">
-                                        <span>@(player.index + 1).ToString("00")</span>
+                                        <span>@((player.index + 1).ToString("00"))</span>
                                         <span class="el-pos @PositionCss(player.value.Position)">@PositionGroup(player.value.Position)</span>
                                         <strong>@player.value.PlayerName</strong>
-                                        <span>@RatingLabel(player.value)</span>
-                                        <span>@HeightLabel(player.value.Height)</span>
-                                        <span>@(player.value.IsManager ? "Manager" : "Joueur")</span>
+                                        <span class="el-rating-value">@RatingLabel(player.value)</span>
+                                        <span class="el-ovr-value">@OverallLabel(player.value)</span>
+                                        <span>@PotentialLabel(player.value)</span>
+                                        <span>@ArchetypeLabel(player.value)</span>
                                     </button>
                                 }
                             }
@@ -468,6 +470,9 @@
     private static string PositionLabel(string? position) => string.IsNullOrWhiteSpace(position) ? "Poste non renseigne" : position;
     private static string PositionCss(string? position) => PositionGroup(position).ToLowerInvariant();
     private static string RatingLabel(EaPlayerProfileSnapshotResponse player) => player.AverageRating?.ToString("0.0") ?? player.Overall?.ToString() ?? "-";
+    private static string OverallLabel(EaPlayerProfileSnapshotResponse player) => player.Overall?.ToString() ?? "-";
+    private static string PotentialLabel(EaPlayerProfileSnapshotResponse player) => "-";
+    private static string ArchetypeLabel(EaPlayerProfileSnapshotResponse player) => player.IsManager ? "Manager" : "-";
     private static string HeightLabel(int? height) => height is null or <= 0 ? "-" : $"{height} cm";
     private static string WeightLabel(int? weight) => weight is null or <= 0 ? "-" : $"{weight} kg";
     private static string PercentLabel(double? value) => value is null ? "-" : $"{value:0}%";
