@@ -1,0 +1,299 @@
+﻿:root {
+    color-scheme: dark;
+    --et-bg: #07070e;
+    --et-surface: #0f0f1a;
+    --et-surface-2: #161625;
+    --et-green: #00e676;
+    --et-green-dark: #00b859;
+    --et-gold: #f5c518;
+    --et-red: #ff5252;
+    --et-blue: #6495ed;
+    --et-text: #f0f0f8;
+    --et-text-sub: #c8c8e0;
+    --et-muted: #8888aa;
+    --et-border: rgba(255, 255, 255, .07);
+    --et-border-strong: rgba(0, 230, 118, .3);
+    --et-font: 'Nunito', 'Segoe UI', Arial, sans-serif;
+    --et-radius-card: 14px;
+    --et-radius-control: 10px;
+    --et-radius-badge: 6px;
+    --et-shadow-green: 0 0 24px rgba(0, 230, 118, .35), 0 0 48px rgba(0, 230, 118, .12);
+    --et-shadow-card: 0 16px 48px rgba(0, 0, 0, .6), 0 0 0 1px rgba(0, 230, 118, .18);
+    --ink: var(--et-text);
+    --muted: var(--et-muted);
+    --line: var(--et-border);
+    --panel: var(--et-surface);
+    --surface: var(--et-bg);
+    --nav: var(--et-bg);
+    --nav-2: var(--et-surface);
+    --green: var(--et-green);
+    --gold: var(--et-gold);
+    --red: var(--et-red);
+    --blue: var(--et-blue);
+    --app-pitch: var(--et-green);
+    --app-ink: var(--et-text);
+    --app-muted: var(--et-muted);
+    --app-border: var(--et-border);
+}
+
+html,
+body {
+    min-height: 100%;
+    font-family: var(--et-font);
+    background: var(--et-bg);
+    color: var(--et-text);
+}
+
+body {
+    background:
+        radial-gradient(ellipse at top left, rgba(0, 230, 118, .055) 0%, transparent 44%),
+        radial-gradient(ellipse at top right, rgba(245, 197, 24, .035) 0%, transparent 38%),
+        var(--et-bg);
+}
+
+button,
+input,
+select,
+textarea {
+    font-family: var(--et-font);
+}
+
+.page {
+    min-height: 100vh;
+    background: transparent;
+}
+
+.sidebar {
+    background: rgba(7, 7, 14, .92);
+    border-right: 1px solid var(--et-border);
+    color: var(--et-text);
+}
+
+.brand-row {
+    margin-bottom: 26px;
+}
+
+.brand-mark {
+    background: linear-gradient(135deg, var(--et-green), var(--et-green-dark));
+    box-shadow: 0 0 16px rgba(0, 230, 118, .4);
+    color: var(--et-bg);
+    border-radius: 8px;
+    font-weight: 900;
+}
+
+.brand-name {
+    color: var(--et-text);
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.brand-name span,
+.brand-subtitle,
+.eyebrow {
+    color: var(--et-green);
+}
+
+.brand-subtitle {
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+.nav-link {
+    border-radius: 10px;
+    color: var(--et-muted);
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.nav-link.active,
+.nav-link:hover,
+.nav-link:focus-visible {
+    background: rgba(0, 230, 118, .1);
+    border-color: rgba(0, 230, 118, .3);
+    color: var(--et-green);
+}
+
+.nav-icon {
+    background: rgba(255, 255, 255, .06);
+    color: var(--et-text-sub);
+}
+
+.sidebar-card,
+.panel,
+.search-panel,
+.leaderboard-panel,
+.detail-drawer-card,
+.empty-state {
+    background: var(--et-surface);
+    color: var(--et-text);
+    border: 1px solid var(--et-border);
+    border-radius: var(--et-radius-card);
+    box-shadow: none;
+}
+
+.sidebar-card p,
+.panel p,
+.empty-state p,
+.muted {
+    color: var(--et-muted);
+}
+
+.shell {
+    background: transparent;
+}
+
+.content {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: clamp(18px, 3vw, 32px);
+}
+
+.league-bar.global-league-nav {
+    min-height: 64px;
+    padding: 0 clamp(18px, 3vw, 32px);
+    background: rgba(7, 7, 14, .86);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--et-border);
+    border-radius: 0 0 14px 14px;
+}
+
+.league-bar a,
+.league-bar span {
+    color: var(--et-muted);
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.league-bar a:hover,
+.league-bar a:focus-visible {
+    color: var(--et-green);
+    background: rgba(0, 230, 118, .1);
+}
+
+.button-link,
+.primary-action,
+.ghost-action,
+.mini-action {
+    border-radius: var(--et-radius-control);
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.button-link.primary,
+.primary-action {
+    background: linear-gradient(135deg, var(--et-green), var(--et-green-dark));
+    color: var(--et-bg);
+    box-shadow: var(--et-shadow-green);
+    border: 0;
+}
+
+.button-link:not(.primary),
+.ghost-action {
+    background: transparent;
+    color: var(--et-text);
+    border: 1px solid rgba(255, 255, 255, .2);
+}
+
+.button-link:not(.primary):hover,
+.ghost-action:hover,
+.ghost-action:focus-visible {
+    border-color: rgba(0, 230, 118, .5);
+    color: var(--et-green);
+}
+
+.et-card,
+.et-stat-card,
+.et-table-card {
+    background:
+        radial-gradient(ellipse at top left, rgba(0, 230, 118, .06) 0%, transparent 60%),
+        var(--et-surface);
+    border: 1px solid var(--et-border);
+    border-radius: var(--et-radius-card);
+    color: var(--et-text);
+    position: relative;
+    overflow: hidden;
+}
+
+.et-card::before,
+.et-table-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--et-green), rgba(0, 230, 118, .4), transparent);
+}
+
+.et-pill {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 24px;
+    padding: 3px 10px;
+    border: 1px solid rgba(0, 230, 118, .3);
+    border-radius: var(--et-radius-badge);
+    background: rgba(0, 230, 118, .1);
+    color: var(--et-green);
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.et-pill.gold {
+    border-color: rgba(245, 197, 24, .3);
+    background: rgba(245, 197, 24, .1);
+    color: var(--et-gold);
+}
+
+.et-live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--et-green);
+    font-size: .72rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.et-live-dot::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--et-green);
+    animation: et-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes et-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+}
+
+@media (max-width: 900px) {
+    .page {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        min-height: auto;
+        position: sticky;
+        z-index: 80;
+        border-right: 0;
+        border-bottom: 1px solid var(--et-border);
+    }
+
+    .content {
+        padding: 18px;
+    }
+}

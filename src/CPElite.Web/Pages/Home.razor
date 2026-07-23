@@ -1,53 +1,179 @@
-@page "/"
+﻿@page "/"
 @implements IDisposable
 @inject AuthState AuthState
 @inject IWebAssemblyHostEnvironment HostEnvironment
 
-<PageTitle>TS Tournament</PageTitle>
+<PageTitle>Elite Tournament</PageTitle>
 
-<section class="home-spotlight">
-    <div class="spotlight-main">
-        <p class="eyebrow">Prochain tournoi</p>
-        <h1>TS Tournament organise ta soiree Pro Clubs.</h1>
-        <p>Inscriptions, presence des 11 joueurs, tirage des poules, donnees EA et suivi Discord dans une seule experience.</p>
-        <div class="spotlight-meta">
-            <span>32 equipes max</span>
-            <span>24 minimum</span>
-            <span>50 EUR/equipe</span>
-        </div>
-        <div class="hero-actions">
-            <a class="button-link primary" href="tournaments">Voir le tournoi</a>
-            <a class="button-link" href="teams">Mon equipe</a>
-        </div>
-    </div>
-
-    <aside class="leaderboard-panel">
-        <div class="panel-heading compact">
-            <div>
-                <p class="eyebrow">Leaderboard</p>
-                <h2>Top 5 equipes</h2>
+<main class="et-home">
+    <section class="et-hero">
+        <div class="et-hero-copy">
+            <span class="et-live-dot">Saison ouverte</span>
+            <span class="et-hero-kicker">EAFC Club Pro Tournaments</span>
+            <h1>Elite <span>Tournament</span></h1>
+            <p>La plateforme competitive pour inscrire ton club, preparer les 11 joueurs, suivre les donnees EA et transformer chaque soiree tournoi en vrai evenement.</p>
+            <div class="et-hero-actions">
+                <a class="button-link primary" href="tournaments">Voir les tournois</a>
+                <a class="button-link" href="account">Rejoindre la league</a>
+            </div>
+            <div class="et-hero-metrics" aria-label="Regles principales">
+                <span>32 equipes max</span>
+                <span>24 minimum</span>
+                <span>22:30 CET</span>
+                <span>EA data ready</span>
             </div>
         </div>
-        <div class="leaderboard-list">
-            @if (TopTeams.Count == 0)
-            {
-                <article>
-                    <strong>-</strong>
-                    <span>Le leaderboard sera disponible apres les premiers tournois.</span>
-                    <small>Aucune equipe classee</small>
+
+        <aside class="et-card et-featured-tournament">
+            <div class="et-card-head">
+                <div>
+                    <span class="et-pill gold">Prochain tournoi</span>
+                    <h2>@NextTournamentName</h2>
+                </div>
+                <span class="et-pill">Goodies</span>
+            </div>
+
+            <div class="et-countdown" aria-label="Compte a rebours du prochain tournoi">
+                <div><strong>@CountdownDays</strong><span>Jours</span></div>
+                <div><strong>@CountdownHours</strong><span>Heures</span></div>
+                <div><strong>@CountdownMinutes</strong><span>Min</span></div>
+            </div>
+
+            <div class="et-tournament-meta">
+                <div class="et-meta-row"><span>Coup d'envoi</span><strong>@NextTournamentKickoff</strong></div>
+                <div class="et-meta-row"><span>Places restantes</span><strong>@RemainingSlotsLabel</strong></div>
+                <div class="et-progress-track" aria-label="Remplissage tournoi"><span class="et-progress-fill"></span></div>
+            </div>
+        </aside>
+    </section>
+
+    <section class="et-home-grid">
+        <div>
+            <div class="et-section-head">
+                <div>
+                    <span class="et-pill">Experience</span>
+                    <h2>Tout le parcours tournoi au meme endroit.</h2>
+                </div>
+                <p>Du club EA jusqu'au suivi des matchs.</p>
+            </div>
+
+            <div class="et-feature-grid">
+                <article class="et-card et-feature-card">
+                    <span class="et-feature-number">01</span>
+                    <div>
+                        <strong>Inscription club</strong>
+                        <p>Le owner choisit son club, selectionne les 11 et genere les liens pour les joueurs sans compte.</p>
+                    </div>
                 </article>
-            }
-            @foreach (var team in TopTeams)
-            {
-                <article>
-                    <strong>@team.Rank</strong>
-                    <button type="button" class="inline-team-link leaderboard-team-link" @onclick="() => OpenClubSheet(team)">@team.Name</button>
-                    <small>@team.Points pts</small>
+                <article class="et-card et-feature-card">
+                    <span class="et-feature-number">02</span>
+                    <div>
+                        <strong>Presence des joueurs</strong>
+                        <p>Chaque joueur confirme sa disponibilite, son retard ou son absence avant le coup d'envoi.</p>
+                    </div>
                 </article>
-            }
+                <article class="et-card et-feature-card">
+                    <span class="et-feature-number">03</span>
+                    <div>
+                        <strong>Donnees EA stockees</strong>
+                        <p>Les clubs et profils joueurs sont recuperes puis sauvegardes pour eviter les appels inutiles.</p>
+                    </div>
+                </article>
+                <article class="et-card et-feature-card">
+                    <span class="et-feature-number">04</span>
+                    <div>
+                        <strong>Pont Discord</strong>
+                        <p>Le bot servira au depart de relais, avec l'objectif de ramener les equipes vers l'application.</p>
+                    </div>
+                </article>
+            </div>
         </div>
-    </aside>
-</section>
+
+        <aside class="et-table-card et-leaderboard">
+            <div class="et-card-head">
+                <div>
+                    <span class="et-pill">Leaderboard</span>
+                    <h2>Top equipes</h2>
+                </div>
+            </div>
+
+            <div class="et-table">
+                <div class="et-table-row et-table-head"><span>#</span><span>Equipe</span><span>PTS</span></div>
+                @if (TopTeams.Count == 0)
+                {
+                    <div class="et-table-row">
+                        <span class="et-rank">-</span>
+                        <span>Classement disponible apres les premiers tournois.</span>
+                        <span class="et-points">-</span>
+                    </div>
+                }
+                @foreach (var team in TopTeams)
+                {
+                    <div class="et-table-row @(team.Rank == 1 ? "active" : "")">
+                        <span class="et-rank">@team.Rank</span>
+                        <button type="button" class="et-team-button" @onclick="() => OpenClubSheet(team)">@team.Name</button>
+                        <span class="et-points">@team.Points</span>
+                    </div>
+                }
+            </div>
+        </aside>
+    </section>
+
+    <section class="et-card et-home-search">
+        <div class="et-section-head">
+            <div>
+                <span class="et-pill">Recherche</span>
+                <h2>Trouver une equipe, un joueur ou une annonce.</h2>
+            </div>
+        </div>
+
+        @if (AuthState.IsAuthenticated)
+        {
+            <div class="search-row">
+                <input @bind="SearchQuery" placeholder="Ex: BU ce soir, TheSurvivors, tournoi goodies..." />
+                <select @bind="SearchType">
+                    <option>Tout</option>
+                    <option>Equipes</option>
+                    <option>Joueurs</option>
+                    <option>Mercato</option>
+                    <option>Tournois</option>
+                </select>
+                <button class="primary-action">Rechercher</button>
+            </div>
+            @if (!GlobalResults.Any())
+            {
+                <div class="et-locked-search">
+                    <strong>Aucun resultat pour le moment</strong>
+                    <p>Les resultats apparaitront quand les equipes, joueurs, annonces mercato et tournois seront crees.</p>
+                </div>
+            }
+            else
+            {
+                <div class="global-results">
+                    @foreach (var result in GlobalResults)
+                    {
+                        <a class="global-result-card" href="@result.Href">
+                            <span class="result-kind">@result.Kind</span>
+                            <strong>@result.Title</strong>
+                            <small>@result.Detail</small>
+                        </a>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="et-locked-search">
+                <strong>Connecte-toi pour rechercher.</strong>
+                <p>Les annonces publiques restent visibles, mais la recherche et les fiches detaillees sont reservees aux comptes Elite Tournament.</p>
+                <div class="et-hero-actions">
+                    <a class="button-link primary" href="login">Se connecter</a>
+                    <a class="button-link" href="account">Creer un compte</a>
+                </div>
+            </div>
+        }
+    </section>
+</main>
 
 @if (SelectedClub is not null)
 {
@@ -78,7 +204,7 @@
                     </div>
                 </article>
                 <article>
-                    <span class="result-kind">Stats TS Tournament</span>
+                    <span class="result-kind">Stats Elite Tournament</span>
                     <dl>
                         <div><dt>Tournois joues</dt><dd>@SelectedClub.TournamentsPlayed</dd></div>
                         <div><dt>Record</dt><dd>@SelectedClub.TournamentRecord</dd></div>
@@ -91,62 +217,17 @@
     </section>
 }
 
-<section class="search-panel">
-    <div>
-        <p class="eyebrow">Recherche</p>
-        <h2>Trouver une equipe, un joueur ou une annonce</h2>
-    </div>
-    @if (AuthState.IsAuthenticated)
-    {
-        <div class="search-row">
-            <input @bind="SearchQuery" placeholder="Ex: BU ce soir, TheSurvivors, tournoi goodies..." />
-            <select @bind="SearchType">
-                <option>Tout</option>
-                <option>Equipes</option>
-                <option>Joueurs</option>
-                <option>Mercato</option>
-                <option>Tournois</option>
-            </select>
-            <button class="primary-action">Rechercher</button>
-        </div>
-        @if (!GlobalResults.Any())
-        {
-            <div class="empty-state">
-                <strong>Aucun resultat pour le moment</strong>
-                <p>Les resultats apparaitront quand les equipes, joueurs, annonces mercato et tournois seront crees.</p>
-            </div>
-        }
-        else
-        {
-            <div class="global-results">
-                @foreach (var result in GlobalResults)
-                {
-                    <a class="global-result-card" href="@result.Href">
-                        <span class="result-kind">@result.Kind</span>
-                        <strong>@result.Title</strong>
-                        <small>@result.Detail</small>
-                    </a>
-                }
-            </div>
-        }
-    }
-    else
-    {
-        <div class="locked-search">
-            <strong>Connecte-toi pour rechercher.</strong>
-            <p>Les annonces publiques restent visibles, mais la recherche et les fiches detaillees sont reservees aux comptes TS Tournament.</p>
-            <div class="hero-actions compact">
-                <a class="button-link primary" href="login">Se connecter</a>
-                <a class="button-link" href="account">Creer un compte</a>
-            </div>
-        </div>
-    }
-</section>
-
 @code {
     private string SearchQuery { get; set; } = "";
     private string SearchType { get; set; } = "Tout";
     private LeaderboardTeam? SelectedClub;
+
+    private string NextTournamentName => "Saturday Goodies Cup";
+    private string NextTournamentKickoff => "25/07 - 22:30 CET";
+    private int CountdownDays => 2;
+    private int CountdownHours => 7;
+    private int CountdownMinutes => 30;
+    private string RemainingSlotsLabel => "14 places";
 
     private IEnumerable<SearchResultItem> GlobalResults => SearchSeed.Where(item =>
         (SearchType == "Tout" || item.Kind == SearchType)
@@ -170,8 +251,8 @@
         :
         [
             new("Equipes", "TheSurvivors", "Club lie EA, 11 joueurs actifs, owner connecte", "teams"),
-            new("Mercato", "BU recherche ce soir", "TheSurvivors cherche un buteur disponible avec compte TS", "mercato"),
-            new("Tournois", "Friday Goodies Cup", "32 equipes max, inscription jusqu'a 21:00", "tournaments"),
+            new("Mercato", "BU recherche ce soir", "TheSurvivors cherche un buteur disponible avec compte Elite", "mercato"),
+            new("Tournois", "Saturday Goodies Cup", "32 equipes max, inscription jusqu'a 21:00", "tournaments"),
             new("Joueurs", "KoffiMarvelous", "Profil joueur, EA Sports ID et club principal", "account")
         ];
 
