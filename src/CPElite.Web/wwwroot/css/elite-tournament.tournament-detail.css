@@ -266,12 +266,16 @@ body:has(.et-detail-page) {
 
 .etd-player-teams {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
     margin-top: 18px;
 }
 
 .etd-player-team {
     display: grid;
+    grid-template-rows: auto auto;
     gap: 12px;
+    align-content: start;
+    align-self: start;
 }
 
 .etd-player-team h3 {
@@ -282,6 +286,7 @@ body:has(.et-detail-page) {
 
 .etd-player-card-grid {
     grid-template-columns: 1fr;
+    align-content: start;
 }
 
 .etd-player-card {
