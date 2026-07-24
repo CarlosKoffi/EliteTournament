@@ -396,9 +396,7 @@
         : $"background: conic-gradient(#00e676 0 {CssPercent(WinSlice)}%, #f5c518 {CssPercent(WinSlice)}% {CssPercent(DrawSlice)}%, #ff5252 {CssPercent(DrawSlice)}% 100%);";
     private double WinSlice => TotalMatches == 0 ? 0 : (double)Wins / TotalMatches * 100;
     private double DrawSlice => TotalMatches == 0 ? 0 : (double)(Wins + Draws) / TotalMatches * 100;
-    private EaTournamentPlayerStatsResponse? SelectedTournamentStats => SelectedPlayer is null
-        ? null
-        : TournamentPlayerStats.GetValueOrDefault(SelectedPlayer.EaPlayerId);
+    private EaTournamentPlayerStatsResponse? SelectedTournamentStats => SelectedPlayer?.TournamentStats;
 
     protected override async Task OnInitializedAsync()
     {
@@ -499,16 +497,22 @@
     {
         RosterPlayers.Clear();
         var byEaId = new Dictionary<string, RosterPlayerView>(StringComparer.OrdinalIgnoreCase);
+        var matchedTournamentStatIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var profile in Players)
         {
-            var stats = TournamentPlayerStats.GetValueOrDefault(profile.EaPlayerId);
+            var stats = FindTournamentStatsForProfile(profile);
+            if (stats is not null)
+            {
+                matchedTournamentStatIds.Add(stats.EaPlayerId);
+            }
+
             byEaId[profile.EaPlayerId] = RosterPlayerView.FromProfile(profile, stats);
         }
 
         foreach (var stat in TournamentPlayerStats.Values)
         {
-            if (!byEaId.ContainsKey(stat.EaPlayerId))
+            if (!matchedTournamentStatIds.Contains(stat.EaPlayerId) && !byEaId.ContainsKey(stat.EaPlayerId))
             {
                 byEaId[stat.EaPlayerId] = RosterPlayerView.FromTournamentStats(stat);
             }
@@ -518,6 +522,25 @@
             .OrderBy(PositionSort)
             .ThenByDescending(player => player.TournamentStats?.AverageRating ?? player.AverageRating ?? 0)
             .ThenBy(player => player.PlayerName));
+    }
+
+    private EaTournamentPlayerStatsResponse? FindTournamentStatsForProfile(EaPlayerProfileSnapshotResponse profile)
+    {
+        if (TournamentPlayerStats.TryGetValue(profile.EaPlayerId, out var byId))
+        {
+            return byId;
+        }
+
+        var profileKeys = new[]
+        {
+            NormalizePlayerKey(profile.PlayerName),
+            NormalizePlayerKey(profile.ProName),
+            NormalizePlayerKey(profile.EaPlayerId)
+        }.Where(key => !string.IsNullOrWhiteSpace(key)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return TournamentPlayerStats.Values.FirstOrDefault(stat =>
+            profileKeys.Contains(NormalizePlayerKey(stat.PlayerName)) ||
+            profileKeys.Contains(NormalizePlayerKey(stat.EaPlayerId)));
     }
 
     private string TabClass(string tab) => ActiveTab == tab ? "active" : "";
@@ -674,6 +697,16 @@
         CPElite.Contracts.Common.TournamentStage.ThirdPlace => "Petite finale",
         _ => stage.ToString()
     };
+
+    private static string NormalizePlayerKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+    }
 
     private sealed record RosterPlayerView(
         string EaPlayerId,
