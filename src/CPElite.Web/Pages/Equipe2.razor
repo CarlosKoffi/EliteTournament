@@ -5,7 +5,7 @@
 
 <PageTitle>Elite Tournament - Equipe New</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-2" />
+    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-3" />
 </HeadContent>
 
 <main class="el-team-page">
@@ -212,7 +212,7 @@
                                 <span>POS</span>
                                 <span>NOM</span>
                                 <span>NOTE TS</span>
-                                <span>OVR</span>
+                                <span>BUTS TS</span>
                                 <span>MATCHS</span>
                                 <span>ARCHETYPE</span>
                             </div>
@@ -231,8 +231,8 @@
                                         <span>@((player.index + 1).ToString("00"))</span>
                                         <span class="el-pos @PositionCss(player.value.Position)">@PositionGroup(player.value.Position)</span>
                                         <strong>@player.value.PlayerName</strong>
-                                        <span class="el-rating-value">@RatingLabel(player.value)</span>
-                                        <span class="el-ovr-value">@OverallLabel(player.value)</span>
+                                        <span class="el-rating-value">@TournamentRatingLabel(player.value)</span>
+                                        <span class="el-ovr-value">@PlayerTournamentGoalsLabel(player.value)</span>
                                         <span>@MatchesLabel(player.value)</span>
                                         <span>@ArchetypeLabel(player.value)</span>
                                     </button>
@@ -259,47 +259,84 @@
                                     </div>
                                 </div>
                                 <section class="el-player-stat-section tournament">
-                                    <span class="el-source el-source-app">Statistiques Tournois</span>
+                                    <div class="el-stat-section-title">
+                                        <span class="el-source el-source-app">Statistiques Tournois</span>
+                                        <button type="button" class="el-plus-button" @onclick="ToggleTournamentDetails">@(ShowTournamentDetails ? "-" : "+")</button>
+                                    </div>
                                     @if (SelectedTournamentStats is null)
                                     {
                                         <p>Aucun match de tournoi lie pour ce joueur.</p>
                                     }
                                     else
                                     {
-                                        <dl class="el-detail-list">
-                                            <div><dt>Matchs</dt><dd>@SelectedTournamentStats.Matches</dd></div>
-                                            <div><dt>Note moy.</dt><dd>@RatingLabel(SelectedTournamentStats.AverageRating)</dd></div>
-                                            <div><dt>Buts</dt><dd>@SelectedTournamentStats.Goals</dd></div>
-                                            <div><dt>Assists</dt><dd>@SelectedTournamentStats.Assists</dd></div>
-                                            <div><dt>Tirs</dt><dd>@SelectedTournamentStats.Shots</dd></div>
-                                            <div><dt>Homme du match</dt><dd>@SelectedTournamentStats.PlayerOfTheMatch</dd></div>
-                                            <div><dt>Passes</dt><dd>@TournamentPassingLabel(SelectedTournamentStats)</dd></div>
-                                            <div><dt>Tacles</dt><dd>@TournamentTackleLabel(SelectedTournamentStats)</dd></div>
-                                            <div><dt>Arrets</dt><dd>@SelectedTournamentStats.Saves</dd></div>
-                                            <div><dt>Buts encaisses</dt><dd>@SelectedTournamentStats.GoalsConceded</dd></div>
-                                            <div><dt>Clean sheets</dt><dd>@CleanSheetLabel(SelectedTournamentStats)</dd></div>
-                                            <div><dt>Minutes</dt><dd>@MinutesLabel(SelectedTournamentStats.SecondsPlayed)</dd></div>
-                                            <div><dt>Archetype</dt><dd>@TournamentArchetypeLabel(SelectedTournamentStats)</dd></div>
-                                        </dl>
+                                        <div class="el-player-facts">
+                                            <span>@SelectedTournamentStats.Matches match(s) TS</span>
+                                            <span>@SelectedTournamentStats.Goals buts</span>
+                                            <span>@SelectedTournamentStats.Assists assists</span>
+                                            <span>@RatingLabel(SelectedTournamentStats.AverageRating) note</span>
+                                        </div>
+                                        @if (ShowTournamentDetails)
+                                        {
+                                            <dl class="el-detail-list">
+                                                <div><dt>Matchs</dt><dd>@SelectedTournamentStats.Matches</dd></div>
+                                                <div><dt>Note moy.</dt><dd>@RatingLabel(SelectedTournamentStats.AverageRating)</dd></div>
+                                                <div><dt>Buts</dt><dd>@SelectedTournamentStats.Goals</dd></div>
+                                                <div><dt>Assists</dt><dd>@SelectedTournamentStats.Assists</dd></div>
+                                                <div><dt>Tirs</dt><dd>@SelectedTournamentStats.Shots</dd></div>
+                                                <div><dt>Homme du match</dt><dd>@SelectedTournamentStats.PlayerOfTheMatch</dd></div>
+                                                <div><dt>Passes</dt><dd>@TournamentPassingLabel(SelectedTournamentStats)</dd></div>
+                                                <div><dt>Tacles</dt><dd>@TournamentTackleLabel(SelectedTournamentStats)</dd></div>
+                                                <div><dt>Arrets</dt><dd>@SelectedTournamentStats.Saves</dd></div>
+                                                <div><dt>Buts encaisses</dt><dd>@SelectedTournamentStats.GoalsConceded</dd></div>
+                                                <div><dt>Clean sheets</dt><dd>@CleanSheetLabel(SelectedTournamentStats)</dd></div>
+                                                <div><dt>Minutes</dt><dd>@MinutesLabel(SelectedTournamentStats.SecondsPlayed)</dd></div>
+                                                <div><dt>Archetype</dt><dd>@TournamentArchetypeLabel(SelectedTournamentStats)</dd></div>
+                                                <div><dt>Cartons rouges</dt><dd>@SelectedTournamentStats.RedCards</dd></div>
+                                                <div><dt>Attributs VPro</dt><dd>@(SelectedTournamentStats.VproAttributes ?? "-")</dd></div>
+                                            </dl>
+                                        }
                                     }
                                 </section>
 
                                 <section class="el-player-stat-section general">
-                                    <span class="el-source el-source-game">Statistiques generales</span>
+                                    <div class="el-stat-section-title">
+                                        <span class="el-source el-source-game">Statistiques generales</span>
+                                        <button type="button" class="el-plus-button" @onclick="ToggleGeneralDetails">@(ShowGeneralDetails ? "-" : "+")</button>
+                                    </div>
                                     <div class="el-player-facts">
                                         <span>@HeightLabel(SelectedPlayer.Height)</span>
                                         <span>@WeightLabel(SelectedPlayer.Weight)</span>
                                         <span>@(SelectedPlayer.EaMatches?.ToString() ?? "-") matchs EA</span>
                                         <span>@(SelectedPlayer.IsManager ? "Manager EA" : "Joueur")</span>
                                     </div>
-                                    <dl class="el-detail-list">
-                                        <div><dt>Buts</dt><dd>@(SelectedPlayer.Goals?.ToString() ?? "-")</dd></div>
-                                        <div><dt>Assists</dt><dd>@(SelectedPlayer.Assists?.ToString() ?? "-")</dd></div>
-                                        <div><dt>Passes</dt><dd>@PercentLabel(SelectedPlayer.PassSuccessRate)</dd></div>
-                                        <div><dt>Tacles</dt><dd>@PercentLabel(SelectedPlayer.TackleSuccessRate)</dd></div>
-                                        <div><dt>Clean sheets</dt><dd>@(SelectedPlayer.CleanSheets?.ToString() ?? "-")</dd></div>
-                                        <div><dt>Homme du match</dt><dd>@(SelectedPlayer.PlayerOfTheMatch?.ToString() ?? "-")</dd></div>
-                                    </dl>
+                                    @if (ShowGeneralDetails)
+                                    {
+                                        <dl class="el-detail-list">
+                                            <div><dt>OVR</dt><dd>@(SelectedPlayer.Overall?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Win rate</dt><dd>@PercentLabel(SelectedPlayer.WinRate)</dd></div>
+                                            <div><dt>Buts</dt><dd>@(SelectedPlayer.Goals?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Assists</dt><dd>@(SelectedPlayer.Assists?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Buts / match</dt><dd>@DecimalLabel(SelectedPlayer.GoalsPerMatch)</dd></div>
+                                            <div><dt>Assists / match</dt><dd>@DecimalLabel(SelectedPlayer.AssistsPerMatch)</dd></div>
+                                            <div><dt>Tirs</dt><dd>@(SelectedPlayer.Shots?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Reussite tirs</dt><dd>@PercentLabel(SelectedPlayer.ShotSuccessRate)</dd></div>
+                                            <div><dt>Passes reussies</dt><dd>@(SelectedPlayer.PassesMade?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Passes tentees</dt><dd>@(SelectedPlayer.PassAttempts?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Passes</dt><dd>@PercentLabel(SelectedPlayer.PassSuccessRate)</dd></div>
+                                            <div><dt>Tacles reussis</dt><dd>@(SelectedPlayer.TacklesMade?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Tacles tentes</dt><dd>@(SelectedPlayer.TackleAttempts?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Tacles</dt><dd>@PercentLabel(SelectedPlayer.TackleSuccessRate)</dd></div>
+                                            <div><dt>Arrets</dt><dd>@(SelectedPlayer.Saves?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Clean sheets DEF</dt><dd>@(SelectedPlayer.CleanSheets?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Clean sheets GK</dt><dd>@(SelectedPlayer.CleanSheetsGk?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Homme du match</dt><dd>@(SelectedPlayer.PlayerOfTheMatch?.ToString() ?? "-")</dd></div>
+                                            <div><dt>Cartons rouges</dt><dd>@(SelectedPlayer.RedCards?.ToString() ?? "-")</dd></div>
+                                            <div><dt>All clubs matchs</dt><dd>@(SelectedPlayer.AllClubsMatches?.ToString() ?? "-")</dd></div>
+                                            <div><dt>All clubs buts</dt><dd>@(SelectedPlayer.AllClubsGoals?.ToString() ?? "-")</dd></div>
+                                            <div><dt>All clubs assists</dt><dd>@(SelectedPlayer.AllClubsAssists?.ToString() ?? "-")</dd></div>
+                                            <div><dt>All clubs note</dt><dd>@DecimalLabel(SelectedPlayer.AllClubsAverageRating)</dd></div>
+                                        </dl>
+                                    }
                                 </section>
                             }
                         </aside>
@@ -399,6 +436,8 @@
     private RosterPlayerView? SelectedPlayer { get; set; }
     private TeamTournamentSummaryResponse? TournamentSummary { get; set; }
     private Guid? SelectedTournamentId { get; set; }
+    private bool ShowTournamentDetails { get; set; }
+    private bool ShowGeneralDetails { get; set; }
 
     private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
     private string ClubInitials => string.Join("", ClubName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
@@ -534,6 +573,18 @@
     private void SelectPlayer(RosterPlayerView player)
     {
         SelectedPlayer = player;
+        ShowTournamentDetails = false;
+        ShowGeneralDetails = false;
+    }
+
+    private void ToggleTournamentDetails()
+    {
+        ShowTournamentDetails = !ShowTournamentDetails;
+    }
+
+    private void ToggleGeneralDetails()
+    {
+        ShowGeneralDetails = !ShowGeneralDetails;
     }
 
     private void OpenTournamentDetail(Guid tournamentId)
@@ -685,8 +736,10 @@
     private static string PositionCss(string? position) => PositionGroup(position).ToLowerInvariant();
     private static string RatingLabel(RosterPlayerView player) => player.TournamentStats?.AverageRating?.ToString("0.0") ?? player.AverageRating?.ToString("0.0") ?? player.Overall?.ToString() ?? "-";
     private static string RatingLabel(double? rating) => rating?.ToString("0.0") ?? "-";
+    private static string TournamentRatingLabel(RosterPlayerView player) => player.TournamentStats?.AverageRating?.ToString("0.0") ?? "-";
+    private static string PlayerTournamentGoalsLabel(RosterPlayerView player) => player.TournamentStats?.Goals.ToString() ?? "-";
     private static string OverallLabel(RosterPlayerView player) => player.Overall?.ToString() ?? "-";
-    private static string MatchesLabel(RosterPlayerView player) => player.TournamentStats?.Matches.ToString() ?? player.EaMatches?.ToString() ?? "-";
+    private static string MatchesLabel(RosterPlayerView player) => player.TournamentStats?.Matches.ToString() ?? "-";
     private static string ArchetypeLabel(RosterPlayerView player)
     {
         if (player.TournamentStats is not null)
@@ -699,6 +752,8 @@
     private static string HeightLabel(int? height) => height is null or <= 0 ? "-" : $"{height} cm";
     private static string WeightLabel(int? weight) => weight is null or <= 0 ? "-" : $"{weight} kg";
     private static string PercentLabel(double? value) => value is null ? "-" : $"{value:0}%";
+    private static string PercentLabel(int? value) => value is null ? "-" : $"{value:0}%";
+    private static string DecimalLabel(double? value) => value?.ToString("0.##") ?? "-";
     private static string CssPercent(double value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
     private static string TournamentPassingLabel(EaTournamentPlayerStatsResponse stats) =>
         stats.PassAttempts <= 0 ? "-" : $"{stats.PassSuccessRate:0}% - {stats.PassesMade}/{stats.PassAttempts}";
@@ -797,10 +852,26 @@
         int? Height,
         int? Weight,
         int? Overall,
+        int? WinRate,
+        int? Shots,
+        int? ShotSuccessRate,
+        int? PassesMade,
+        int? PassAttempts,
         double? PassSuccessRate,
+        int? TacklesMade,
+        int? TackleAttempts,
         double? TackleSuccessRate,
+        int? Saves,
         int? CleanSheets,
+        int? CleanSheetsGk,
         int? PlayerOfTheMatch,
+        int? RedCards,
+        double? GoalsPerMatch,
+        double? AssistsPerMatch,
+        int? AllClubsMatches,
+        int? AllClubsGoals,
+        int? AllClubsAssists,
+        double? AllClubsAverageRating,
         bool IsManager,
         EaTournamentPlayerStatsResponse? TournamentStats,
         string SourceLabel)
@@ -818,10 +889,26 @@
                 profile.Height,
                 profile.Weight,
                 profile.Overall,
+                profile.WinRate,
+                profile.Shots,
+                profile.ShotSuccessRate,
+                profile.PassesMade,
+                profile.PassAttempts,
                 profile.PassSuccessRate,
+                profile.TacklesMade,
+                profile.TackleAttempts,
                 profile.TackleSuccessRate,
+                profile.Saves,
                 profile.CleanSheets,
+                profile.CleanSheetsGk,
                 profile.PlayerOfTheMatch,
+                profile.RedCards,
+                profile.GoalsPerMatch,
+                profile.AssistsPerMatch,
+                profile.AllClubsMatches,
+                profile.AllClubsGoals,
+                profile.AllClubsAssists,
+                profile.AllClubsAverageRating,
                 profile.IsManager,
                 tournamentStats,
                 tournamentStats is null ? "Profil EA general" : "Profil EA + tournois");
@@ -832,6 +919,22 @@
                 stats.PlayerName,
                 null,
                 stats.Position,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

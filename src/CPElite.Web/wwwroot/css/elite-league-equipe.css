@@ -619,6 +619,34 @@ body:has(.el-team-page) .content {
     font-size: .86rem;
 }
 
+.el-stat-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.el-plus-button {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(0, 230, 118, .38);
+    border-radius: 8px;
+    background: rgba(0, 230, 118, .12);
+    color: #00e676;
+    font-size: 1.2rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.el-plus-button:hover,
+.el-plus-button:focus-visible {
+    background: #00e676;
+    color: #07070e;
+    outline: none;
+}
+
 .el-primary,
 .el-secondary {
     min-height: 42px;
