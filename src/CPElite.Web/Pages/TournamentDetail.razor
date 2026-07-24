@@ -2,10 +2,11 @@
 @inject ApiClient Api
 @inject AuthState AuthState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Elite Tournament - Detail tournoi</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/elite-tournament.tournament-detail.css?v=20260724-1" />
+    <link rel="stylesheet" href="css/elite-tournament.tournament-detail.css?v=20260724-2" />
 </HeadContent>
 
 <main class="et-detail-page">
@@ -53,6 +54,199 @@
             <article><span>Places libres</span><strong>@Math.Max(Detail.RegistrationSummary.MaxTeams - Detail.RegistrationSummary.ActiveTeams, 0)</strong></article>
             <article><span>Inscription</span><strong>@RegistrationWindowLabel</strong></article>
             <article><span>Lots</span><strong>@PrizeLabel(Detail.Tournament)</strong></article>
+        </section>
+
+        <section class="etd-registration-panel">
+            <div class="etd-panel-head">
+                <span>Inscription equipe</span>
+                <h2>Preparer les 11 convoques</h2>
+            </div>
+
+            <div class="etd-register-grid">
+                <article class="etd-register-card">
+                    <div class="etd-register-head">
+                        <div>
+                            <span>Club</span>
+                            <strong>@SelectedOwnerTeamName</strong>
+                        </div>
+                        <button type="button" class="etd-secondary" @onclick="LoadOwnerContextAsync" disabled="@RosterBusy">Charger mes clubs</button>
+                    </div>
+
+                    @if (OwnerTeams.Count == 0)
+                    {
+                        <p class="etd-muted">Aucun club GM/Manager trouve sur ton compte. Va dans Mon compte ou Mon equipe pour associer ton joueur au club.</p>
+                    }
+                    else
+                    {
+                        <label class="etd-field">Club a inscrire
+                            <select @bind="SelectedOwnerTeamId" @bind:after="LoadRosterForSelectedTeamAsync">
+                                @foreach (var team in OwnerTeams)
+                                {
+                                    <option value="@team.TeamId">@team.Name - @team.Role</option>
+                                }
+                            </select>
+                        </label>
+                    }
+
+                    <div class="etd-rule-grid">
+                        <div><span>Selection</span><strong>@SelectedRosterCount / 11</strong></div>
+                        <div><span>Restrictions</span><strong>@HeightViolationCount alerte(s)</strong></div>
+                        <div><span>App</span><strong>@SelectedAppRosterCount joueur(s)</strong></div>
+                        <div><span>Invitations</span><strong>@SelectedInviteRequiredCount lien(s)</strong></div>
+                    </div>
+
+                    <div class="etd-rule-note">
+                        <strong>Regles taille</strong>
+                        <span>Max general @DefaultMaxHeightCm cm. Exception DC @CenterBackMaxHeightCm cm. Les restrictions admin bloquent la soumission si elles ne sont pas respectees.</span>
+                    </div>
+
+                    <label class="etd-field">Formation
+                        <select @bind="SelectedFormation">
+                            <option>4-2-3-1</option>
+                            <option>4-3-3</option>
+                            <option>3-5-2</option>
+                            <option>4-4-2</option>
+                        </select>
+                    </label>
+
+                    <div class="etd-action-row">
+                        <button type="button" class="etd-primary" @onclick="SubmitRosterAsync" disabled="@(!CanSubmitRoster)">Soumettre les 11</button>
+                        <button type="button" class="etd-secondary" @onclick="RefreshSelectedTeamEaRosterAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Maj effectif EA</button>
+                        <button type="button" class="etd-secondary" @onclick="RemindPendingAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Relancer</button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(RosterMessage))
+                    {
+                        <p class="etd-register-message">@RosterMessage</p>
+                    }
+                </article>
+
+                <article class="etd-register-card">
+                    <div class="etd-register-head">
+                        <div>
+                            <span>Compo</span>
+                            <strong>@SelectedFormation</strong>
+                        </div>
+                        <span class="etd-count-pill @(HeightViolationCount > 0 ? "danger" : "")">@HeightViolationCount alerte(s)</span>
+                    </div>
+                    <div class="etd-lineup-board">
+                        @foreach (var row in LineupRows)
+                        {
+                            <div class="etd-lineup-row" style="grid-template-columns: repeat(@row.Count, minmax(0, 1fr));">
+                                @foreach (var slot in row)
+                                {
+                                    <button type="button" class="etd-lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => FocusRosterPlayer(slot.Player)">
+                                        <span>@slot.Position</span>
+                                        <strong>@(slot.Player?.DisplayName ?? "A choisir")</strong>
+                                        <small>@(slot.Player is null ? "Slot libre" : $"{slot.Player.HeightLabel} - {slot.Player.OverallLabel}")</small>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                </article>
+            </div>
+
+            <article class="etd-roster-card">
+                <div class="etd-register-head">
+                    <div>
+                        <span>Effectif</span>
+                        <strong>@Roster.Count joueur(s)</strong>
+                    </div>
+                    <span class="etd-count-pill">@SelectedRosterCount / 11</span>
+                </div>
+
+                @if (RosterBusy)
+                {
+                    <p class="etd-muted">Chargement de l'effectif...</p>
+                }
+                else if (Roster.Count == 0)
+                {
+                    <p class="etd-muted">Aucun joueur stocke pour ce club. Lance une mise a jour EA pour recuperer et sauvegarder le roster.</p>
+                }
+                else
+                {
+                    <div class="etd-roster-groups">
+                        @foreach (var group in RosterGroups)
+                        {
+                            <section>
+                                <div class="etd-roster-group-head">
+                                    <strong>@group.Label</strong>
+                                    <span>@group.Players.Count joueur(s)</span>
+                                </div>
+                                @foreach (var player in group.Players)
+                                {
+                                    <article class="etd-roster-player @(player.Selected ? "selected" : "") @(FocusedRosterPlayer == player ? "focused" : "") @(!IsHeightEligibleForTournament(player) && player.Selected ? "invalid" : "")">
+                                        <label class="etd-check">
+                                            <input type="checkbox" checked="@player.Selected" @onchange="args => TogglePlayerAsync(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && SelectedRosterCount >= 11))" />
+                                            <span></span>
+                                        </label>
+                                        <div>
+                                            <strong>@player.DisplayName</strong>
+                                            <small>@player.Gamertag</small>
+                                            <div class="etd-player-tags">
+                                                <span class="@(player.HasApp ? "ok" : "warn")">@(player.HasApp ? "Dans l'app" : "A inviter")</span>
+                                                <span>EA @player.EaPositionLabel</span>
+                                                <span class="@(!IsHeightEligibleForTournament(player) ? "danger" : "")">@player.HeightLabel</span>
+                                                <span>@player.OverallLabel</span>
+                                                <span>@player.MatchesLabel</span>
+                                            </div>
+                                        </div>
+                                        <select value="@player.Position" @onchange="args => UpdatePlayerPositionAsync(player, args)">
+                                            <option value="">Poste tournoi</option>
+                                            <option value="GK">GK</option>
+                                            <option value="DC">DC</option>
+                                            <option value="DG">DG</option>
+                                            <option value="DD">DD</option>
+                                            <option value="MDC">MDC</option>
+                                            <option value="MC">MC</option>
+                                            <option value="MOC">MOC</option>
+                                            <option value="AG">AG</option>
+                                            <option value="AD">AD</option>
+                                            <option value="BU">BU</option>
+                                        </select>
+                                        @if (!player.HasApp)
+                                        {
+                                            <button type="button" class="etd-secondary small" @onclick="() => AddInviteLink(player)">Inviter</button>
+                                        }
+                                    </article>
+                                }
+                            </section>
+                        }
+                    </div>
+                }
+            </article>
+
+            @if (InviteLinks.Count > 0 || TeamInviteLink is not null)
+            {
+                <article class="etd-roster-card">
+                    <div class="etd-register-head">
+                        <div>
+                            <span>Invitations</span>
+                            <strong>Liens pre-remplis</strong>
+                        </div>
+                        <span class="etd-count-pill">@InviteLinks.Count joueur(s)</span>
+                    </div>
+                    <div class="etd-invite-list">
+                        @if (TeamInviteLink is not null)
+                        {
+                            <div>
+                                <strong>@TeamInviteLink.PlayerName</strong>
+                                <input value="@TeamInviteLink.Url" readonly />
+                                <button type="button" class="etd-secondary small" @onclick="() => CopyInviteLinkAsync(TeamInviteLink.Url)">Copier</button>
+                            </div>
+                        }
+                        @foreach (var invite in InviteLinks)
+                        {
+                            <div>
+                                <strong>@invite.PlayerName</strong>
+                                <input value="@invite.Url" readonly />
+                                <button type="button" class="etd-secondary small" @onclick="() => CopyInviteLinkAsync(invite.Url)">Copier</button>
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
         </section>
 
         @if (IsFinished)
@@ -169,6 +363,17 @@
     private TournamentAdminDetailResponse? Detail { get; set; }
     private TournamentMatchResponse? SelectedMatch { get; set; }
     private EaFriendlyMatchDetailsResponse? SelectedFriendlyDetails { get; set; }
+    private List<OwnerTeamOption> OwnerTeams { get; } = [];
+    private List<RosterPlayerModel> Roster { get; } = [];
+    private List<PlayerInviteLink> InviteLinks { get; } = [];
+    private PlayerInviteLink? TeamInviteLink { get; set; }
+    private Guid? SelectedOwnerTeamId { get; set; }
+    private RosterPlayerModel? FocusedRosterPlayer { get; set; }
+    private string SelectedFormation { get; set; } = "4-2-3-1";
+    private bool RosterBusy { get; set; }
+    private string? RosterMessage { get; set; }
+    private int DefaultMaxHeightCm { get; set; } = 182;
+    private int CenterBackMaxHeightCm { get; set; } = 187;
 
     private string RegistrationWindowLabel => Detail?.Tournament.RegistrationEndsAt is null ? "Ouverte" : $"jusqu'au {Detail.Tournament.RegistrationEndsAt.Value.LocalDateTime:dd/MM HH:mm}";
     private bool IsFinished => Detail?.Tournament.Status == TournamentStatus.Completed || Detail?.Matches.Any(match => match.Stage == TournamentStage.Final && match.WinnerTeamId.HasValue) == true;
@@ -178,6 +383,22 @@
     private string ThirdPlaceLabel => Detail?.Matches.FirstOrDefault(match => match.Stage == TournamentStage.ThirdPlace && match.WinnerTeamId.HasValue) is { } third ? TeamName(third.WinnerTeamId!.Value) : "Non renseigne";
     private string WinnerLabel => WinnerTeamName == "Champion a confirmer" ? "Resultat final a confirmer" : $"{WinnerTeamName} remporte le tournoi";
     private string FinalLabel => FinalMatch is null ? "La finale n'est pas encore liee en base." : $"Finale: {TeamName(FinalMatch.HomeTeamId)} {Score(FinalMatch.HomeScore)} - {Score(FinalMatch.AwayScore)} {TeamName(FinalMatch.AwayTeamId)}";
+    private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? "Aucun club";
+    private int SelectedRosterCount => Roster.Count(player => player.Selected);
+    private int SelectedAppRosterCount => Roster.Count(player => player.Selected && player.HasApp);
+    private int SelectedInviteRequiredCount => Roster.Count(player => player.Selected && !player.HasApp);
+    private int MissingTournamentPositionCount => Roster.Count(player => player.Selected && string.IsNullOrWhiteSpace(player.Position));
+    private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
+    private bool CanSubmitRoster => SelectedOwnerTeamId.HasValue && SelectedRosterCount == 11 && MissingTournamentPositionCount == 0 && HeightViolationCount == 0 && !RosterBusy;
+    private IReadOnlyList<RosterPositionGroup> RosterGroups => Roster
+        .OrderBy(PositionSort)
+        .ThenByDescending(player => player.HasApp)
+        .ThenByDescending(player => player.AverageRating ?? 0)
+        .ThenBy(player => player.DisplayName)
+        .GroupBy(player => PositionGroup(player.EaPosition))
+        .Select(group => new RosterPositionGroup(PositionGroupLabel(group.Key), group.ToArray()))
+        .ToArray();
+    private IReadOnlyList<IReadOnlyList<LineupSlotModel>> LineupRows => BuildLineupRows();
 
     private IReadOnlyCollection<MatchPlayerGroup> MatchPlayerGroups => SelectedFriendlyDetails is null
         ? Array.Empty<MatchPlayerGroup>()
@@ -208,6 +429,8 @@
             }
 
             Detail = detailResult.Value;
+            ApplyTournamentRestrictions();
+            await LoadOwnerContextAsync();
             SelectedMatch = Detail.Matches.OrderBy(match => match.ScheduledAt).FirstOrDefault(match => match.HomeScore.HasValue || match.AwayScore.HasValue) ?? Detail.Matches.FirstOrDefault();
             if (SelectedMatch is not null)
             {
@@ -228,6 +451,213 @@
     {
         SelectedMatch = match;
         await LoadMatchDetailsAsync(match);
+    }
+
+    private async Task LoadOwnerContextAsync()
+    {
+        OwnerTeams.Clear();
+        Roster.Clear();
+        InviteLinks.Clear();
+        TeamInviteLink = null;
+        RosterMessage = null;
+
+        var me = await Api.GetMeAsync();
+        if (me.Value is null)
+        {
+            RosterMessage = me.Error ?? "Impossible de charger ton compte.";
+            return;
+        }
+
+        foreach (var membership in me.Value.Memberships.Where(member => member.TeamId.HasValue && member.Role is TeamRole.Owner or TeamRole.Manager))
+        {
+            OwnerTeams.Add(new OwnerTeamOption(membership.TeamId!.Value, membership.TeamName ?? membership.TeamShortName ?? membership.DisplayName, membership.Role));
+        }
+
+        if (OwnerTeams.Count == 0)
+        {
+            SelectedOwnerTeamId = null;
+            return;
+        }
+
+        if (SelectedOwnerTeamId is null || OwnerTeams.All(team => team.TeamId != SelectedOwnerTeamId.Value))
+        {
+            SelectedOwnerTeamId = OwnerTeams[0].TeamId;
+        }
+
+        await LoadRosterForSelectedTeamAsync();
+    }
+
+    private async Task LoadRosterForSelectedTeamAsync()
+    {
+        if (SelectedOwnerTeamId is null)
+        {
+            return;
+        }
+
+        RosterBusy = true;
+        RosterMessage = null;
+        Roster.Clear();
+        InviteLinks.Clear();
+        TeamInviteLink = null;
+
+        try
+        {
+            var membersResult = await Api.GetTeamMembersAsync(SelectedOwnerTeamId.Value);
+            var profilesResult = await Api.GetTeamEaPlayersAsync(SelectedOwnerTeamId.Value);
+            var participantsResult = await Api.GetTournamentParticipantsAsync(TournamentId, SelectedOwnerTeamId.Value);
+
+            var members = membersResult.Value ?? [];
+            var participants = participantsResult.Value ?? [];
+
+            if (profilesResult.Value is not null)
+            {
+                foreach (var profile in profilesResult.Value)
+                {
+                    var member = FindMatchingAppMember(profile, members);
+                    var participant = member is null ? null : participants.FirstOrDefault(item => item.UserId == member.UserId);
+                    Roster.Add(RosterPlayerModel.FromEaProfile(profile, member, participant));
+                }
+            }
+
+            foreach (var member in members.Where(member => Roster.All(player => player.UserId != member.UserId)))
+            {
+                var participant = participants.FirstOrDefault(item => item.UserId == member.UserId);
+                Roster.Add(RosterPlayerModel.FromAppMember(member, participant));
+            }
+
+            FocusedRosterPlayer = Roster.FirstOrDefault();
+            RosterMessage = Roster.Count == 0
+                ? "Aucun joueur en base. Lance une mise a jour EA pour recuperer l'effectif."
+                : $"Effectif charge: {Roster.Count} joueur(s), {Roster.Count(player => player.HasApp)} dans l'app.";
+        }
+        finally
+        {
+            RosterBusy = false;
+        }
+    }
+
+    private async Task RefreshSelectedTeamEaRosterAsync()
+    {
+        if (SelectedOwnerTeamId is null)
+        {
+            return;
+        }
+
+        RosterBusy = true;
+        var sync = await Api.SyncTeamEaAsync(SelectedOwnerTeamId.Value, forceRefresh: true);
+        RosterMessage = sync.Success ? "Effectif EA mis a jour et sauvegarde en base." : sync.Error;
+        RosterBusy = false;
+        await LoadRosterForSelectedTeamAsync();
+    }
+
+    private async Task TogglePlayerAsync(RosterPlayerModel player, ChangeEventArgs args)
+    {
+        player.Selected = args.Value is bool selected && selected && player.CanBeSelected;
+        if (player.Selected && string.IsNullOrWhiteSpace(player.Position))
+        {
+            player.Position = SuggestTournamentPosition(player.EaPosition);
+        }
+
+        FocusedRosterPlayer = player;
+        await Task.CompletedTask;
+    }
+
+    private async Task UpdatePlayerPositionAsync(RosterPlayerModel player, ChangeEventArgs args)
+    {
+        player.Position = args.Value?.ToString() ?? string.Empty;
+        FocusedRosterPlayer = player;
+        await Task.CompletedTask;
+    }
+
+    private async Task SubmitRosterAsync()
+    {
+        if (!CanSubmitRoster || SelectedOwnerTeamId is null)
+        {
+            return;
+        }
+
+        RosterBusy = true;
+        InviteLinks.Clear();
+        TeamInviteLink = null;
+
+        try
+        {
+            var registration = await Api.RegisterTeamForTournamentAsync(TournamentId, new RegisterTeamForTournamentRequest(SelectedOwnerTeamId.Value, TournamentPaymentMode.IndividualPlayers));
+            if (!registration.Success && !IsAlreadyRegistered(registration.Error))
+            {
+                RosterMessage = registration.Error;
+                return;
+            }
+
+            foreach (var player in Roster.Where(player => player.Selected).Take(11))
+            {
+                if (!player.HasApp)
+                {
+                    AddInviteLink(player);
+                    continue;
+                }
+
+                var participant = await Api.AddTournamentParticipantAsync(TournamentId, SelectedOwnerTeamId.Value, new AddTournamentParticipantRequest(player.UserId, player.Position));
+                if (!participant.Success && !IsAlreadyRegistered(participant.Error))
+                {
+                    RosterMessage = participant.Error;
+                    return;
+                }
+            }
+
+            TeamInviteLink = InviteLinks.Count > 0 ? BuildTeamInviteLink() : null;
+            RosterMessage = InviteLinks.Count > 0
+                ? $"Equipe inscrite provisoirement: {SelectedAppRosterCount} joueur(s) app ajoutes, {InviteLinks.Count} invitation(s) a envoyer."
+                : "Equipe inscrite et 11 joueurs convoques. Les joueurs doivent valider leur presence.";
+        }
+        finally
+        {
+            RosterBusy = false;
+        }
+    }
+
+    private async Task RemindPendingAsync()
+    {
+        if (SelectedOwnerTeamId is null)
+        {
+            return;
+        }
+
+        var result = await Api.RemindPendingTournamentParticipantsAsync(TournamentId, SelectedOwnerTeamId.Value);
+        RosterMessage = result.Value is not null
+            ? $"Relance envoyee: {result.Value.PendingPlayers} joueur(s) en attente."
+            : result.Error ?? "Relance envoyee aux joueurs en attente.";
+    }
+
+    private void AddInviteLink(RosterPlayerModel player)
+    {
+        if (InviteLinks.Any(invite => invite.EaPlayerId == player.EaPlayerId))
+        {
+            return;
+        }
+
+        InviteLinks.Add(BuildInviteLink(player));
+    }
+
+    private async Task CopyInviteLinkAsync(string url)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            RosterMessage = "Lien copie.";
+        }
+        catch
+        {
+            RosterMessage = "Copie automatique indisponible. Le lien reste visible dans le champ.";
+        }
+    }
+
+    private void FocusRosterPlayer(RosterPlayerModel? player)
+    {
+        if (player is not null)
+        {
+            FocusedRosterPlayer = player;
+        }
     }
 
     private async Task LoadMatchDetailsAsync(TournamentMatchResponse match)
@@ -268,6 +698,204 @@
     private string TeamName(Guid teamId)
     {
         return Detail?.RegistrationSummary.Teams.FirstOrDefault(team => team.TeamId == teamId)?.TeamName ?? "Equipe";
+    }
+
+    private void ApplyTournamentRestrictions()
+    {
+        var json = Detail?.Tournament.PlayerRestrictionsJson;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            var root = document.RootElement;
+            DefaultMaxHeightCm = ReadRestrictionInt(root, "defaultMaxHeightCm", DefaultMaxHeightCm);
+            DefaultMaxHeightCm = ReadRestrictionInt(root, "maxHeightCm", DefaultMaxHeightCm);
+            CenterBackMaxHeightCm = ReadRestrictionInt(root, "centerBackMaxHeightCm", CenterBackMaxHeightCm);
+            CenterBackMaxHeightCm = ReadRestrictionInt(root, "dcMaxHeightCm", CenterBackMaxHeightCm);
+        }
+        catch
+        {
+            RosterMessage = "Restrictions tournoi non lisibles, valeurs par defaut appliquees.";
+        }
+    }
+
+    private bool IsHeightEligibleForTournament(RosterPlayerModel player)
+    {
+        if (!player.Height.HasValue)
+        {
+            return true;
+        }
+
+        return player.Height.Value <= GetMaxHeightForPosition(string.IsNullOrWhiteSpace(player.Position) ? player.EaPosition : player.Position);
+    }
+
+    private int GetMaxHeightForPosition(string? position)
+    {
+        return string.Equals(position, "DC", StringComparison.OrdinalIgnoreCase)
+            ? CenterBackMaxHeightCm
+            : DefaultMaxHeightCm;
+    }
+
+    private IReadOnlyList<IReadOnlyList<LineupSlotModel>> BuildLineupRows()
+    {
+        var usedPlayerKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return GetFormationRows(SelectedFormation)
+            .Select(row => row.Select(position => new LineupSlotModel(position, GetLineupPlayer(position, usedPlayerKeys))).ToArray())
+            .ToArray();
+    }
+
+    private RosterPlayerModel? GetLineupPlayer(string slot, HashSet<string> usedPlayerKeys)
+    {
+        var selected = Roster.Where(player => player.Selected).ToList();
+        var direct = selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && string.Equals(player.Position, slot, StringComparison.OrdinalIgnoreCase));
+        if (direct is not null)
+        {
+            usedPlayerKeys.Add(direct.RosterKey);
+            return direct;
+        }
+
+        var fallback = slot switch
+        {
+            "DC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DG" or "DD" or "MDC"),
+            "DG" or "DD" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DC" or "MDC"),
+            "MDC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "DC"),
+            "MC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MDC" or "MOC"),
+            "MOC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "AG" or "AD"),
+            "AG" or "AD" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MOC" or "BU"),
+            "BU" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "AG" or "AD" or "MOC"),
+            _ => null
+        };
+
+        if (fallback is not null)
+        {
+            usedPlayerKeys.Add(fallback.RosterKey);
+        }
+
+        return fallback;
+    }
+
+    private PlayerInviteLink BuildInviteLink(RosterPlayerModel player)
+    {
+        var clubId = SelectedOwnerTeamId?.ToString() ?? string.Empty;
+        var url = $"{Navigation.BaseUri.TrimEnd('/')}/account?clubId={Uri.EscapeDataString(clubId)}&clubName={Uri.EscapeDataString(SelectedOwnerTeamName)}&eaPlayerId={Uri.EscapeDataString(player.EaPlayerId)}&playerName={Uri.EscapeDataString(player.DisplayName)}&tournamentId={Uri.EscapeDataString(TournamentId.ToString())}&tournamentName={Uri.EscapeDataString(Detail?.Tournament.Name ?? "Tournoi")}";
+        return new PlayerInviteLink(player.DisplayName, player.EaPlayerId, player.Position, url);
+    }
+
+    private PlayerInviteLink BuildTeamInviteLink()
+    {
+        var clubId = SelectedOwnerTeamId?.ToString() ?? string.Empty;
+        var url = $"{Navigation.BaseUri.TrimEnd('/')}/account?clubId={Uri.EscapeDataString(clubId)}&clubName={Uri.EscapeDataString(SelectedOwnerTeamName)}&tournamentId={Uri.EscapeDataString(TournamentId.ToString())}&tournamentName={Uri.EscapeDataString(Detail?.Tournament.Name ?? "Tournoi")}";
+        return new PlayerInviteLink("Lien generique equipe", SelectedOwnerTeamName, "Club", url);
+    }
+
+    private static TeamMemberResponse? FindMatchingAppMember(EaPlayerProfileSnapshotResponse profile, IReadOnlyCollection<TeamMemberResponse> members)
+    {
+        return members.FirstOrDefault(member =>
+            SamePlayer(member.Gamertag, profile.EaPlayerId) ||
+            SamePlayer(member.Gamertag, profile.PlayerName) ||
+            SamePlayer(member.DisplayName, profile.PlayerName) ||
+            SamePlayer(member.DisplayName, profile.ProName));
+    }
+
+    private static bool SamePlayer(string? left, string? right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+            && !string.IsNullOrWhiteSpace(right)
+            && string.Equals(NormalizePlayerKey(left), NormalizePlayerKey(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizePlayerKey(string value)
+    {
+        return new string(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+    }
+
+    private static bool IsAlreadyRegistered(string? error)
+    {
+        return error?.Contains("already", StringComparison.OrdinalIgnoreCase) == true
+            || error?.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true
+            || error?.Contains("existe", StringComparison.OrdinalIgnoreCase) == true
+            || error?.Contains("deja", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static int ReadRestrictionInt(System.Text.Json.JsonElement root, string propertyName, int fallback)
+    {
+        if (root.TryGetProperty(propertyName, out var value) && value.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        return fallback;
+    }
+
+    private static int PositionSort(RosterPlayerModel player) => PositionGroup(player.EaPosition) switch
+    {
+        "GK" => 0,
+        "DEF" => 1,
+        "MIL" => 2,
+        "ATT" => 3,
+        _ => 4
+    };
+
+    private static string PositionGroupLabel(string group) => group switch
+    {
+        "GK" => "Gardien",
+        "DEF" => "Defense",
+        "MIL" => "Milieu",
+        "ATT" => "Attaque",
+        _ => "Autres"
+    };
+
+    private static string SuggestTournamentPosition(string? position)
+    {
+        var normalized = PositionGroup(position);
+        return normalized switch
+        {
+            "GK" => "GK",
+            "DEF" => "DC",
+            "MIL" => "MC",
+            "ATT" => "BU",
+            _ => string.Empty
+        };
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> GetFormationRows(string formation)
+    {
+        return formation switch
+        {
+            "4-3-3" =>
+            [
+                ["AG", "BU", "AD"],
+                ["MC", "MDC", "MC"],
+                ["DG", "DC", "DC", "DD"],
+                ["GK"]
+            ],
+            "3-5-2" =>
+            [
+                ["BU", "BU"],
+                ["AG", "MC", "MOC", "MC", "AD"],
+                ["DC", "DC", "DC"],
+                ["GK"]
+            ],
+            "4-4-2" =>
+            [
+                ["BU", "BU"],
+                ["AG", "MC", "MC", "AD"],
+                ["DG", "DC", "DC", "DD"],
+                ["GK"]
+            ],
+            _ =>
+            [
+                ["BU"],
+                ["AG", "MOC", "AD"],
+                ["MDC", "MC"],
+                ["DG", "DC", "DC", "DD"],
+                ["GK"]
+            ]
+        };
     }
 
     private static string Score(int? score) => score?.ToString() ?? "-";
@@ -325,5 +953,100 @@
     }
 
     private sealed record MatchPlayerGroup(string Name, IReadOnlyCollection<EaMatchPlayerStatResponse> Players);
+    private sealed record OwnerTeamOption(Guid TeamId, string Name, TeamRole Role);
+    private sealed record PlayerInviteLink(string PlayerName, string EaPlayerId, string Position, string Url);
+    private sealed record RosterPositionGroup(string Label, IReadOnlyList<RosterPlayerModel> Players);
+    private sealed record LineupSlotModel(string Position, RosterPlayerModel? Player);
+
+    private sealed class RosterPlayerModel
+    {
+        private RosterPlayerModel(
+            Guid userId,
+            string displayName,
+            string? gamertag,
+            string eaPlayerId,
+            string? eaPosition,
+            string position,
+            bool selected,
+            bool hasApp,
+            string status,
+            int? height,
+            int? overall,
+            int? matches,
+            double? averageRating)
+        {
+            UserId = userId;
+            DisplayName = displayName;
+            Gamertag = string.IsNullOrWhiteSpace(gamertag) ? eaPlayerId : gamertag!;
+            EaPlayerId = eaPlayerId;
+            EaPosition = eaPosition;
+            Position = position;
+            Selected = selected;
+            HasApp = hasApp;
+            Status = status;
+            Height = height;
+            Overall = overall;
+            Matches = matches;
+            AverageRating = averageRating;
+        }
+
+        public Guid UserId { get; }
+        public string DisplayName { get; }
+        public string Gamertag { get; }
+        public string EaPlayerId { get; }
+        public string? EaPosition { get; }
+        public string Position { get; set; }
+        public bool Selected { get; set; }
+        public bool HasApp { get; }
+        public string Status { get; }
+        public int? Height { get; }
+        public int? Overall { get; }
+        public int? Matches { get; }
+        public double? AverageRating { get; }
+        public bool CanBeSelected => Status != "Pas dispo";
+        public string RosterKey => HasApp ? UserId.ToString() : $"{EaPlayerId}:{DisplayName}";
+        public string EaPositionLabel => string.IsNullOrWhiteSpace(EaPosition) ? "-" : EaPosition!;
+        public string HeightLabel => Height.HasValue ? $"{Height} cm" : "-";
+        public string OverallLabel => Overall.HasValue ? $"{Overall} OVR" : "-";
+        public string MatchesLabel => Matches.HasValue ? $"{Matches} MJ" : "-";
+
+        public static RosterPlayerModel FromEaProfile(EaPlayerProfileSnapshotResponse profile, TeamMemberResponse? member, TournamentParticipantResponse? participant)
+        {
+            var selected = participant is not null;
+            var position = participant?.Position ?? string.Empty;
+            return new RosterPlayerModel(
+                member?.UserId ?? Guid.Empty,
+                profile.PlayerName,
+                member?.Gamertag,
+                profile.EaPlayerId,
+                profile.Position,
+                position,
+                selected,
+                member is not null,
+                participant is null ? "Disponible" : participant.Status.ToString(),
+                profile.Height,
+                profile.Overall,
+                profile.Matches,
+                profile.AverageRating);
+        }
+
+        public static RosterPlayerModel FromAppMember(TeamMemberResponse member, TournamentParticipantResponse? participant)
+        {
+            return new RosterPlayerModel(
+                member.UserId,
+                member.DisplayName,
+                member.Gamertag,
+                member.Gamertag ?? member.DisplayName,
+                null,
+                participant?.Position ?? string.Empty,
+                participant is not null,
+                true,
+                participant is null ? "Disponible" : participant.Status.ToString(),
+                null,
+                null,
+                null,
+                null);
+        }
+    }
 }
 
