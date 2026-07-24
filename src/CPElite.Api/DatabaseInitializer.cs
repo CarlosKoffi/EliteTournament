@@ -27,6 +27,7 @@ public static class DatabaseInitializer
             await SeedAdminUserAsync(dbContext, configuration, passwordHasher, logger, cancellationToken);
             await SeedLocalizedContentAsync(dbContext, logger, cancellationToken);
             await SeedTheSurvivorsDemoTournamentAsync(dbContext, environment, logger, cancellationToken);
+            await RebuildClubRankingsFromScriptAsync(dbContext, environment, logger, cancellationToken);
 
             logger.LogInformation("Database initialization completed.");
         }
@@ -35,6 +36,24 @@ public static class DatabaseInitializer
             logger.LogCritical(ex, "Database initialization failed. Check the PostgreSQL connection string, credentials, network access and migration permissions.");
             throw;
         }
+    }
+
+    private static async Task RebuildClubRankingsFromScriptAsync(
+        CPEliteDbContext dbContext,
+        IWebHostEnvironment environment,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var script = Path.Combine(environment.ContentRootPath, "Seed", "rebuild-club-rankings.sql");
+        if (!File.Exists(script))
+        {
+            throw new FileNotFoundException($"Club ranking rebuild script was not found in the published API output: {script}", script);
+        }
+
+        logger.LogInformation("Running club ranking rebuild script {ScriptName}.", Path.GetFileName(script));
+        var sql = await File.ReadAllTextAsync(script, cancellationToken);
+        await ExecuteSqlScriptAsync(dbContext, sql, cancellationToken);
+        logger.LogInformation("Club rankings rebuilt from scored tournament matches.");
     }
 
     private static async Task SeedTheSurvivorsDemoTournamentAsync(

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using CPElite.Contracts.Auth;
 using CPElite.Contracts.Ea;
 using CPElite.Contracts.Content;
+using CPElite.Contracts.Rankings;
 using CPElite.Contracts.Teams;
 using CPElite.Contracts.Today;
 using CPElite.Contracts.TournamentParticipation;
@@ -46,6 +47,9 @@ public sealed class ApiClient
 
     public Task<ApiResult<ContentItemResponse>> UpsertContentItemAsync(UpsertContentItemRequest request) =>
         SendAsync<ContentItemResponse>(HttpMethod.Put, "api/content/admin", request);
+
+    public Task<ApiResult<IReadOnlyCollection<ClubRankingResponse>>> GetClubRankingsAsync(int take = 5) =>
+        SendAsync<IReadOnlyCollection<ClubRankingResponse>>(HttpMethod.Get, $"api/rankings/clubs?take={take}", requiresAuth: false);
 
     public Task<ApiResult<UserSummaryResponse>> UpdatePlayerProfileAsync(UpdatePlayerProfileRequest request) =>
         SendAsync<UserSummaryResponse>(HttpMethod.Patch, "api/me/profile", request);

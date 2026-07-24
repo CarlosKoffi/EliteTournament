@@ -24,6 +24,7 @@
   <ItemGroup>
     <Content Include="..\..\deploy\seed-thesurvivors-ea-matches.sql" Link="Seed\seed-thesurvivors-ea-matches.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\deploy\seed-thesurvivors-past-tournament.sql" Link="Seed\seed-thesurvivors-past-tournament.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\deploy\rebuild-club-rankings.sql" Link="Seed\rebuild-club-rankings.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

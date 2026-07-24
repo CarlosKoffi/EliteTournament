@@ -31,6 +31,7 @@ public sealed class CPEliteDbContext : DbContext
     public DbSet<ChampionTitle> ChampionTitles => Set<ChampionTitle>();
     public DbSet<TournamentMoment> TournamentMoments => Set<TournamentMoment>();
     public DbSet<TournamentScoreAudit> TournamentScoreAudits => Set<TournamentScoreAudit>();
+    public DbSet<TeamRanking> TeamRankings => Set<TeamRanking>();
     public DbSet<EaDiagnosticProbe> EaDiagnosticProbes => Set<EaDiagnosticProbe>();
     public DbSet<UserTournamentAccess> UserTournamentAccesses => Set<UserTournamentAccess>();
     public DbSet<TeamSlotPackage> TeamSlotPackages => Set<TeamSlotPackage>();
@@ -419,6 +420,17 @@ public sealed class CPEliteDbContext : DbContext
             entity.HasOne(audit => audit.TournamentMatch)
                 .WithMany()
                 .HasForeignKey(audit => audit.TournamentMatchId);
+        });
+
+        modelBuilder.Entity<TeamRanking>(entity =>
+        {
+            entity.HasKey(ranking => ranking.Id);
+            entity.HasIndex(ranking => ranking.TeamId).IsUnique();
+            entity.HasIndex(ranking => ranking.Rank);
+            entity.HasIndex(ranking => ranking.Points);
+            entity.HasOne(ranking => ranking.Team)
+                .WithMany()
+                .HasForeignKey(ranking => ranking.TeamId);
         });
 
         modelBuilder.Entity<TournamentPlayerConfirmation>(entity =>

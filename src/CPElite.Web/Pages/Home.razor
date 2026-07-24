@@ -1,7 +1,9 @@
 ﻿@page "/"
 @implements IDisposable
+@using CPElite.Contracts.Rankings
 @inject AuthState AuthState
 @inject IWebAssemblyHostEnvironment HostEnvironment
+@inject ApiClient Api
 
 <PageTitle>Elite Tournament</PageTitle>
 
@@ -103,7 +105,7 @@
                 {
                     <div class="et-table-row">
                         <span class="et-rank">-</span>
-                        <span>Classement disponible apres les premiers tournois.</span>
+                        <span>@(LeaderboardMessage ?? "Classement disponible apres les premiers tournois.")</span>
                         <span class="et-points">-</span>
                     </div>
                 }
@@ -111,7 +113,7 @@
                 {
                     <div class="et-table-row @(team.Rank == 1 ? "active" : "")">
                         <span class="et-rank">@team.Rank</span>
-                        <button type="button" class="et-team-button" @onclick="() => OpenClubSheet(team)">@team.Name</button>
+                        <button type="button" class="et-team-button" @onclick="() => OpenClubSheet(team)">@team.TeamName</button>
                         <span class="et-points">@team.Points</span>
                     </div>
                 }
@@ -182,7 +184,7 @@
             <div class="drawer-heading">
                 <div>
                     <p class="eyebrow">Fiche club</p>
-                    <h2>@SelectedClub.Name</h2>
+                    <h2>@SelectedClub.TeamName</h2>
                 </div>
                 <button class="ghost-action" @onclick="CloseClubSheet">Fermer</button>
             </div>
@@ -190,26 +192,26 @@
             <div class="drawer-metrics">
                 <div><span>Leaderboard</span><strong>#@SelectedClub.Rank</strong></div>
                 <div><span>Points</span><strong>@SelectedClub.Points</strong></div>
-                <div><span>Division EA</span><strong>@SelectedClub.Division</strong></div>
+                <div><span>Record</span><strong>@SelectedClub.Wins V / @SelectedClub.Draws N / @SelectedClub.Losses D</strong></div>
             </div>
 
             <div class="drawer-data-grid">
                 <article>
-                    <span class="result-kind">Stats generales EA</span>
+                    <span class="result-kind">Classement Elite Tournament</span>
                     <div class="player-skill-grid">
-                        <div><span>Forme</span><strong>@SelectedClub.EaForm</strong></div>
-                        <div><span>Effectif</span><strong>@SelectedClub.PlayerCount</strong></div>
-                        <div><span>Buts / match</span><strong>@SelectedClub.GoalsPerMatch.ToString("0.0")</strong></div>
-                        <div><span>Synchro</span><strong>@SelectedClub.LastSync</strong></div>
+                        <div><span>Matchs</span><strong>@SelectedClub.MatchesPlayed</strong></div>
+                        <div><span>Diff.</span><strong>@GoalDifferenceLabel(SelectedClub)</strong></div>
+                        <div><span>Clean sheets</span><strong>@SelectedClub.CleanSheets</strong></div>
+                        <div><span>MAJ</span><strong>@SelectedClub.UpdatedAt.LocalDateTime.ToString("dd/MM HH:mm")</strong></div>
                     </div>
                 </article>
                 <article>
-                    <span class="result-kind">Stats Elite Tournament</span>
+                    <span class="result-kind">Parcours tournois</span>
                     <dl>
                         <div><dt>Tournois joues</dt><dd>@SelectedClub.TournamentsPlayed</dd></div>
-                        <div><dt>Record</dt><dd>@SelectedClub.TournamentRecord</dd></div>
-                        <div><dt>Meilleur resultat</dt><dd>@SelectedClub.BestRun</dd></div>
-                        <div><dt>Joueur cle</dt><dd>@SelectedClub.KeyPlayer</dd></div>
+                        <div><dt>Titres</dt><dd>@SelectedClub.Titles</dd></div>
+                        <div><dt>Finales</dt><dd>@SelectedClub.Finals</dd></div>
+                        <div><dt>Podiums</dt><dd>@SelectedClub.Podiums</dd></div>
                     </dl>
                 </article>
             </div>
@@ -220,7 +222,9 @@
 @code {
     private string SearchQuery { get; set; } = "";
     private string SearchType { get; set; } = "Tout";
-    private LeaderboardTeam? SelectedClub;
+    private List<ClubRankingResponse> TopTeams { get; } = [];
+    private ClubRankingResponse? SelectedClub;
+    private string? LeaderboardMessage { get; set; }
 
     private string NextTournamentName => "Saturday Goodies Cup";
     private string NextTournamentKickoff => "25/07 - 22:30 CET";
@@ -235,17 +239,6 @@
             || item.Title.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || item.Detail.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)));
 
-    private IReadOnlyCollection<LeaderboardTeam> TopTeams => HostEnvironment.IsProduction()
-        ? []
-        :
-        [
-            new(1, "TheSurvivors", 2085, 8, "2V 1N 0D", 11, 1.2, "03:09", 4, "9V 2N 3D", "Finaliste Goodies Cup", "KoffiMarvelous"),
-            new(2, "FC Toho", 1990, 7, "2V 0N 1D", 11, 1.7, "02:58", 3, "6V 1N 3D", "Demi-finaliste", "AkiraToho"),
-            new(3, "KM Chimera", 1872, 6, "1V 1N 1D", 10, 1.1, "02:44", 2, "4V 2N 2D", "Quart de finale", "ChimeraMVP"),
-            new(4, "Royal XI", 1818, 5, "0V 2N 1D", 11, 1.0, "02:31", 2, "3V 3N 2D", "Phase de poule", "RoyalNueve"),
-            new(5, "Northside Club", 1764, 4, "2V 0N 1D", 9, 1.4, "02:12", 1, "2V 0N 1D", "Nouveau challenger", "NorthCap")
-        ];
-
     private IReadOnlyCollection<SearchResultItem> SearchSeed => HostEnvironment.IsProduction()
         ? []
         :
@@ -256,12 +249,27 @@
             new("Joueurs", "KoffiMarvelous", "Profil joueur, EA Sports ID et club principal", "account")
         ];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         AuthState.Changed += StateHasChanged;
+        await LoadLeaderboardAsync();
     }
 
-    private void OpenClubSheet(LeaderboardTeam team)
+    private async Task LoadLeaderboardAsync()
+    {
+        var result = await Api.GetClubRankingsAsync(take: 5);
+        TopTeams.Clear();
+        if (result.Value is not null)
+        {
+            TopTeams.AddRange(result.Value);
+            LeaderboardMessage = null;
+            return;
+        }
+
+        LeaderboardMessage = "Classement indisponible pour le moment.";
+    }
+
+    private void OpenClubSheet(ClubRankingResponse team)
     {
         SelectedClub = team;
     }
@@ -276,6 +284,6 @@
         AuthState.Changed -= StateHasChanged;
     }
 
-    private sealed record LeaderboardTeam(int Rank, string Name, int Points, int Division, string EaForm, int PlayerCount, double GoalsPerMatch, string LastSync, int TournamentsPlayed, string TournamentRecord, string BestRun, string KeyPlayer);
+    private static string GoalDifferenceLabel(ClubRankingResponse team) => team.GoalDifference > 0 ? $"+{team.GoalDifference}" : team.GoalDifference.ToString();
     private sealed record SearchResultItem(string Kind, string Title, string Detail, string Href);
 }

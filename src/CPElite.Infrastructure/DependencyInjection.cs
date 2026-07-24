@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<ITeamRepository, TeamRepository>();
         services.AddScoped<ITournamentRepository, TournamentRepository>();
+        services.AddScoped<IClubRankingRepository, ClubRankingRepository>();
         services.AddScoped<IEaApiCacheRepository, EaApiCacheRepository>();
         services.AddScoped<IEaSyncRepository, EaSyncRepository>();
         services.AddScoped<IEaDiagnosticsRepository, EaDiagnosticsRepository>();
@@ -93,6 +94,7 @@ public static class DependencyInjection
         services.AddScoped<EaSyncService>();
         services.AddScoped<EaDiagnosticsService>();
         services.AddScoped<TournamentService>();
+        services.AddScoped<ClubRankingService>();
         services.AddScoped<AccessService>();
         services.AddScoped<TournamentParticipationService>();
         services.AddScoped<ContentService>();
