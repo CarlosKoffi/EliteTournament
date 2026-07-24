@@ -1,0 +1,328 @@
+@page "/tournaments/{TournamentId:guid}"
+@inject ApiClient Api
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Elite Tournament - Detail tournoi</PageTitle>
+<HeadContent>
+    <link rel="stylesheet" href="css/elite-tournament.tournament-detail.css?v=20260724-1" />
+</HeadContent>
+
+<main class="et-detail-page">
+    @if (Loading)
+    {
+        <section class="et-detail-empty">
+            <strong>Chargement du tournoi</strong>
+            <p>On recupere les equipes inscrites, les matchs et les donnees EA liees.</p>
+        </section>
+    }
+    else if (!AuthState.IsAuthenticated)
+    {
+        <section class="et-detail-empty">
+            <strong>Connexion requise</strong>
+            <p>Les informations detaillees du tournoi sont disponibles apres connexion.</p>
+            <button type="button" class="etd-primary" @onclick='() => Navigation.NavigateTo("account")'>Se connecter</button>
+        </section>
+    }
+    else if (Detail is null)
+    {
+        <section class="et-detail-empty">
+            <strong>Tournoi introuvable</strong>
+            <p>@(ErrorMessage ?? "Impossible de charger ce tournoi depuis la base.")</p>
+            <button type="button" class="etd-secondary" @onclick='() => Navigation.NavigateTo("tournaments")'>Retour tournois</button>
+        </section>
+    }
+    else
+    {
+        <section class="et-detail-hero" style="@BuildBannerStyle(Detail.Tournament.BannerUrl)">
+            <button type="button" class="etd-back" @onclick='() => Navigation.NavigateTo("tournaments")'>Retour</button>
+            <div>
+                <span class="etd-kicker">@TournamentStatusLabel(Detail.Tournament)</span>
+                <h1>@Detail.Tournament.Name</h1>
+                <p>@TournamentIntro(Detail.Tournament)</p>
+            </div>
+            <aside class="etd-hero-score">
+                <span>@(Detail.Tournament.IsCashPrize ? "Goodies" : "Tournoi")</span>
+                <strong>@FormatDate(Detail.Tournament.StartsAt)</strong>
+                <small>@FormatTime(Detail.Tournament.StartsAt) @Detail.Tournament.TimeZone</small>
+            </aside>
+        </section>
+
+        <section class="etd-metrics">
+            <article><span>Equipes</span><strong>@Detail.RegistrationSummary.ActiveTeams / @Detail.RegistrationSummary.MaxTeams</strong></article>
+            <article><span>Places libres</span><strong>@Math.Max(Detail.RegistrationSummary.MaxTeams - Detail.RegistrationSummary.ActiveTeams, 0)</strong></article>
+            <article><span>Inscription</span><strong>@RegistrationWindowLabel</strong></article>
+            <article><span>Lots</span><strong>@PrizeLabel(Detail.Tournament)</strong></article>
+        </section>
+
+        @if (IsFinished)
+        {
+            <section class="etd-finished">
+                <div>
+                    <span class="etd-kicker">Tournoi termine</span>
+                    <h2>@WinnerLabel</h2>
+                    <p>@FinalLabel</p>
+                </div>
+                <div class="etd-podium">
+                    <span><b>1</b>@WinnerTeamName</span>
+                    <span><b>2</b>@FinalistTeamName</span>
+                    <span><b>3</b>@ThirdPlaceLabel</span>
+                </div>
+            </section>
+        }
+
+        <section class="etd-content-grid">
+            <article class="etd-panel">
+                <div class="etd-panel-head">
+                    <span>Equipes inscrites</span>
+                    <h2>@Detail.RegistrationSummary.Teams.Count equipe(s)</h2>
+                </div>
+                <div class="etd-team-list">
+                    @foreach (var team in Detail.RegistrationSummary.Teams.OrderBy(team => team.CreatedAt))
+                    {
+                        <div class="etd-team-row">
+                            <strong>@team.TeamName</strong>
+                            <span>@team.Status</span>
+                            <small>@(team.IsPaymentComplete ? "Paiement valide" : "Paiement en attente")</small>
+                        </div>
+                    }
+                </div>
+            </article>
+
+            <article class="etd-panel">
+                <div class="etd-panel-head">
+                    <span>Suivi des matchs</span>
+                    <h2>@Detail.Matches.Count match(s)</h2>
+                </div>
+                <div class="etd-match-list">
+                    @foreach (var match in Detail.Matches.OrderBy(match => match.ScheduledAt).ThenBy(match => match.MatchNumber))
+                    {
+                        <button type="button" class="etd-match-row @(SelectedMatch?.Id == match.Id ? "selected" : "")" @onclick="() => SelectMatchAsync(match)">
+                            <span>@StageLabel(match.Stage) @(string.IsNullOrWhiteSpace(match.GroupName) ? string.Empty : match.GroupName)</span>
+                            <strong>@TeamName(match.HomeTeamId) @Score(match.HomeScore) - @Score(match.AwayScore) @TeamName(match.AwayTeamId)</strong>
+                            <small>@match.Status - @match.ScheduledAt.LocalDateTime.ToString("dd/MM HH:mm")</small>
+                        </button>
+                    }
+                </div>
+            </article>
+        </section>
+
+        @if (SelectedMatch is not null)
+        {
+            <section class="etd-match-detail">
+                <div class="etd-panel-head">
+                    <span>Detail match</span>
+                    <h2>@TeamName(SelectedMatch.HomeTeamId) @Score(SelectedMatch.HomeScore) - @Score(SelectedMatch.AwayScore) @TeamName(SelectedMatch.AwayTeamId)</h2>
+                </div>
+
+                @if (LoadingMatchDetails)
+                {
+                    <p class="etd-muted">Chargement des stats EA du match...</p>
+                }
+                else if (SelectedFriendlyDetails is null)
+                {
+                    <p class="etd-muted">Aucun detail EA lie a ce match pour le moment. Le score reste visible depuis le tournoi, et les details apparaitront des qu'un match EA sera associe.</p>
+                }
+                else
+                {
+                    <div class="etd-score-strip">
+                        <span>@SelectedFriendlyDetails.Match.HomeClubName</span>
+                        <strong>@SelectedFriendlyDetails.Match.HomeScore - @SelectedFriendlyDetails.Match.AwayScore</strong>
+                        <span>@SelectedFriendlyDetails.Match.AwayClubName</span>
+                    </div>
+
+                    <div class="etd-player-teams">
+                        @foreach (var group in MatchPlayerGroups)
+                        {
+                            <article class="etd-player-team">
+                                <h3>@group.Name</h3>
+                                <div class="etd-player-card-grid">
+                                    @foreach (var player in group.Players.OrderByDescending(player => player.Rating ?? 0).ThenBy(player => player.PlayerName))
+                                    {
+                                        <div class="etd-player-card @PositionCss(player.Position)">
+                                            <div>
+                                                <span>@PositionGroup(player.Position)</span>
+                                                <strong>@player.PlayerName</strong>
+                                                <small>@PlayerMatchLine(player)</small>
+                                            </div>
+                                            <b>@RatingLabel(player.Rating)</b>
+                                        </div>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        }
+    }
+</main>
+
+@code {
+    [Parameter] public Guid TournamentId { get; set; }
+
+    private bool Loading { get; set; } = true;
+    private bool LoadingMatchDetails { get; set; }
+    private string? ErrorMessage { get; set; }
+    private Guid? CurrentTeamId { get; set; }
+    private TournamentAdminDetailResponse? Detail { get; set; }
+    private TournamentMatchResponse? SelectedMatch { get; set; }
+    private EaFriendlyMatchDetailsResponse? SelectedFriendlyDetails { get; set; }
+
+    private string RegistrationWindowLabel => Detail?.Tournament.RegistrationEndsAt is null ? "Ouverte" : $"jusqu'au {Detail.Tournament.RegistrationEndsAt.Value.LocalDateTime:dd/MM HH:mm}";
+    private bool IsFinished => Detail?.Tournament.Status == TournamentStatus.Completed || Detail?.Matches.Any(match => match.Stage == TournamentStage.Final && match.WinnerTeamId.HasValue) == true;
+    private TournamentMatchResponse? FinalMatch => Detail?.Matches.FirstOrDefault(match => match.Stage == TournamentStage.Final && match.HomeScore.HasValue && match.AwayScore.HasValue);
+    private string WinnerTeamName => FinalMatch?.WinnerTeamId is Guid winnerId ? TeamName(winnerId) : "Champion a confirmer";
+    private string FinalistTeamName => FinalMatch is null ? "Finaliste a confirmer" : TeamName(FinalMatch.WinnerTeamId == FinalMatch.HomeTeamId ? FinalMatch.AwayTeamId : FinalMatch.HomeTeamId);
+    private string ThirdPlaceLabel => Detail?.Matches.FirstOrDefault(match => match.Stage == TournamentStage.ThirdPlace && match.WinnerTeamId.HasValue) is { } third ? TeamName(third.WinnerTeamId!.Value) : "Non renseigne";
+    private string WinnerLabel => WinnerTeamName == "Champion a confirmer" ? "Resultat final a confirmer" : $"{WinnerTeamName} remporte le tournoi";
+    private string FinalLabel => FinalMatch is null ? "La finale n'est pas encore liee en base." : $"Finale: {TeamName(FinalMatch.HomeTeamId)} {Score(FinalMatch.HomeScore)} - {Score(FinalMatch.AwayScore)} {TeamName(FinalMatch.AwayTeamId)}";
+
+    private IReadOnlyCollection<MatchPlayerGroup> MatchPlayerGroups => SelectedFriendlyDetails is null
+        ? Array.Empty<MatchPlayerGroup>()
+        : new[]
+        {
+            new MatchPlayerGroup(SelectedFriendlyDetails.Match.HomeClubName ?? "Equipe domicile", SelectedFriendlyDetails.PlayerStats.Where(player => player.EaClubId == SelectedFriendlyDetails.Match.HomeEaClubId).ToArray()),
+            new MatchPlayerGroup(SelectedFriendlyDetails.Match.AwayClubName ?? "Equipe exterieure", SelectedFriendlyDetails.PlayerStats.Where(player => player.EaClubId == SelectedFriendlyDetails.Match.AwayEaClubId).ToArray())
+        };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthState.InitializeAsync();
+        if (!AuthState.IsAuthenticated)
+        {
+            Loading = false;
+            return;
+        }
+
+        try
+        {
+            var me = await Api.GetMeAsync();
+            CurrentTeamId = me.Value?.Memberships.FirstOrDefault(member => member.TeamId.HasValue)?.TeamId;
+            var detailResult = await Api.GetTournamentAdminDetailAsync(TournamentId);
+            if (!detailResult.Success || detailResult.Value is null)
+            {
+                ErrorMessage = detailResult.Error ?? "Detail tournoi indisponible.";
+                return;
+            }
+
+            Detail = detailResult.Value;
+            SelectedMatch = Detail.Matches.OrderBy(match => match.ScheduledAt).FirstOrDefault(match => match.HomeScore.HasValue || match.AwayScore.HasValue) ?? Detail.Matches.FirstOrDefault();
+            if (SelectedMatch is not null)
+            {
+                await LoadMatchDetailsAsync(SelectedMatch);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task SelectMatchAsync(TournamentMatchResponse match)
+    {
+        SelectedMatch = match;
+        await LoadMatchDetailsAsync(match);
+    }
+
+    private async Task LoadMatchDetailsAsync(TournamentMatchResponse match)
+    {
+        SelectedFriendlyDetails = null;
+        LoadingMatchDetails = true;
+        try
+        {
+            var candidates = new[] { CurrentTeamId, match.HomeTeamId, match.AwayTeamId }
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToArray();
+
+            foreach (var teamId in candidates)
+            {
+                var friendlies = await Api.GetTeamEaFriendliesAsync(teamId, 4, match.Id);
+                var friendly = friendlies.Value?.FirstOrDefault();
+                if (friendly is null)
+                {
+                    continue;
+                }
+
+                var details = await Api.GetTeamEaFriendlyDetailsAsync(teamId, friendly.EaMatchId);
+                if (details.Value is not null)
+                {
+                    SelectedFriendlyDetails = details.Value;
+                    return;
+                }
+            }
+        }
+        finally
+        {
+            LoadingMatchDetails = false;
+        }
+    }
+
+    private string TeamName(Guid teamId)
+    {
+        return Detail?.RegistrationSummary.Teams.FirstOrDefault(team => team.TeamId == teamId)?.TeamName ?? "Equipe";
+    }
+
+    private static string Score(int? score) => score?.ToString() ?? "-";
+    private static string FormatDate(DateTimeOffset value) => value.LocalDateTime.ToString("dd/MM/yyyy");
+    private static string FormatTime(DateTimeOffset value) => value.LocalDateTime.ToString("HH:mm");
+    private static string TournamentStatusLabel(TournamentResponse tournament) => tournament.Status.ToString();
+    private static string TournamentIntro(TournamentResponse tournament) => tournament.IsCashPrize
+        ? $"Tournoi goodies, {tournament.MaxTeams} equipes maximum. {tournament.GoodiesDescription}"
+        : $"Tournoi standard, {tournament.MaxTeams} equipes maximum. Scores et equipes suivis depuis la base.";
+    private static string PrizeLabel(TournamentResponse tournament) => tournament.IsCashPrize ? (string.IsNullOrWhiteSpace(tournament.GoodiesDescription) ? "Lots goodies" : tournament.GoodiesDescription!) : "Pas de goodies";
+    private static string BuildBannerStyle(string? bannerUrl) => string.IsNullOrWhiteSpace(bannerUrl)
+        ? string.Empty
+        : $"background-image: linear-gradient(90deg, rgba(7,7,14,.96), rgba(7,7,14,.55)), url('{bannerUrl}');";
+
+    private static string StageLabel(TournamentStage stage) => stage switch
+    {
+        TournamentStage.Group => "Poule",
+        TournamentStage.RoundOf16 => "16e",
+        TournamentStage.QuarterFinal => "Quart",
+        TournamentStage.SemiFinal => "Demi",
+        TournamentStage.Final => "Finale",
+        TournamentStage.ThirdPlace => "Petite finale",
+        _ => stage.ToString()
+    };
+
+    private static string PositionGroup(string? position)
+    {
+        if (string.IsNullOrWhiteSpace(position))
+        {
+            return "GEN";
+        }
+
+        var normalized = position.ToUpperInvariant();
+        if (normalized.Contains("GK") || normalized.Contains("GARDIEN")) return "GK";
+        if (normalized.Contains("CB") || normalized.Contains("DC") || normalized.Contains("LB") || normalized.Contains("RB") || normalized.Contains("DEF") || normalized.Contains("DD") || normalized.Contains("DG")) return "DEF";
+        if (normalized.Contains("CM") || normalized.Contains("CDM") || normalized.Contains("CAM") || normalized.Contains("MC") || normalized.Contains("MOC") || normalized.Contains("MDC") || normalized.Contains("MIL")) return "MIL";
+        if (normalized.Contains("ST") || normalized.Contains("LW") || normalized.Contains("RW") || normalized.Contains("BU") || normalized.Contains("AG") || normalized.Contains("AD") || normalized.Contains("ATT")) return "ATT";
+        return normalized.Length > 3 ? normalized[..3] : normalized;
+    }
+
+    private static string PositionCss(string? position) => PositionGroup(position).ToLowerInvariant();
+    private static string RatingLabel(double? rating) => rating?.ToString("0.0") ?? "-";
+    private static string Percent(double? value) => value.HasValue ? $"{value.Value:0}%" : "-";
+
+    private static string PlayerMatchLine(EaMatchPlayerStatResponse player)
+    {
+        return PositionGroup(player.Position) switch
+        {
+            "GK" => $"{player.Saves ?? 0} arrets - {player.GoalsConceded ?? 0} encaisse - clean sheet GK {player.CleanSheetsGk ?? 0}",
+            "DEF" => $"{player.TacklesMade ?? 0} tacles - {Percent(player.TackleSuccessRate)} tacles - clean sheet {player.CleanSheetsDef ?? 0}",
+            "MIL" => $"{Percent(player.PassSuccessRate)} passes - {player.PassesMade ?? 0} passes reussies - {player.TacklesMade ?? 0} tacles - {player.Assists ?? 0} assist",
+            "ATT" => $"{player.Goals ?? 0} buts - {player.Assists ?? 0} assist - {player.Shots ?? 0} tirs",
+            _ => $"{player.Goals ?? 0} buts - {player.Assists ?? 0} assists - {Percent(player.PassSuccessRate)} passes"
+        };
+    }
+
+    private sealed record MatchPlayerGroup(string Name, IReadOnlyCollection<EaMatchPlayerStatResponse> Players);
+}
+

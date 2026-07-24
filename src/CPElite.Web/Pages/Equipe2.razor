@@ -57,7 +57,7 @@
                 <button class="@TabClass("club")" @onclick='() => ActiveTab = "club"'>Club</button>
                 <button class="@TabClass("palmares")" @onclick='() => ActiveTab = "palmares"'>Palmares</button>
                 <button class="@TabClass("effectif")" @onclick='() => ActiveTab = "effectif"'>Effectif</button>
-                <button class="@TabClass("amicaux")" @onclick='() => ActiveTab = "amicaux"'>Matchs amicaux</button>
+                <button class="@TabClass("tournois")" @onclick='() => ActiveTab = "tournois"'>Statistiques tournois</button>
             </nav>
 
             @if (!string.IsNullOrWhiteSpace(Message))
@@ -307,35 +307,75 @@
                 </section>
             }
 
-            @if (ActiveTab == "amicaux")
+            @if (ActiveTab == "tournois")
             {
                 <section class="el-tab-panel">
                     <div class="el-section-head with-action">
                         <div>
-                            <span>Matchs amicaux EA</span>
-                            <h2>Historique stocke</h2>
+                            <span>Statistiques tournois</span>
+                            <h2>Tournois joues par le club</h2>
                         </div>
                         <button class="el-secondary" @onclick="RefreshEaAsync" disabled="@Refreshing">@RefreshLabel</button>
                     </div>
 
-                    @if (Friendlies.Count == 0)
+                    @if (TournamentSummary is null || TournamentSummary.RecentTournaments.Count == 0)
                     {
                         <section class="el-empty-state compact">
-                            <strong>Aucun match amical stocke</strong>
-                            <p>Rafraichis le club pour recuperer les matchs disponibles depuis l'API EA puis les afficher depuis la base.</p>
+                            <strong>Aucun tournoi lie en base</strong>
+                            <p>Les tournois auxquels le club participe apparaitront ici avec les meilleurs joueurs calcules depuis les matchs stockes.</p>
                         </section>
                     }
                     else
                     {
-                        <div class="el-friendly-grid">
-                            @foreach (var match in Friendlies)
-                            {
-                                <article class="el-friendly-card">
-                                    <span>@match.PlayedAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
-                                    <h3>@match.HomeClubName @match.HomeScore - @match.AwayScore @match.AwayClubName</h3>
-                                    <p>@match.PlayerStatCount stats joueurs stockees - ID @match.EaMatchId</p>
-                                </article>
-                            }
+                        <div class="el-tournament-stats-layout">
+                            <div class="el-tournament-card-list">
+                                @foreach (var tournament in TournamentSummary.RecentTournaments)
+                                {
+                                    <button type="button" class="el-tournament-history-card @(SelectedTournamentId == tournament.TournamentId ? "selected" : "")" @onclick="() => SelectTournament(tournament.TournamentId)">
+                                        <span>@tournament.StartsAt.LocalDateTime.ToString("dd/MM/yyyy")</span>
+                                        <strong>@tournament.Name</strong>
+                                        <small>@tournament.FinishLabel - @tournament.Wins V / @tournament.Draws N / @tournament.Losses D</small>
+                                    </button>
+                                }
+                            </div>
+
+                            <article class="el-card el-tournament-awards">
+                                @if (SelectedTournament is null)
+                                {
+                                    <div class="el-empty-state compact">
+                                        <strong>Selectionne un tournoi</strong>
+                                        <p>On affichera les meilleurs joueurs du club sur cette competition.</p>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="el-section-head small">
+                                        <span>@SelectedTournament.FinishLabel</span>
+                                        <h2>@SelectedTournament.Name</h2>
+                                    </div>
+                                    <div class="el-award-grid">
+                                        @AwardCard("Meilleur joueur", SelectedTournament.BestRatedPlayer, "Note moyenne")
+                                        @AwardCard("Meilleur buteur", SelectedTournament.TopScorer, "Buts")
+                                        @AwardCard("Meilleur passeur", SelectedTournament.TopAssister, "Assists")
+                                        @AwardCard("Mur du tournoi", SelectedTournament.WallPlayer, "Defense / GK")
+                                    </div>
+
+                                    <div class="el-section-head small">
+                                        <span>Matchs du tournoi</span>
+                                        <h2>Parcours</h2>
+                                    </div>
+                                    <div class="el-friendly-grid">
+                                        @foreach (var match in TournamentSummary.RecentMatches.Where(match => match.TournamentId == SelectedTournament.TournamentId).OrderBy(match => match.ScheduledAt))
+                                        {
+                                            <button type="button" class="el-friendly-card @(match.IsWin ? "win" : match.IsDraw ? "draw" : "loss")" @onclick="() => OpenTournamentDetail(match.TournamentId)">
+                                                <span>@StageLabel(match.Stage) - @match.ScheduledAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
+                                                <h3>@(match.HomeTeamName ?? "Equipe") @ScoreLabel(match.HomeScore) - @ScoreLabel(match.AwayScore) @(match.AwayTeamName ?? "Equipe")</h3>
+                                                <p>@ResultLabel(match)</p>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </article>
                         </div>
                     }
                 </section>
@@ -358,6 +398,7 @@
     private Dictionary<string, EaTournamentPlayerStatsResponse> TournamentPlayerStats { get; } = new(StringComparer.OrdinalIgnoreCase);
     private RosterPlayerView? SelectedPlayer { get; set; }
     private TeamTournamentSummaryResponse? TournamentSummary { get; set; }
+    private Guid? SelectedTournamentId { get; set; }
 
     private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
     private string ClubInitials => string.Join("", ClubName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
@@ -396,6 +437,7 @@
         : $"background: conic-gradient(#00e676 0 {CssPercent(WinSlice)}%, #f5c518 {CssPercent(WinSlice)}% {CssPercent(DrawSlice)}%, #ff5252 {CssPercent(DrawSlice)}% 100%);";
     private double WinSlice => TotalMatches == 0 ? 0 : (double)Wins / TotalMatches * 100;
     private double DrawSlice => TotalMatches == 0 ? 0 : (double)(Wins + Draws) / TotalMatches * 100;
+    private TeamTournamentHistoryItemResponse? SelectedTournament => TournamentSummary?.RecentTournaments.FirstOrDefault(tournament => tournament.TournamentId == SelectedTournamentId);
     private EaTournamentPlayerStatsResponse? SelectedTournamentStats => SelectedPlayer?.TournamentStats;
 
     protected override async Task OnInitializedAsync()
@@ -457,6 +499,7 @@
 
             RebuildRosterPlayers();
             SelectedPlayer = RosterPlayers.FirstOrDefault();
+            SelectedTournamentId ??= TournamentSummary?.RecentTournaments.FirstOrDefault()?.TournamentId;
 
             var friendliesResult = await Api.GetTeamEaFriendliesAsync(CurrentTeamId.Value, take: 20);
             Friendlies.Clear();
@@ -491,6 +534,16 @@
     private void SelectPlayer(RosterPlayerView player)
     {
         SelectedPlayer = player;
+    }
+
+    private void OpenTournamentDetail(Guid tournamentId)
+    {
+        Navigation.NavigateTo($"tournaments/{tournamentId}");
+    }
+
+    private void SelectTournament(Guid tournamentId)
+    {
+        SelectedTournamentId = tournamentId;
     }
 
     private void RebuildRosterPlayers()
@@ -670,6 +723,30 @@
         return string.IsNullOrWhiteSpace(stats.VproAttributes) ? "-" : stats.VproAttributes;
     }
 
+    private RenderFragment AwardCard(string title, TeamTournamentPlayerAwardResponse? player, string metric) => @<article class="el-award-card">
+        <span>@title</span>
+        @if (player is null)
+        {
+            <strong>-</strong>
+            <small>Aucune donnee suffisante</small>
+        }
+        else
+        {
+            <strong>@player.PlayerName</strong>
+            <small>@AwardSummary(player, metric)</small>
+        }
+    </article>;
+
+    private static string AwardSummary(TeamTournamentPlayerAwardResponse player, string metric)
+    {
+        return metric switch
+        {
+            "Note moyenne" => $"{RatingLabel(player.Rating)} note - {player.Matches} match(s)",
+            "Buts" => $"{player.Goals} buts - {player.Shots} tirs - {RatingLabel(player.Rating)} note",
+            "Assists" => $"{player.Assists} assists - {player.PassesMade} passes - {PercentLabel(player.PassSuccessRate)}",
+            _ => $"{player.TacklesMade} tacles - {player.Saves} arrets - {player.CleanSheets} clean sheets"
+        };
+    }
     private static string ScoreLabel(int? score) => score?.ToString() ?? "-";
 
     private static string ResultLabel(TeamTournamentMatchSummaryResponse match)
@@ -771,3 +848,4 @@
                 "Stats tournoi");
     }
 }
+

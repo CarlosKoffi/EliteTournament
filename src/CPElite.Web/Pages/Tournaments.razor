@@ -30,7 +30,7 @@
         <section class="et-tournament-grid">
             @foreach (var tournament in VisibleTournaments)
             {
-                <article class="et-tournament-card @GetTierCss(tournament.Tier)" style="@BuildTournamentBannerStyle(tournament.BannerUrl)">
+                <article class="et-tournament-card @GetTierCss(tournament.Tier)" style="@BuildTournamentBannerStyle(tournament.BannerUrl)" role="button" tabindex="0" @onclick="() => OpenTournamentDetail(tournament.Id)">
                     <div class="et-tournament-card-top">
                         <span class="et-tier-pill">@GetTierLabel(tournament.Tier)</span>
                         <span class="et-tournament-status">@GetTournamentStatusLabel(tournament)</span>
@@ -64,13 +64,13 @@
 
                     @if (AuthState.IsAuthenticated)
                     {
-                        <button type="button" class="et-tournament-action @(tournament.IsUrgent ? "urgent" : "")" disabled="@IsTournamentClosed(tournament)" @onclick="() => PrepareTournamentAsync(tournament)">
+                        <button type="button" class="et-tournament-action @(tournament.IsUrgent ? "urgent" : "")" disabled="@IsTournamentClosed(tournament)" @onclick:stopPropagation @onclick="() => PrepareTournamentAsync(tournament)">
                             @BuildTournamentActionLabel(tournament)
                         </button>
                     }
                     else
                     {
-                        <a class="et-tournament-action" href="account">Creer un compte</a>
+                        <a class="et-tournament-action" href="account" @onclick:stopPropagation>Creer un compte</a>
                     }
                 </article>
             }
@@ -278,7 +278,7 @@
                                 <div><span>Date</span><strong>@FormatTournamentDate(tournament.StartsAt)</strong></div>
                                 <div><span>Places</span><strong>@tournament.MaxTeams</strong></div>
                             </div>
-                            <button type="button" class="primary-action" @onclick="() => PrepareTournamentAsync(tournament)">Preparer mon equipe</button>
+                            <button type="button" class="primary-action" @onclick:stopPropagation @onclick="() => PrepareTournamentAsync(tournament)">Preparer mon equipe</button>
                         </article>
                     }
                 </div>
@@ -953,6 +953,10 @@
         await ScrollToPreparationAsync();
     }
 
+    private void OpenTournamentDetail(Guid tournamentId)
+    {
+        Navigation.NavigateTo($"tournaments/{tournamentId}");
+    }
     private async Task PrepareTournamentAsync(TournamentResponse tournament)
     {
         if (!AuthState.IsAuthenticated)
@@ -1968,3 +1972,4 @@
         AuthState.Changed -= OnAuthStateChanged;
     }
 }
+

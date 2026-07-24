@@ -91,34 +91,41 @@ public sealed class TournamentService
             .Select(match => ToTeamTournamentMatchSummary(match, teamId, registrationTeamsByTournament))
             .ToArray();
 
-        var history = registrations
-            .Where(registration => registration.Tournament is not null)
-            .Select(registration =>
-            {
-                var tournamentMatches = matches.Where(match => match.TournamentId == registration.TournamentId).ToArray();
-                var scoredTournamentMatches = tournamentMatches.Where(match => match.HomeScore.HasValue && match.AwayScore.HasValue).ToArray();
-                var isChampion = championTournamentIds.Contains(registration.TournamentId) || tournamentMatches.Any(match => match.Stage == DomainStage.Final && match.WinnerTeamId == teamId);
-                var reachedFinal = tournamentMatches.Any(match => match.Stage == DomainStage.Final);
-                var reachedSemi = tournamentMatches.Any(match => match.Stage == DomainStage.SemiFinal);
-                var reachedQuarter = tournamentMatches.Any(match => match.Stage == DomainStage.QuarterFinal);
-                var reachedRoundOf16 = tournamentMatches.Any(match => match.Stage == DomainStage.RoundOf16);
+        var historyItems = new List<TeamTournamentHistoryItemResponse>();
+        foreach (var registration in registrations.Where(registration => registration.Tournament is not null))
+        {
+            var tournamentMatches = matches.Where(match => match.TournamentId == registration.TournamentId).ToArray();
+            var scoredTournamentMatches = tournamentMatches.Where(match => match.HomeScore.HasValue && match.AwayScore.HasValue).ToArray();
+            var isChampion = championTournamentIds.Contains(registration.TournamentId) || tournamentMatches.Any(match => match.Stage == DomainStage.Final && match.WinnerTeamId == teamId);
+            var reachedFinal = tournamentMatches.Any(match => match.Stage == DomainStage.Final);
+            var reachedSemi = tournamentMatches.Any(match => match.Stage == DomainStage.SemiFinal);
+            var reachedQuarter = tournamentMatches.Any(match => match.Stage == DomainStage.QuarterFinal);
+            var reachedRoundOf16 = tournamentMatches.Any(match => match.Stage == DomainStage.RoundOf16);
+            var playerStats = await _eaSnapshots.GetTournamentPlayerStatsForTournamentAsync(teamId, registration.TournamentId, cancellationToken);
+            var awards = BuildTournamentAwards(playerStats);
 
-                return new TeamTournamentHistoryItemResponse(
-                    registration.TournamentId,
-                    registration.Tournament!.Name,
-                    (ContractTournamentType)(int)registration.Tournament.Type,
-                    (ContractTournamentStatus)(int)registration.Tournament.Status,
-                    (ContractTournamentTier)(int)registration.Tournament.Tier,
-                    registration.Tournament.StartsAt,
-                    isChampion,
-                    ResolveFinishLabel(isChampion, reachedFinal, reachedSemi, reachedQuarter, reachedRoundOf16),
-                    scoredTournamentMatches.Length,
-                    scoredTournamentMatches.Count(match => IsTeamWin(match, teamId)),
-                    scoredTournamentMatches.Count(match => match.HomeScore == match.AwayScore),
-                    scoredTournamentMatches.Count(match => !IsTeamWin(match, teamId) && match.HomeScore != match.AwayScore),
-                    scoredTournamentMatches.Sum(match => GoalsFor(match, teamId)),
-                    scoredTournamentMatches.Sum(match => GoalsAgainst(match, teamId)));
-            })
+            historyItems.Add(new TeamTournamentHistoryItemResponse(
+                registration.TournamentId,
+                registration.Tournament!.Name,
+                (ContractTournamentType)(int)registration.Tournament.Type,
+                (ContractTournamentStatus)(int)registration.Tournament.Status,
+                (ContractTournamentTier)(int)registration.Tournament.Tier,
+                registration.Tournament.StartsAt,
+                isChampion,
+                ResolveFinishLabel(isChampion, reachedFinal, reachedSemi, reachedQuarter, reachedRoundOf16),
+                scoredTournamentMatches.Length,
+                scoredTournamentMatches.Count(match => IsTeamWin(match, teamId)),
+                scoredTournamentMatches.Count(match => match.HomeScore == match.AwayScore),
+                scoredTournamentMatches.Count(match => !IsTeamWin(match, teamId) && match.HomeScore != match.AwayScore),
+                scoredTournamentMatches.Sum(match => GoalsFor(match, teamId)),
+                scoredTournamentMatches.Sum(match => GoalsAgainst(match, teamId)),
+                awards.BestRated,
+                awards.TopScorer,
+                awards.TopAssister,
+                awards.Wall));
+        }
+
+        var history = historyItems
             .OrderByDescending(item => item.StartsAt)
             .Take(8)
             .ToArray();
@@ -1212,6 +1219,81 @@ public sealed class TournamentService
             GoalsAgainst(match, teamId));
     }
 
+    private static TournamentAwards BuildTournamentAwards(IReadOnlyCollection<EaTournamentPlayerStatsAggregate> stats)
+    {
+        if (stats.Count == 0)
+        {
+            return new TournamentAwards(null, null, null, null);
+        }
+
+        var bestRated = stats
+            .Where(stat => stat.AverageRating.HasValue)
+            .OrderByDescending(stat => stat.AverageRating!.Value)
+            .ThenByDescending(stat => stat.PlayerOfTheMatch)
+            .ThenByDescending(stat => stat.Goals + stat.Assists)
+            .FirstOrDefault();
+
+        var topScorer = stats
+            .OrderByDescending(stat => stat.Goals)
+            .ThenByDescending(stat => stat.AverageRating ?? 0)
+            .ThenBy(stat => stat.PlayerName)
+            .FirstOrDefault(stat => stat.Goals > 0);
+
+        var topAssister = stats
+            .OrderByDescending(stat => stat.Assists)
+            .ThenByDescending(stat => stat.PassSuccessRate ?? 0)
+            .ThenBy(stat => stat.PlayerName)
+            .FirstOrDefault(stat => stat.Assists > 0);
+
+        var wall = stats
+            .OrderByDescending(WallScore)
+            .ThenByDescending(stat => stat.AverageRating ?? 0)
+            .ThenBy(stat => stat.PlayerName)
+            .FirstOrDefault(stat => WallScore(stat) > 0);
+
+        return new TournamentAwards(
+            ToAward(bestRated, "Meilleure note"),
+            ToAward(topScorer, "Meilleur buteur"),
+            ToAward(topAssister, "Meilleur passeur"),
+            ToAward(wall, "Mur du tournoi"));
+    }
+
+    private static int WallScore(EaTournamentPlayerStatsAggregate stat)
+    {
+        return stat.Saves * 3 + stat.CleanSheetsGk * 5 + stat.CleanSheetsDef * 3 + stat.TacklesMade + stat.GoalsConceded * -1;
+    }
+
+    private static TeamTournamentPlayerAwardResponse? ToAward(EaTournamentPlayerStatsAggregate? stat, string label)
+    {
+        if (stat is null)
+        {
+            return null;
+        }
+
+        return new TeamTournamentPlayerAwardResponse(
+            stat.PlayerName,
+            stat.Position,
+            label,
+            stat.AverageRating,
+            stat.Matches,
+            stat.Goals,
+            stat.Assists,
+            stat.Shots,
+            stat.PassesMade,
+            stat.PassSuccessRate,
+            stat.TacklesMade,
+            stat.TackleSuccessRate,
+            stat.Saves,
+            stat.GoalsConceded,
+            stat.CleanSheetsAny + stat.CleanSheetsDef + stat.CleanSheetsGk,
+            stat.PlayerOfTheMatch);
+    }
+
+    private sealed record TournamentAwards(
+        TeamTournamentPlayerAwardResponse? BestRated,
+        TeamTournamentPlayerAwardResponse? TopScorer,
+        TeamTournamentPlayerAwardResponse? TopAssister,
+        TeamTournamentPlayerAwardResponse? Wall);
     private static bool IsTeamWin(TournamentMatch match, Guid teamId) => match.WinnerTeamId == teamId;
 
     private static int GoalsFor(TournamentMatch match, Guid teamId)
@@ -1894,3 +1976,4 @@ public sealed class TournamentService
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+

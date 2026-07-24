@@ -40,19 +40,40 @@ public sealed class EaSyncRepository : IEaSyncRepository
 
     public async Task<IReadOnlyCollection<EaTournamentPlayerStatsAggregate>> GetTournamentPlayerStatsAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
+        return await GetTournamentPlayerStatsCoreAsync(teamId, null, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<EaTournamentPlayerStatsAggregate>> GetTournamentPlayerStatsForTournamentAsync(Guid teamId, Guid tournamentId, CancellationToken cancellationToken = default)
+    {
+        return await GetTournamentPlayerStatsCoreAsync(teamId, tournamentId, cancellationToken);
+    }
+
+    private async Task<IReadOnlyCollection<EaTournamentPlayerStatsAggregate>> GetTournamentPlayerStatsCoreAsync(Guid teamId, Guid? tournamentId, CancellationToken cancellationToken)
+    {
         var teamEaClubId = await _dbContext.Teams
             .Where(team => team.Id == teamId)
             .Select(team => team.EaClubId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var stats = await _dbContext.EaMatchPlayerStats
+        var query = _dbContext.EaMatchPlayerStats
             .Include(stat => stat.Match)
             .Where(stat => stat.TeamId == teamId
                 && stat.Match != null
                 && stat.Match.TournamentMatchId != null
-                && stat.EaClubId == (teamEaClubId ?? stat.Match.EaClubId))
-            .ToArrayAsync(cancellationToken);
+                && stat.EaClubId == (teamEaClubId ?? stat.Match.EaClubId));
 
+        if (tournamentId.HasValue)
+        {
+            query = query.Where(stat => _dbContext.TournamentMatches
+                .Any(match => match.Id == stat.Match!.TournamentMatchId && match.TournamentId == tournamentId.Value));
+        }
+
+        var stats = await query.ToArrayAsync(cancellationToken);
+        return BuildTournamentPlayerStats(stats);
+    }
+
+    private static IReadOnlyCollection<EaTournamentPlayerStatsAggregate> BuildTournamentPlayerStats(IReadOnlyCollection<EaMatchPlayerStat> stats)
+    {
         return stats
             .GroupBy(stat => stat.EaPlayerId, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
@@ -248,3 +269,4 @@ public sealed class EaSyncRepository : IEaSyncRepository
         return values.Length == 0 ? null : Math.Round(values.Average(), 2);
     }
 }
+

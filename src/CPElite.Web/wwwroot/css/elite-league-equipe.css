@@ -712,3 +712,87 @@ body:has(.el-team-page) .content {
         grid-template-columns: 1fr;
     }
 }
+
+.el-tournament-stats-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, .48fr) minmax(0, 1fr);
+    gap: 20px;
+}
+
+.el-tournament-card-list {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+}
+
+.el-tournament-history-card {
+    display: grid;
+    gap: 5px;
+    min-height: 96px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 14px;
+    background: #10101a;
+    color: #f0f0f8;
+    text-align: left;
+}
+
+.el-tournament-history-card:hover,
+.el-tournament-history-card.selected {
+    border-color: rgba(0, 230, 118, .35);
+    background: #0b211e;
+    box-shadow: inset 3px 0 0 #00e676;
+}
+
+.el-tournament-history-card span,
+.el-award-card span {
+    color: #00e676;
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.el-tournament-history-card strong,
+.el-award-card strong {
+    color: #f0f0f8;
+    font-weight: 900;
+}
+
+.el-tournament-history-card small,
+.el-award-card small {
+    color: #8888aa;
+    font-weight: 800;
+}
+
+.el-tournament-awards {
+    display: grid;
+    gap: 18px;
+}
+
+.el-award-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.el-award-card {
+    display: grid;
+    gap: 8px;
+    min-height: 122px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 12px;
+    background: #07070e;
+}
+
+.el-award-card strong {
+    font-size: 1.05rem;
+}
+
+@media (max-width: 1100px) {
+    .el-tournament-stats-layout,
+    .el-award-grid {
+        grid-template-columns: 1fr;
+    }
+}

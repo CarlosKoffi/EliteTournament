@@ -32,7 +32,11 @@ public sealed record TeamTournamentHistoryItemResponse(
     int Draws,
     int Losses,
     int GoalsFor,
-    int GoalsAgainst);
+    int GoalsAgainst,
+    TeamTournamentPlayerAwardResponse? BestRatedPlayer,
+    TeamTournamentPlayerAwardResponse? TopScorer,
+    TeamTournamentPlayerAwardResponse? TopAssister,
+    TeamTournamentPlayerAwardResponse? WallPlayer);
 
 public sealed record TeamTournamentMatchSummaryResponse(
     Guid MatchId,
@@ -54,3 +58,21 @@ public sealed record TeamTournamentMatchSummaryResponse(
     bool IsDraw,
     int GoalsFor,
     int GoalsAgainst);
+
+public sealed record TeamTournamentPlayerAwardResponse(
+    string PlayerName,
+    string? Position,
+    string Label,
+    double? Rating,
+    int Matches,
+    int Goals,
+    int Assists,
+    int Shots,
+    int PassesMade,
+    double? PassSuccessRate,
+    int TacklesMade,
+    double? TackleSuccessRate,
+    int Saves,
+    int GoalsConceded,
+    int CleanSheets,
+    int PlayerOfTheMatch);

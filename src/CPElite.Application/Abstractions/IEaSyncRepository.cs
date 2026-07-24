@@ -9,6 +9,7 @@ public interface IEaSyncRepository
     Task<EaMatchSnapshot?> GetMatchSnapshotAsync(Guid teamId, string matchType, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<EaPlayerProfileSnapshot>> GetPlayerProfilesAsync(Guid teamId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<EaTournamentPlayerStatsAggregate>> GetTournamentPlayerStatsAsync(Guid teamId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<EaTournamentPlayerStatsAggregate>> GetTournamentPlayerStatsForTournamentAsync(Guid teamId, Guid tournamentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<EaFriendlyMatch>> GetFriendlyMatchesAsync(Guid teamId, int take = 20, CancellationToken cancellationToken = default, Guid? tournamentMatchId = null);
     Task<IReadOnlyCollection<EaFriendlyMatch>> GetFriendlyMatchesForLookupAsync(Guid teamId, DateTimeOffset from, DateTimeOffset until, long homeEaClubId, long awayEaClubId, CancellationToken cancellationToken = default);
     Task<EaFriendlyMatch?> GetFriendlyMatchAsync(Guid teamId, string eaMatchId, CancellationToken cancellationToken = default);
@@ -19,3 +20,5 @@ public interface IEaSyncRepository
     Task UpsertFriendlyMatchesAsync(Guid teamId, IReadOnlyCollection<EaFriendlyMatch> matches, IReadOnlyCollection<EaMatchPlayerStat> playerStats, IReadOnlyCollection<EaMatchClubStat> clubStats, CancellationToken cancellationToken = default);
     Task LinkFriendlyMatchToTournamentMatchAsync(string eaMatchId, Guid tournamentMatchId, CancellationToken cancellationToken = default);
 }
+
+
