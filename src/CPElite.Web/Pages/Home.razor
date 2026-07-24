@@ -39,6 +39,7 @@
                 <div><strong>@CountdownDays</strong><span>Jours</span></div>
                 <div><strong>@CountdownHours</strong><span>Heures</span></div>
                 <div><strong>@CountdownMinutes</strong><span>Min</span></div>
+                <div><strong>@CountdownSeconds</strong><span>Sec</span></div>
             </div>
 
             <div class="et-tournament-meta">
@@ -228,10 +229,15 @@
 
     private string NextTournamentName => "Saturday Goodies Cup";
     private string NextTournamentKickoff => "25/07 - 22:30 CET";
-    private int CountdownDays => 2;
-    private int CountdownHours => 7;
-    private int CountdownMinutes => 30;
+    private DateTimeOffset NextTournamentStartsAt { get; } = new(2026, 7, 25, 22, 30, 0, TimeSpan.FromHours(2));
+    private TimeSpan CountdownRemaining { get; set; } = TimeSpan.Zero;
+    private int CountdownDays => Math.Max(CountdownRemaining.Days, 0);
+    private int CountdownHours => Math.Max(CountdownRemaining.Hours, 0);
+    private int CountdownMinutes => Math.Max(CountdownRemaining.Minutes, 0);
+    private int CountdownSeconds => Math.Max(CountdownRemaining.Seconds, 0);
     private string RemainingSlotsLabel => "14 places";
+    private PeriodicTimer? CountdownTimer { get; set; }
+    private CancellationTokenSource? CountdownCancellation { get; set; }
 
     private IEnumerable<SearchResultItem> GlobalResults => SearchSeed.Where(item =>
         (SearchType == "Tout" || item.Kind == SearchType)
@@ -252,7 +258,42 @@
     protected override async Task OnInitializedAsync()
     {
         AuthState.Changed += StateHasChanged;
+        UpdateCountdown();
+        StartCountdown();
         await LoadLeaderboardAsync();
+    }
+
+    private void StartCountdown()
+    {
+        CountdownCancellation = new CancellationTokenSource();
+        CountdownTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = RunCountdownAsync(CountdownCancellation.Token);
+    }
+
+    private async Task RunCountdownAsync(CancellationToken cancellationToken)
+    {
+        if (CountdownTimer is null)
+        {
+            return;
+        }
+
+        try
+        {
+            while (await CountdownTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                UpdateCountdown();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void UpdateCountdown()
+    {
+        var remaining = NextTournamentStartsAt - DateTimeOffset.Now;
+        CountdownRemaining = remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     private async Task LoadLeaderboardAsync()
@@ -281,6 +322,9 @@
 
     public void Dispose()
     {
+        CountdownCancellation?.Cancel();
+        CountdownCancellation?.Dispose();
+        CountdownTimer?.Dispose();
         AuthState.Changed -= StateHasChanged;
     }
 
