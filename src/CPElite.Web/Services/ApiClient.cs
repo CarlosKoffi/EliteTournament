@@ -147,6 +147,17 @@ public sealed class ApiClient
     public Task<ApiResult<TournamentRegistrationSummaryResponse>> GetTournamentBoardAsync(Guid tournamentId) =>
         SendAsync<TournamentRegistrationSummaryResponse>(HttpMethod.Get, $"api/tournaments/{tournamentId}/registrations");
 
+    public Task<ApiResult<IReadOnlyCollection<TournamentRegistrationEventResponse>>> GetTournamentRegistrationEventsAsync(Guid tournamentId, Guid? teamId = null)
+    {
+        var url = $"api/tournaments/{tournamentId}/registrations/events";
+        if (teamId.HasValue)
+        {
+            url += $"?teamId={teamId.Value}";
+        }
+
+        return SendAsync<IReadOnlyCollection<TournamentRegistrationEventResponse>>(HttpMethod.Get, url);
+    }
+
     public Task<ApiResult<TournamentRegistrationReplacementResponse>> WithdrawTournamentRegistrationAsync(Guid tournamentId, Guid teamId) =>
         SendAsync<TournamentRegistrationReplacementResponse>(HttpMethod.Post, $"api/tournaments/{tournamentId}/registrations/{teamId}/withdraw");
 

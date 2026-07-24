@@ -26,6 +26,7 @@ public sealed class CPEliteDbContext : DbContext
     public DbSet<EaMatchClubStat> EaMatchClubStats => Set<EaMatchClubStat>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<TournamentRegistration> TournamentRegistrations => Set<TournamentRegistration>();
+    public DbSet<TournamentRegistrationEvent> TournamentRegistrationEvents => Set<TournamentRegistrationEvent>();
     public DbSet<TournamentMatch> TournamentMatches => Set<TournamentMatch>();
     public DbSet<MatchScoreSubmission> MatchScoreSubmissions => Set<MatchScoreSubmission>();
     public DbSet<ChampionTitle> ChampionTitles => Set<ChampionTitle>();
@@ -358,6 +359,30 @@ public sealed class CPEliteDbContext : DbContext
             entity.HasOne(registration => registration.Team)
                 .WithMany()
                 .HasForeignKey(registration => registration.TeamId);
+        });
+
+        modelBuilder.Entity<TournamentRegistrationEvent>(entity =>
+        {
+            entity.HasKey(registrationEvent => registrationEvent.Id);
+            entity.HasIndex(registrationEvent => new { registrationEvent.TournamentId, registrationEvent.TeamId, registrationEvent.CreatedAt });
+            entity.HasIndex(registrationEvent => registrationEvent.TournamentRegistrationId);
+            entity.HasIndex(registrationEvent => new { registrationEvent.EventType, registrationEvent.CreatedAt });
+            entity.Property(registrationEvent => registrationEvent.EventType).HasMaxLength(80).IsRequired();
+            entity.Property(registrationEvent => registrationEvent.Step).HasMaxLength(80).IsRequired();
+            entity.Property(registrationEvent => registrationEvent.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(registrationEvent => registrationEvent.PayloadJson).HasColumnType("jsonb");
+            entity.HasOne(registrationEvent => registrationEvent.Tournament)
+                .WithMany()
+                .HasForeignKey(registrationEvent => registrationEvent.TournamentId);
+            entity.HasOne(registrationEvent => registrationEvent.Team)
+                .WithMany()
+                .HasForeignKey(registrationEvent => registrationEvent.TeamId);
+            entity.HasOne(registrationEvent => registrationEvent.TournamentRegistration)
+                .WithMany()
+                .HasForeignKey(registrationEvent => registrationEvent.TournamentRegistrationId);
+            entity.HasOne(registrationEvent => registrationEvent.ActorUser)
+                .WithMany()
+                .HasForeignKey(registrationEvent => registrationEvent.ActorUserId);
         });
 
         modelBuilder.Entity<TournamentMatch>(entity =>

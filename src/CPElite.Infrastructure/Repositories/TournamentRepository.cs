@@ -114,6 +114,24 @@ public sealed class TournamentRepository : ITournamentRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<TournamentRegistrationEvent>> GetRegistrationEventsAsync(Guid tournamentId, Guid? teamId = null, int take = 200, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.TournamentRegistrationEvents
+            .Include(registrationEvent => registrationEvent.Team)
+            .Include(registrationEvent => registrationEvent.ActorUser)
+            .Where(registrationEvent => registrationEvent.TournamentId == tournamentId);
+
+        if (teamId.HasValue)
+        {
+            query = query.Where(registrationEvent => registrationEvent.TeamId == teamId.Value);
+        }
+
+        return await query
+            .OrderByDescending(registrationEvent => registrationEvent.CreatedAt)
+            .Take(Math.Clamp(take, 1, 500))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task<TournamentRegistration?> GetRegistrationAsync(Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default)
     {
         return _dbContext.TournamentRegistrations
@@ -163,6 +181,11 @@ public sealed class TournamentRepository : ITournamentRepository
     public async Task AddScoreAuditAsync(TournamentScoreAudit audit, CancellationToken cancellationToken = default)
     {
         await _dbContext.TournamentScoreAudits.AddAsync(audit, cancellationToken);
+    }
+
+    public async Task AddRegistrationEventAsync(TournamentRegistrationEvent registrationEvent, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.TournamentRegistrationEvents.AddAsync(registrationEvent, cancellationToken);
     }
 
     public Task<TournamentMoment?> GetMomentAsync(Guid momentId, CancellationToken cancellationToken = default)

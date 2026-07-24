@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CPElite.Application.Abstractions;
 using CPElite.Contracts.Common;
 using CPElite.Contracts.TournamentParticipation;
@@ -68,6 +69,15 @@ public sealed class TournamentParticipationService
 
         var confirmation = new TournamentPlayerConfirmation(Guid.NewGuid(), tournamentId, teamId, request.UserId, request.Position.Trim(), request.IsLoan, request.LoanFromTeamId, _clock.UtcNow);
         await _participants.AddAsync(confirmation, cancellationToken);
+        await TrackParticipantEventAsync(
+            tournamentId,
+            teamId,
+            actorUserId,
+            "roster.player_added",
+            "step2.prepare_roster",
+            "Player added to tournament roster.",
+            new { request.UserId, Position = request.Position.Trim(), request.IsLoan, request.LoanFromTeamId },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<TournamentParticipantResponse>.Success(ToResponse(confirmation));
     }
@@ -93,6 +103,15 @@ public sealed class TournamentParticipationService
             confirmation.MarkReminderSent(_clock.UtcNow);
         }
 
+        await TrackParticipantEventAsync(
+            tournamentId,
+            teamId,
+            actorUserId,
+            "presence.reminder_sent",
+            "step3.final_confirmation",
+            "Pending players were reminded to confirm presence.",
+            new { PendingPlayers = pending.Length, UserIds = pending.Select(player => player.UserId).ToArray() },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<TournamentParticipantReminderResponse>.Success(new TournamentParticipantReminderResponse(tournamentId, teamId, pending.Length, _clock.UtcNow));
     }
@@ -112,6 +131,15 @@ public sealed class TournamentParticipationService
         }
 
         confirmation.ApproveLoan(actorUserId, _clock.UtcNow);
+        await TrackParticipantEventAsync(
+            tournamentId,
+            teamId,
+            actorUserId,
+            "loan.approved",
+            "step2.prepare_roster",
+            "Loan player approved for tournament roster.",
+            new { confirmation.UserId, confirmation.LoanFromTeamId },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<TournamentParticipantResponse>.Success(ToResponse(confirmation));
     }
@@ -136,6 +164,15 @@ public sealed class TournamentParticipationService
             await _teams.AddPlayerDemandAsync(new TeamPlayerDemand(Guid.NewGuid(), teamId, userId, confirmation.Position, _clock.UtcNow.AddHours(1), expiresAt, $"Replacement suggested after absence for tournament {tournamentId}.", _clock.UtcNow), cancellationToken);
         }
 
+        await TrackParticipantEventAsync(
+            tournamentId,
+            teamId,
+            userId,
+            "presence.updated",
+            "player.presence",
+            "Player updated tournament presence.",
+            new { userId, request.Status, request.DelayMinutes, request.Note, confirmation.RequiresOwnerNotification, confirmation.ReplacementSuggested },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<TournamentParticipantResponse>.Success(ToResponse(confirmation));
     }
@@ -184,6 +221,25 @@ public sealed class TournamentParticipationService
             confirmation.RequiresOwnerNotification,
             confirmation.ReplacementSuggested,
             confirmation.UpdatedAt);
+    }
+
+    private async Task TrackParticipantEventAsync(Guid tournamentId, Guid teamId, Guid? actorUserId, string eventType, string step, string message, object payload, CancellationToken cancellationToken)
+    {
+        var registration = await _tournaments.GetRegistrationAsync(tournamentId, teamId, cancellationToken);
+        await _tournaments.AddRegistrationEventAsync(new TournamentRegistrationEvent(
+            Guid.NewGuid(),
+            tournamentId,
+            teamId,
+            registration?.Id,
+            actorUserId,
+            eventType,
+            step,
+            registration?.Status,
+            registration?.PaymentMode,
+            message,
+            _clock.UtcNow,
+            JsonSerializer.Serialize(payload)),
+            cancellationToken);
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

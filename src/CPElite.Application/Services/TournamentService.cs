@@ -263,6 +263,16 @@ public sealed class TournamentService
         }
 
         await _tournaments.AddRegistrationAsync(registration, cancellationToken);
+        await TrackRegistrationEventAsync(
+            registration,
+            actorUserId,
+            "registration.created",
+            "step1.register_team",
+            registration.Status == DomainRegistrationStatus.Waitlisted
+                ? "Team registered and placed on waiting list."
+                : "Team registered for tournament.",
+            new { request.PaymentMode, Source = "App", RulesAccepted = true },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<TournamentRegistrationResponse>.Success(ToRegistrationResponse(registration));
     }
@@ -293,6 +303,14 @@ public sealed class TournamentService
             registration.Accept();
         }
 
+        await TrackRegistrationEventAsync(
+            registration,
+            actorUserId,
+            "registration.confirmed",
+            "step3.final_confirmation",
+            "Tournament registration confirmed from app and payment marked complete.",
+            new { registration.IsPaymentComplete, registration.Status },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Result<TournamentRegistrationResponse>.Success(ToRegistrationResponse(registration));
     }
@@ -400,6 +418,22 @@ public sealed class TournamentService
         }
 
         await _tournaments.AddRegistrationAsync(registration, cancellationToken);
+        await TrackRegistrationEventAsync(
+            registration,
+            null,
+            "registration.created.discord",
+            "step1.register_team",
+            registration.Status == DomainRegistrationStatus.Waitlisted
+                ? "Team registered from Discord and placed on waiting list."
+                : "Team registered from Discord.",
+            new
+            {
+                request.DiscordGuildId,
+                request.DiscordChannelId,
+                request.DiscordMessageId,
+                request.RequestedByDiscordUserId
+            },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var updatedRegistrations = registrations.Concat([registration]).ToArray();
@@ -425,6 +459,17 @@ public sealed class TournamentService
 
         var registrations = await _tournaments.GetRegistrationsAsync(tournamentId, cancellationToken);
         return Result<TournamentRegistrationSummaryResponse>.Success(ToRegistrationSummary(tournament, registrations, _clock.UtcNow));
+    }
+
+    public async Task<Result<IReadOnlyCollection<TournamentRegistrationEventResponse>>> GetRegistrationEventsAsync(Guid tournamentId, Guid? teamId = null, CancellationToken cancellationToken = default)
+    {
+        if (await _tournaments.GetTournamentAsync(tournamentId, cancellationToken) is null)
+        {
+            return Result<IReadOnlyCollection<TournamentRegistrationEventResponse>>.Failure(ErrorType.NotFound, "tournament.not_found", "Tournament was not found.");
+        }
+
+        var events = await _tournaments.GetRegistrationEventsAsync(tournamentId, teamId, 250, cancellationToken);
+        return Result<IReadOnlyCollection<TournamentRegistrationEventResponse>>.Success(events.Select(ToRegistrationEventResponse).ToArray());
     }
 
     public async Task<Result<DiscordTournamentRegistrationResponse>> LockRegistrationFromDiscordAsync(Guid tournamentId, CancellationToken cancellationToken = default)
@@ -487,6 +532,14 @@ public sealed class TournamentService
         }
 
         registration.MarkNoShow();
+        await TrackRegistrationEventAsync(
+            registration,
+            null,
+            "registration.no_show",
+            "admin.follow_up",
+            "Team marked as no-show from Discord workflow.",
+            new { TeamName = team.Name },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         var registrations = await _tournaments.GetRegistrationsAsync(tournamentId, cancellationToken);
         return Result<DiscordTournamentRegistrationResponse>.Success(ToDiscordResponse(ContractRegistrationOutcome.NoShowMarked, "Team was marked as no-show.", tournament, team, registration, registrations, false));
@@ -513,6 +566,14 @@ public sealed class TournamentService
         }
 
         next.Accept();
+        await TrackRegistrationEventAsync(
+            next,
+            null,
+            "registration.waitlist_promoted",
+            "admin.follow_up",
+            "Team promoted from waiting list.",
+            new { next.TeamId, next.Status },
+            cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         var updated = await _tournaments.GetRegistrationsAsync(tournamentId, cancellationToken);
         return Result<DiscordTournamentRegistrationResponse>.Success(ToDiscordResponse(ContractRegistrationOutcome.PromotedFromWaitlist, "Next waiting team was promoted into the tournament.", tournament, next.Team!, next, updated, !next.IsPaymentComplete));
@@ -538,12 +599,31 @@ public sealed class TournamentService
         }
 
         registration.Withdraw();
+        await TrackRegistrationEventAsync(
+            registration,
+            null,
+            "registration.withdrawn",
+            "admin.follow_up",
+            "Team registration withdrawn.",
+            new { AutoReplacementWindow = IsInsideAutoReplacementWindow(tournament, _clock.UtcNow) },
+            cancellationToken);
         var autoReplacementAttempted = IsInsideAutoReplacementWindow(tournament, _clock.UtcNow);
         TournamentRegistration? promoted = null;
         if (autoReplacementAttempted)
         {
             var registrationsBeforeSave = await _tournaments.GetRegistrationsAsync(tournamentId, cancellationToken);
             promoted = PromoteNextWaitlistedRegistrationIfPossible(tournament, registrationsBeforeSave);
+            if (promoted is not null)
+            {
+                await TrackRegistrationEventAsync(
+                    promoted,
+                    null,
+                    "registration.waitlist_promoted.auto",
+                    "admin.follow_up",
+                    "Team promoted automatically after another team withdrew.",
+                    new { ReplacedRegistrationId = registration.Id, ReplacedTeamId = registration.TeamId },
+                    cancellationToken);
+            }
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -1167,6 +1247,44 @@ public sealed class TournamentService
     private static TournamentRegistrationResponse ToRegistrationResponse(TournamentRegistration registration)
     {
         return new TournamentRegistrationResponse(registration.Id, registration.TournamentId, registration.TeamId, (ContractPaymentMode)(int)registration.PaymentMode, registration.IsPaymentComplete, (ContractRegistrationStatus)(int)registration.Status, registration.Source, registration.DiscordGuildId, registration.DiscordChannelId, registration.DiscordMessageId, registration.DiscordRequestedByUserId);
+    }
+
+    private static TournamentRegistrationEventResponse ToRegistrationEventResponse(TournamentRegistrationEvent registrationEvent)
+    {
+        return new TournamentRegistrationEventResponse(
+            registrationEvent.Id,
+            registrationEvent.TournamentId,
+            registrationEvent.TeamId,
+            registrationEvent.Team?.Name,
+            registrationEvent.TournamentRegistrationId,
+            registrationEvent.ActorUserId,
+            registrationEvent.ActorUser?.DisplayName,
+            registrationEvent.EventType,
+            registrationEvent.Step,
+            registrationEvent.RegistrationStatus is null ? null : (ContractRegistrationStatus)(int)registrationEvent.RegistrationStatus.Value,
+            registrationEvent.PaymentMode is null ? null : (ContractPaymentMode)(int)registrationEvent.PaymentMode.Value,
+            registrationEvent.Message,
+            registrationEvent.PayloadJson,
+            registrationEvent.CreatedAt);
+    }
+
+    private async Task TrackRegistrationEventAsync(TournamentRegistration registration, Guid? actorUserId, string eventType, string step, string message, object? payload, CancellationToken cancellationToken)
+    {
+        var payloadJson = payload is null ? null : JsonSerializer.Serialize(payload);
+        await _tournaments.AddRegistrationEventAsync(new TournamentRegistrationEvent(
+            Guid.NewGuid(),
+            registration.TournamentId,
+            registration.TeamId,
+            registration.Id,
+            actorUserId,
+            eventType,
+            step,
+            registration.Status,
+            registration.PaymentMode,
+            message,
+            _clock.UtcNow,
+            payloadJson),
+            cancellationToken);
     }
 
     private async Task<bool> CanRegisterTeamAsync(TeamMember? membership, Guid teamId, Guid actorUserId, CancellationToken cancellationToken)
