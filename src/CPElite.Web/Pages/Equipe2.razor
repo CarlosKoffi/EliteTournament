@@ -5,7 +5,7 @@
 
 <PageTitle>Elite Tournament - Equipe New</PageTitle>
 <HeadContent>
-    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-4" />
+    <link rel="stylesheet" href="css/elite-league-equipe.css?v=20260724-5" />
 </HeadContent>
 
 <main class="el-team-page">
@@ -208,13 +208,13 @@
                     <div class="el-roster-layout">
                         <article class="el-roster-table">
                             <div class="el-player-row el-player-head">
-                                <span>#</span>
-                                <span>POS</span>
-                                <span>NOM</span>
-                                <span>NOTE TS</span>
-                                <span>BUTS TS</span>
-                                <span>MATCHS</span>
-                                <span>ARCHETYPE</span>
+                                <button type="button" @onclick='() => SortRoster("rank")'># @SortMarker("rank")</button>
+                                <button type="button" @onclick='() => SortRoster("position")'>POS @SortMarker("position")</button>
+                                <button type="button" @onclick='() => SortRoster("name")'>NOM @SortMarker("name")</button>
+                                <button type="button" @onclick='() => SortRoster("rating")'>NOTE TS @SortMarker("rating")</button>
+                                <button type="button" @onclick='() => SortRoster("goals")'>BUTS TS @SortMarker("goals")</button>
+                                <button type="button" @onclick='() => SortRoster("matches")'>MATCHS @SortMarker("matches")</button>
+                                <button type="button" @onclick='() => SortRoster("archetype")'>ARCHETYPE @SortMarker("archetype")</button>
                             </div>
                             @if (RosterPlayers.Count == 0)
                             {
@@ -225,7 +225,7 @@
                             }
                             else
                             {
-                                @foreach (var player in RosterPlayers.Select((value, index) => new { value, index }))
+                                @foreach (var player in SortedRosterPlayers.Select((value, index) => new { value, index }))
                                 {
                                     <button type="button" class="el-player-row @(SelectedPlayer?.EaPlayerId == player.value.EaPlayerId ? "selected" : "")" @onclick="() => SelectPlayer(player.value)">
                                         <span>@((player.index + 1).ToString("00"))</span>
@@ -438,6 +438,8 @@
     private Guid? SelectedTournamentId { get; set; }
     private bool ShowTournamentDetails { get; set; }
     private bool ShowGeneralDetails { get; set; }
+    private string RosterSortColumn { get; set; } = "rank";
+    private bool RosterSortDescending { get; set; }
 
     private string ClubName => Club?.Name ?? Team?.Name ?? "Club non charge";
     private string ClubInitials => string.Join("", ClubName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
@@ -478,6 +480,7 @@
     private double DrawSlice => TotalMatches == 0 ? 0 : (double)(Wins + Draws) / TotalMatches * 100;
     private TeamTournamentHistoryItemResponse? SelectedTournament => TournamentSummary?.RecentTournaments.FirstOrDefault(tournament => tournament.TournamentId == SelectedTournamentId);
     private EaTournamentPlayerStatsResponse? SelectedTournamentStats => SelectedPlayer?.TournamentStats;
+    private IReadOnlyList<RosterPlayerView> SortedRosterPlayers => ApplyRosterSort(RosterPlayers).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -587,6 +590,28 @@
         ShowGeneralDetails = !ShowGeneralDetails;
     }
 
+    private void SortRoster(string column)
+    {
+        if (RosterSortColumn == column)
+        {
+            RosterSortDescending = !RosterSortDescending;
+            return;
+        }
+
+        RosterSortColumn = column;
+        RosterSortDescending = column is "rating" or "goals" or "matches";
+    }
+
+    private string SortMarker(string column)
+    {
+        if (RosterSortColumn != column)
+        {
+            return string.Empty;
+        }
+
+        return RosterSortDescending ? "↓" : "↑";
+    }
+
     private void OpenTournamentDetail(Guid tournamentId)
     {
         Navigation.NavigateTo($"tournaments/{tournamentId}");
@@ -626,6 +651,30 @@
             .OrderBy(PositionSort)
             .ThenByDescending(player => player.TournamentStats?.AverageRating ?? player.AverageRating ?? 0)
             .ThenBy(player => player.PlayerName));
+    }
+
+    private IEnumerable<RosterPlayerView> ApplyRosterSort(IEnumerable<RosterPlayerView> players)
+    {
+        return RosterSortColumn switch
+        {
+            "position" => Sort(players, player => PositionSort(player), player => player.PlayerName),
+            "name" => Sort(players, player => player.PlayerName, player => PositionSort(player)),
+            "rating" => Sort(players, player => player.TournamentStats?.AverageRating ?? double.MinValue, player => player.PlayerName),
+            "goals" => Sort(players, player => player.TournamentStats?.Goals ?? int.MinValue, player => player.PlayerName),
+            "matches" => Sort(players, player => player.TournamentStats?.Matches ?? int.MinValue, player => player.PlayerName),
+            "archetype" => Sort(players, ArchetypeLabel, player => player.PlayerName),
+            _ => Sort(players, PositionSort, player => player.PlayerName)
+        };
+    }
+
+    private IOrderedEnumerable<RosterPlayerView> Sort<TKey, TThen>(
+        IEnumerable<RosterPlayerView> players,
+        Func<RosterPlayerView, TKey> keySelector,
+        Func<RosterPlayerView, TThen> thenSelector)
+    {
+        return RosterSortDescending
+            ? players.OrderByDescending(keySelector).ThenBy(thenSelector)
+            : players.OrderBy(keySelector).ThenBy(thenSelector);
     }
 
     private EaTournamentPlayerStatsResponse? FindTournamentStatsForProfile(EaPlayerProfileSnapshotResponse profile)

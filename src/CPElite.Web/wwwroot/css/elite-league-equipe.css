@@ -523,6 +523,25 @@ body:has(.el-team-page) .content {
     border-bottom-color: rgba(255, 255, 255, .08);
 }
 
+.el-player-head button {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: left;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.el-player-head button:hover,
+.el-player-head button:focus-visible {
+    color: #00e676;
+    outline: none;
+}
+
 .el-player-row strong {
     color: #f0f0f8;
     overflow: hidden;
