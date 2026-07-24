@@ -1,24 +1,31 @@
 body:has(.el-team-page) {
     background: #07070e;
+    overflow-x: hidden;
 }
 
 body:has(.el-team-page) .page,
 body:has(.el-team-page) main,
 body:has(.el-team-page) .content {
     background: #07070e;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 .el-team-page {
+    width: 100%;
+    max-width: 100%;
     min-height: 100vh;
     padding: clamp(18px, 3vw, 42px);
     background: #07070e;
     color: #f0f0f8;
     font-family: Nunito, system-ui, sans-serif;
+    overflow-x: hidden;
 }
 
 .el-team-shell {
     width: min(100%, 1280px);
     margin: 0 auto;
+    min-width: 0;
 }
 
 .el-club-header {
@@ -121,6 +128,14 @@ body:has(.el-team-page) .content {
     margin: 26px 0 20px;
     border-bottom: 1px solid rgba(255, 255, 255, .07);
     overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.el-tab-bar::-webkit-scrollbar {
+    display: none;
 }
 
 .el-tab-bar button {
