@@ -177,7 +177,7 @@
                             {
                                 <article class="el-friendly-card @(match.IsWin ? "win" : match.IsDraw ? "draw" : "loss")">
                                     <span>@StageLabel(match.Stage) - @match.ScheduledAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
-                                    <h3>@(match.HomeTeamName ?? "Equipe") @ScoreLabel(match.HomeScore) - @ScoreLabel(match.AwayScore) @(match.AwayTeamName ?? "Equipe")</h3>
+                                    <h3>@TeamPerspectiveScoreLabel(match)</h3>
                                     <p>@match.TournamentName - @ResultLabel(match)</p>
                                 </article>
                             }
@@ -406,7 +406,7 @@
                                         {
                                             <button type="button" class="el-friendly-card @(match.IsWin ? "win" : match.IsDraw ? "draw" : "loss")" @onclick="() => OpenTournamentDetail(match.TournamentId)">
                                                 <span>@StageLabel(match.Stage) - @match.ScheduledAt.LocalDateTime.ToString("dd/MM HH:mm")</span>
-                                                <h3>@(match.HomeTeamName ?? "Equipe") @ScoreLabel(match.HomeScore) - @ScoreLabel(match.AwayScore) @(match.AwayTeamName ?? "Equipe")</h3>
+                                                <h3>@TeamPerspectiveScoreLabel(match)</h3>
                                                 <p>@ResultLabel(match)</p>
                                             </button>
                                         }
@@ -852,6 +852,17 @@
         };
     }
     private static string ScoreLabel(int? score) => score?.ToString() ?? "-";
+    private string TeamPerspectiveScoreLabel(TeamTournamentMatchSummaryResponse match)
+    {
+        var currentTeamId = CurrentTeamId ?? TournamentSummary?.TeamId;
+        var teamName = currentTeamId == match.AwayTeamId ? match.AwayTeamName : match.HomeTeamName;
+        teamName = string.IsNullOrWhiteSpace(teamName) ? Team?.Name ?? Club?.Name ?? "Equipe" : teamName;
+
+        var opponentName = currentTeamId == match.AwayTeamId ? match.HomeTeamName : match.AwayTeamName;
+        opponentName = string.IsNullOrWhiteSpace(opponentName) ? "Adversaire" : opponentName;
+
+        return $"{teamName} {ScoreLabel(match.GoalsFor)} - {ScoreLabel(match.GoalsAgainst)} {opponentName}";
+    }
 
     private static string ResultLabel(TeamTournamentMatchSummaryResponse match)
     {
