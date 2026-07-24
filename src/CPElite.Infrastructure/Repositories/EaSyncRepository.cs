@@ -40,12 +40,17 @@ public sealed class EaSyncRepository : IEaSyncRepository
 
     public async Task<IReadOnlyCollection<EaTournamentPlayerStatsAggregate>> GetTournamentPlayerStatsAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
+        var teamEaClubId = await _dbContext.Teams
+            .Where(team => team.Id == teamId)
+            .Select(team => team.EaClubId)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var stats = await _dbContext.EaMatchPlayerStats
             .Include(stat => stat.Match)
             .Where(stat => stat.TeamId == teamId
                 && stat.Match != null
                 && stat.Match.TournamentMatchId != null
-                && stat.EaClubId == stat.Match.EaClubId)
+                && stat.EaClubId == (teamEaClubId ?? stat.Match.EaClubId))
             .ToArrayAsync(cancellationToken);
 
         return stats
@@ -185,6 +190,19 @@ public sealed class EaSyncRepository : IEaSyncRepository
         var existing = await _dbContext.EaFriendlyMatches
             .Where(match => match.TeamId == teamId && matchIds.Contains(match.EaMatchId))
             .ToArrayAsync(cancellationToken);
+        var existingTournamentLinks = existing
+            .Where(match => match.TournamentMatchId.HasValue)
+            .GroupBy(match => match.EaMatchId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().TournamentMatchId!.Value, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in matches)
+        {
+            if (existingTournamentLinks.TryGetValue(match.EaMatchId, out var tournamentMatchId))
+            {
+                match.LinkToTournamentMatch(tournamentMatchId);
+            }
+        }
+
         var existingIds = existing.Select(match => match.Id).ToArray();
         var existingStats = await _dbContext.EaMatchPlayerStats
             .Where(stat => existingIds.Contains(stat.EaFriendlyMatchId))
