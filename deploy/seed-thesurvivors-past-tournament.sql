@@ -30,6 +30,7 @@ DECLARE
     v_stage int;
     v_group_name text;
     v_seeded_count int;
+    v_final_winner_team_id uuid;
 BEGIN
     SELECT "Id", "Name", "EaClubId"
     INTO v_team_id, v_team_name, v_team_ea_id
@@ -102,7 +103,7 @@ BEGIN
         "EaMonitoringEndsMinutesAfter", "PlayerRestrictionsJson", "BannerUrl", "CreatedByUserId",
         "CreatedAt", "ScoreRecoveryMode", "ScoreRecoveryIntervalMinutes", "AutoPublishPerfectScore", "Tier")
     VALUES (
-        v_tournament_id, 'TheSurvivors Champions Seed Cup', 2, 5, v_starts_at, 'Europe/Zurich', 24, 32,
+        v_tournament_id, 'TheSurvivors EA Seed Cup', 2, 5, v_starts_at, 'Europe/Zurich', 24, 32,
         50.00, 'EUR', 'Seed technique: tournoi passe genere depuis les 8 derniers matchs amicaux TheSurvivors.',
         v_starts_at - interval '4 hours', v_starts_at - interval '7 days', v_starts_at - interval '4 hours',
         250.00, true, 15, 90,
@@ -176,20 +177,18 @@ BEGIN
             v_away_team_id := v_team_id;
         END IF;
 
-        -- Force a coherent champion path while keeping the linked EA player stats.
-        v_home_score := CASE
-            WHEN v_home_team_id = v_team_id THEN (ARRAY[3,2,1,2,3,2,2,4])[v_index]
-            ELSE (ARRAY[1,0,1,1,1,0,1,2])[v_index]
-        END;
-        v_away_score := CASE
-            WHEN v_away_team_id = v_team_id THEN (ARRAY[3,2,1,2,3,2,2,4])[v_index]
-            ELSE (ARRAY[1,0,1,1,1,0,1,2])[v_index]
-        END;
+        -- The tournament score must always match the linked EA friendly score.
+        v_home_score := v_match."HomeScore";
+        v_away_score := v_match."AwayScore";
         v_winner_team_id := CASE
             WHEN v_home_score = v_away_score THEN NULL
             WHEN v_home_score > v_away_score THEN v_home_team_id
             ELSE v_away_team_id
         END;
+
+        IF v_stage = 5 THEN
+            v_final_winner_team_id := v_winner_team_id;
+        END IF;
 
         INSERT INTO "TournamentMatches" (
             "Id", "TournamentId", "HomeTeamId", "AwayTeamId", "RoundNumber", "Stage", "GroupName",
@@ -216,8 +215,10 @@ BEGIN
             true, true, true, true, true, false, '[]'::jsonb, jsonb_build_object('seed', true, 'eaMatchId', v_match."EaMatchId"), v_match."RawJson");
     END LOOP;
 
-    INSERT INTO "ChampionTitles" ("Id", "TeamId", "TournamentId", "CrownedAt", "DethronedAt", "IsActive", "NextEntryDiscountAmount", "Currency")
-    VALUES (gen_random_uuid(), v_team_id, v_tournament_id, v_now, null, true, 15.00, 'EUR');
+    IF v_final_winner_team_id IS NOT NULL THEN
+        INSERT INTO "ChampionTitles" ("Id", "TeamId", "TournamentId", "CrownedAt", "DethronedAt", "IsActive", "NextEntryDiscountAmount", "Currency")
+        VALUES (gen_random_uuid(), v_final_winner_team_id, v_tournament_id, v_now, null, true, 15.00, 'EUR');
+    END IF;
 
     RAISE NOTICE 'Seed completed: TheSurvivors tournament % linked to % friendly matches.', v_tournament_id, v_index;
 END $$;
