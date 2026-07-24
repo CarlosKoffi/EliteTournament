@@ -59,22 +59,43 @@
         <section class="etd-registration-panel">
             <div class="etd-panel-head">
                 <span>Inscription equipe</span>
-                <h2>Preparer les 11 convoques</h2>
+                <h2>Tunnel tournoi</h2>
             </div>
 
-            <div class="etd-register-grid">
-                <article class="etd-register-card">
+            <nav class="etd-stepper" aria-label="Etapes inscription tournoi">
+                <button type="button" class="@(RegistrationStep == 1 ? "active" : "") @(IsSelectedTeamRegistered ? "done" : "")" @onclick="() => GoToRegistrationStep(1)">
+                    <span>Etape 1</span>
+                    <strong>S'inscrire</strong>
+                </button>
+                <button type="button" class="@(RegistrationStep == 2 ? "active" : "") @(SelectedRosterCount == 11 ? "done" : "")" @onclick="() => GoToRegistrationStep(2)" disabled="@(!IsSelectedTeamRegistered)">
+                    <span>Etape 2</span>
+                    <strong>Faire l'equipe</strong>
+                </button>
+                <button type="button" class="@(RegistrationStep == 3 ? "active" : "") @(CanSubmitRoster ? "done" : "")" @onclick="() => GoToRegistrationStep(3)" disabled="@(!IsSelectedTeamRegistered)">
+                    <span>Etape 3</span>
+                    <strong>Confirmer</strong>
+                </button>
+            </nav>
+
+            @if (RegistrationStep == 1)
+            {
+                <article class="etd-register-card etd-step-card">
                     <div class="etd-register-head">
                         <div>
-                            <span>Club</span>
-                            <strong>@SelectedOwnerTeamName</strong>
+                            <span>Etape 1</span>
+                            <strong>S'inscrire au tournoi</strong>
                         </div>
                         <button type="button" class="etd-secondary" @onclick="LoadOwnerContextAsync" disabled="@RosterBusy">Charger mes clubs</button>
                     </div>
 
+                    <div class="etd-tunnel-copy">
+                        <p>Le GM inscrit le club, accepte les regles du tournoi et choisit comment l'inscription sera payee. Les matchs devront etre lances a l'heure indiquee; les scores et donnees EA pourront etre controles apres les rencontres.</p>
+                        <p>Une fois le club inscrit, tu pourras convoquer 11 joueurs, verifier les restrictions et envoyer des liens aux joueurs qui ne sont pas encore dans l'application.</p>
+                    </div>
+
                     @if (OwnerTeams.Count == 0)
                     {
-                        <p class="etd-muted">Aucun club GM/Manager trouve sur ton compte. Va dans Mon compte ou Mon equipe pour associer ton joueur au club.</p>
+                        <p class="etd-muted">Aucun club trouve sur ton compte. Associe-toi d'abord a ton club dans Mon compte ou Mon equipe.</p>
                     }
                     else
                     {
@@ -88,134 +109,215 @@
                         </label>
                     }
 
+                    <div class="etd-payment-options">
+                        <label class="@(SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays ? "selected" : "")">
+                            <input type="radio" name="payment-mode" checked="@(SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays)" @onchange="() => SelectedPaymentMode = TournamentPaymentMode.ClubManagerPays" />
+                            <span>GM paie pour l'equipe</span>
+                            <small>Le manager regle l'inscription du club, puis gere ses joueurs.</small>
+                        </label>
+                        <label class="@(SelectedPaymentMode == TournamentPaymentMode.IndividualPlayers ? "selected" : "")">
+                            <input type="radio" name="payment-mode" checked="@(SelectedPaymentMode == TournamentPaymentMode.IndividualPlayers)" @onchange="() => SelectedPaymentMode = TournamentPaymentMode.IndividualPlayers" />
+                            <span>Chaque joueur paie sa place</span>
+                            <small>Chaque joueur convoque devra valider sa presence et payer son entree.</small>
+                        </label>
+                    </div>
+
+                    <label class="etd-rules-accept">
+                        <input type="checkbox" @bind="RulesAccepted" />
+                        <span>J'ai compris les regles: horaires a respecter, effectif conforme, restrictions tournoi et paiement avant validation finale.</span>
+                    </label>
+
                     <div class="etd-rule-grid">
-                        <div><span>Selection</span><strong>@SelectedRosterCount / 11</strong></div>
+                        <div><span>Prix</span><strong>@Detail.RegistrationSummary.EntryFee @Detail.RegistrationSummary.Currency</strong></div>
+                        <div><span>Places</span><strong>@Math.Max(Detail.RegistrationSummary.MaxTeams - Detail.RegistrationSummary.ActiveTeams, 0) libres</strong></div>
+                        <div><span>Limite</span><strong>@RegistrationWindowLabel</strong></div>
+                        <div><span>Statut</span><strong>@(IsSelectedTeamRegistered ? "Inscrit" : "A inscrire")</strong></div>
+                    </div>
+
+                    <div class="etd-action-row">
+                        <button type="button" class="etd-primary" @onclick="StartTournamentRegistrationAsync" disabled="@(!CanStartRegistration)">S'inscrire au tournoi</button>
+                        @if (IsSelectedTeamRegistered)
+                        {
+                            <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStep(2)">Passer a l'equipe</button>
+                        }
+                    </div>
+                </article>
+            }
+
+            @if (RegistrationStep == 2)
+            {
+                <div class="etd-register-grid">
+                    <article class="etd-register-card">
+                        <div class="etd-register-head">
+                            <div>
+                                <span>Etape 2</span>
+                                <strong>Faire l'equipe</strong>
+                            </div>
+                            <span class="etd-count-pill">@SelectedRosterCount / 11</span>
+                        </div>
+
+                        <label class="etd-field">Formation
+                            <select @bind="SelectedFormation">
+                                <option>4-2-3-1</option>
+                                <option>4-3-3</option>
+                                <option>3-5-2</option>
+                                <option>4-4-2</option>
+                            </select>
+                        </label>
+
+                        <div class="etd-rule-note">
+                            <strong>Restrictions du tournoi</strong>
+                            <span>Max general @DefaultMaxHeightCm cm. Exception DC @CenterBackMaxHeightCm cm. Toute alerte devra etre corrigee avant confirmation.</span>
+                        </div>
+
+                        <div class="etd-lineup-board">
+                            @foreach (var row in LineupRows)
+                            {
+                                <div class="etd-lineup-row" style="grid-template-columns: repeat(@row.Count, minmax(0, 1fr));">
+                                    @foreach (var slot in row)
+                                    {
+                                        <button type="button" class="etd-lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => OpenPositionPicker(slot.Position)">
+                                            <span>@slot.Position</span>
+                                            <strong>@(slot.Player?.DisplayName ?? "A choisir")</strong>
+                                            <small>@(slot.Player is null ? "Slot libre" : $"{slot.Player.HeightLabel} - {slot.Player.OverallLabel}")</small>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="etd-register-card">
+                        <div class="etd-register-head">
+                            <div>
+                                <span>Controle</span>
+                                <strong>@SelectedOwnerTeamName</strong>
+                            </div>
+                            <button type="button" class="etd-secondary" @onclick="RefreshSelectedTeamEaRosterAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Maj effectif EA</button>
+                        </div>
+
+                        <div class="etd-rule-grid">
+                            <div><span>Selection</span><strong>@SelectedRosterCount / 11</strong></div>
+                            <div><span>Restrictions</span><strong>@HeightViolationCount alerte(s)</strong></div>
+                            <div><span>App</span><strong>@SelectedAppRosterCount joueur(s)</strong></div>
+                            <div><span>A inviter</span><strong>@SelectedInviteRequiredCount lien(s)</strong></div>
+                        </div>
+
+                        <div class="etd-action-row">
+                            <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStep(1)">Retour inscription</button>
+                            <button type="button" class="etd-primary" @onclick="() => GoToRegistrationStep(3)" disabled="@(SelectedRosterCount != 11)">Continuer vers confirmation</button>
+                        </div>
+                    </article>
+                </div>
+
+                <article class="etd-roster-card">
+                    <div class="etd-register-head">
+                        <div>
+                            <span>Effectif</span>
+                            <strong>@Roster.Count joueur(s)</strong>
+                        </div>
+                        <span class="etd-count-pill">@SelectedRosterCount / 11</span>
+                    </div>
+
+                    @if (RosterBusy)
+                    {
+                        <p class="etd-muted">Chargement de l'effectif...</p>
+                    }
+                    else if (Roster.Count == 0)
+                    {
+                        <p class="etd-muted">Aucun joueur stocke pour ce club. Clique sur Maj effectif EA pour recuperer et sauvegarder le roster.</p>
+                    }
+                    else
+                    {
+                        <div class="etd-roster-groups">
+                            @foreach (var group in RosterGroups)
+                            {
+                                <section>
+                                    <div class="etd-roster-group-head">
+                                        <strong>@group.Label</strong>
+                                        <span>@group.Players.Count joueur(s)</span>
+                                    </div>
+                                    @foreach (var player in group.Players)
+                                    {
+                                        <article class="etd-roster-player @(player.Selected ? "selected" : "") @(FocusedRosterPlayer == player ? "focused" : "") @(!IsHeightEligibleForTournament(player) && player.Selected ? "invalid" : "")">
+                                            <label class="etd-check">
+                                                <input type="checkbox" checked="@player.Selected" @onchange="args => TogglePlayerAsync(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && SelectedRosterCount >= 11))" />
+                                                <span></span>
+                                            </label>
+                                            <div>
+                                                <strong>@player.DisplayName</strong>
+                                                <small>@player.Gamertag</small>
+                                                <div class="etd-player-tags">
+                                                    <span class="@(player.HasApp ? "ok" : "warn")">@(player.HasApp ? "Dans l'app" : "A inviter")</span>
+                                                    <span>EA @player.EaPositionLabel</span>
+                                                    <span class="@(!IsHeightEligibleForTournament(player) ? "danger" : "")">@player.HeightLabel</span>
+                                                    <span>@player.OverallLabel</span>
+                                                    <span>@player.MatchesLabel</span>
+                                                </div>
+                                            </div>
+                                            <select value="@player.Position" @onchange="args => UpdatePlayerPositionAsync(player, args)">
+                                                <option value="">Poste tournoi</option>
+                                                <option value="GK">GK</option>
+                                                <option value="DC">DC</option>
+                                                <option value="DG">DG</option>
+                                                <option value="DD">DD</option>
+                                                <option value="MDC">MDC</option>
+                                                <option value="MC">MC</option>
+                                                <option value="MOC">MOC</option>
+                                                <option value="AG">AG</option>
+                                                <option value="AD">AD</option>
+                                                <option value="BU">BU</option>
+                                            </select>
+                                            @if (!player.HasApp)
+                                            {
+                                                <button type="button" class="etd-secondary small" @onclick="() => AddInviteLink(player)">Inviter</button>
+                                            }
+                                        </article>
+                                    }
+                                </section>
+                            }
+                        </div>
+                    }
+                </article>
+            }
+
+            @if (RegistrationStep == 3)
+            {
+                <article class="etd-register-card etd-step-card">
+                    <div class="etd-register-head">
+                        <div>
+                            <span>Etape 3</span>
+                            <strong>Confirmation finale</strong>
+                        </div>
+                        <span class="etd-count-pill @(CanSubmitRoster ? "" : "danger")">@(CanSubmitRoster ? "Pret" : "A corriger")</span>
+                    </div>
+
+                    <div class="etd-confirm-grid">
+                        <div><span>Club</span><strong>@SelectedOwnerTeamName</strong></div>
+                        <div><span>Paiement</span><strong>@PaymentModeLabel(SelectedPaymentMode)</strong></div>
+                        <div><span>Joueurs</span><strong>@SelectedRosterCount / 11</strong></div>
                         <div><span>Restrictions</span><strong>@HeightViolationCount alerte(s)</strong></div>
-                        <div><span>App</span><strong>@SelectedAppRosterCount joueur(s)</strong></div>
-                        <div><span>Invitations</span><strong>@SelectedInviteRequiredCount lien(s)</strong></div>
+                        <div><span>Postes manquants</span><strong>@MissingTournamentPositionCount</strong></div>
+                        <div><span>Invitations</span><strong>@SelectedInviteRequiredCount</strong></div>
                     </div>
 
                     <div class="etd-rule-note">
-                        <strong>Regles taille</strong>
-                        <span>Max general @DefaultMaxHeightCm cm. Exception DC @CenterBackMaxHeightCm cm. Les restrictions admin bloquent la soumission si elles ne sont pas respectees.</span>
+                        <strong>Validation paiement</strong>
+                        <span>@PaymentConfirmationText</span>
                     </div>
-
-                    <label class="etd-field">Formation
-                        <select @bind="SelectedFormation">
-                            <option>4-2-3-1</option>
-                            <option>4-3-3</option>
-                            <option>3-5-2</option>
-                            <option>4-4-2</option>
-                        </select>
-                    </label>
 
                     <div class="etd-action-row">
-                        <button type="button" class="etd-primary" @onclick="SubmitRosterAsync" disabled="@(!CanSubmitRoster)">Soumettre les 11</button>
-                        <button type="button" class="etd-secondary" @onclick="RefreshSelectedTeamEaRosterAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Maj effectif EA</button>
-                        <button type="button" class="etd-secondary" @onclick="RemindPendingAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Relancer</button>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(RosterMessage))
-                    {
-                        <p class="etd-register-message">@RosterMessage</p>
-                    }
-                </article>
-
-                <article class="etd-register-card">
-                    <div class="etd-register-head">
-                        <div>
-                            <span>Compo</span>
-                            <strong>@SelectedFormation</strong>
-                        </div>
-                        <span class="etd-count-pill @(HeightViolationCount > 0 ? "danger" : "")">@HeightViolationCount alerte(s)</span>
-                    </div>
-                    <div class="etd-lineup-board">
-                        @foreach (var row in LineupRows)
-                        {
-                            <div class="etd-lineup-row" style="grid-template-columns: repeat(@row.Count, minmax(0, 1fr));">
-                                @foreach (var slot in row)
-                                {
-                                    <button type="button" class="etd-lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => FocusRosterPlayer(slot.Player)">
-                                        <span>@slot.Position</span>
-                                        <strong>@(slot.Player?.DisplayName ?? "A choisir")</strong>
-                                        <small>@(slot.Player is null ? "Slot libre" : $"{slot.Player.HeightLabel} - {slot.Player.OverallLabel}")</small>
-                                    </button>
-                                }
-                            </div>
-                        }
+                        <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStep(2)">Modifier les 11</button>
+                        <button type="button" class="etd-primary" @onclick="SubmitRosterAsync" disabled="@(!CanSubmitRoster)">Confirmer l'inscription</button>
+                        <button type="button" class="etd-secondary" @onclick="RemindPendingAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Relancer presences</button>
                     </div>
                 </article>
-            </div>
+            }
 
-            <article class="etd-roster-card">
-                <div class="etd-register-head">
-                    <div>
-                        <span>Effectif</span>
-                        <strong>@Roster.Count joueur(s)</strong>
-                    </div>
-                    <span class="etd-count-pill">@SelectedRosterCount / 11</span>
-                </div>
-
-                @if (RosterBusy)
-                {
-                    <p class="etd-muted">Chargement de l'effectif...</p>
-                }
-                else if (Roster.Count == 0)
-                {
-                    <p class="etd-muted">Aucun joueur stocke pour ce club. Lance une mise a jour EA pour recuperer et sauvegarder le roster.</p>
-                }
-                else
-                {
-                    <div class="etd-roster-groups">
-                        @foreach (var group in RosterGroups)
-                        {
-                            <section>
-                                <div class="etd-roster-group-head">
-                                    <strong>@group.Label</strong>
-                                    <span>@group.Players.Count joueur(s)</span>
-                                </div>
-                                @foreach (var player in group.Players)
-                                {
-                                    <article class="etd-roster-player @(player.Selected ? "selected" : "") @(FocusedRosterPlayer == player ? "focused" : "") @(!IsHeightEligibleForTournament(player) && player.Selected ? "invalid" : "")">
-                                        <label class="etd-check">
-                                            <input type="checkbox" checked="@player.Selected" @onchange="args => TogglePlayerAsync(player, args)" disabled="@(!player.CanBeSelected || (!player.Selected && SelectedRosterCount >= 11))" />
-                                            <span></span>
-                                        </label>
-                                        <div>
-                                            <strong>@player.DisplayName</strong>
-                                            <small>@player.Gamertag</small>
-                                            <div class="etd-player-tags">
-                                                <span class="@(player.HasApp ? "ok" : "warn")">@(player.HasApp ? "Dans l'app" : "A inviter")</span>
-                                                <span>EA @player.EaPositionLabel</span>
-                                                <span class="@(!IsHeightEligibleForTournament(player) ? "danger" : "")">@player.HeightLabel</span>
-                                                <span>@player.OverallLabel</span>
-                                                <span>@player.MatchesLabel</span>
-                                            </div>
-                                        </div>
-                                        <select value="@player.Position" @onchange="args => UpdatePlayerPositionAsync(player, args)">
-                                            <option value="">Poste tournoi</option>
-                                            <option value="GK">GK</option>
-                                            <option value="DC">DC</option>
-                                            <option value="DG">DG</option>
-                                            <option value="DD">DD</option>
-                                            <option value="MDC">MDC</option>
-                                            <option value="MC">MC</option>
-                                            <option value="MOC">MOC</option>
-                                            <option value="AG">AG</option>
-                                            <option value="AD">AD</option>
-                                            <option value="BU">BU</option>
-                                        </select>
-                                        @if (!player.HasApp)
-                                        {
-                                            <button type="button" class="etd-secondary small" @onclick="() => AddInviteLink(player)">Inviter</button>
-                                        }
-                                    </article>
-                                }
-                            </section>
-                        }
-                    </div>
-                }
-            </article>
+            @if (!string.IsNullOrWhiteSpace(RosterMessage))
+            {
+                <p class="etd-register-message">@RosterMessage</p>
+            }
 
             @if (InviteLinks.Count > 0 || TeamInviteLink is not null)
             {
@@ -246,6 +348,44 @@
                         }
                     </div>
                 </article>
+            }
+
+            @if (PositionPickerSlot is not null)
+            {
+                <div class="etd-modal-backdrop" @onclick="ClosePositionPicker">
+                    <section class="etd-player-picker" @onclick:stopPropagation="true">
+                        <div class="etd-register-head">
+                            <div>
+                                <span>Selection poste</span>
+                                <strong>@PositionPickerSlot</strong>
+                            </div>
+                            <button type="button" class="etd-secondary small" @onclick="ClosePositionPicker">Fermer</button>
+                        </div>
+
+                        <label class="etd-field">Rechercher un joueur
+                            <input value="@PositionPickerSearch" @oninput="args => PositionPickerSearch = args.Value?.ToString() ?? string.Empty" placeholder="Nom, gamertag, poste..." />
+                        </label>
+
+                        <div class="etd-picker-list">
+                            @foreach (var player in FilteredPickerPlayers)
+                            {
+                                <button type="button" class="etd-picker-player @(player.Selected ? "selected" : "") @(!IsHeightEligibleForPosition(player, PositionPickerSlot) ? "invalid" : "")" @onclick="() => SelectPlayerForSlot(player)">
+                                    <div>
+                                        <strong>@player.DisplayName</strong>
+                                        <small>@player.Gamertag</small>
+                                        <div class="etd-player-tags">
+                                            <span class="@(player.HasApp ? "ok" : "warn")">@(player.HasApp ? "Dans l'app" : "A inviter")</span>
+                                            <span>EA @player.EaPositionLabel</span>
+                                            <span>@player.HeightLabel</span>
+                                            <span>@player.OverallLabel</span>
+                                        </div>
+                                    </div>
+                                    <span>@(IsHeightEligibleForPosition(player, PositionPickerSlot) ? "Choisir" : "Restriction")</span>
+                                </button>
+                            }
+                        </div>
+                    </section>
+                </div>
             }
         </section>
 
@@ -366,10 +506,16 @@
     private List<OwnerTeamOption> OwnerTeams { get; } = [];
     private List<RosterPlayerModel> Roster { get; } = [];
     private List<PlayerInviteLink> InviteLinks { get; } = [];
+    private HashSet<Guid> LocallyRegisteredTeamIds { get; } = [];
     private PlayerInviteLink? TeamInviteLink { get; set; }
     private Guid? SelectedOwnerTeamId { get; set; }
     private RosterPlayerModel? FocusedRosterPlayer { get; set; }
     private string SelectedFormation { get; set; } = "4-2-3-1";
+    private int RegistrationStep { get; set; } = 1;
+    private TournamentPaymentMode SelectedPaymentMode { get; set; } = TournamentPaymentMode.ClubManagerPays;
+    private bool RulesAccepted { get; set; }
+    private string? PositionPickerSlot { get; set; }
+    private string PositionPickerSearch { get; set; } = string.Empty;
     private bool RosterBusy { get; set; }
     private string? RosterMessage { get; set; }
     private int DefaultMaxHeightCm { get; set; } = 182;
@@ -384,12 +530,30 @@
     private string WinnerLabel => WinnerTeamName == "Champion a confirmer" ? "Resultat final a confirmer" : $"{WinnerTeamName} remporte le tournoi";
     private string FinalLabel => FinalMatch is null ? "La finale n'est pas encore liee en base." : $"Finale: {TeamName(FinalMatch.HomeTeamId)} {Score(FinalMatch.HomeScore)} - {Score(FinalMatch.AwayScore)} {TeamName(FinalMatch.AwayTeamId)}";
     private string SelectedOwnerTeamName => OwnerTeams.FirstOrDefault(team => team.TeamId == SelectedOwnerTeamId)?.Name ?? "Aucun club";
+    private bool IsSelectedTeamRegistered => SelectedOwnerTeamId.HasValue
+        && (LocallyRegisteredTeamIds.Contains(SelectedOwnerTeamId.Value) || Detail?.RegistrationSummary.Teams.Any(team => team.TeamId == SelectedOwnerTeamId.Value) == true);
+    private bool CanStartRegistration => SelectedOwnerTeamId.HasValue && RulesAccepted && !RosterBusy;
     private int SelectedRosterCount => Roster.Count(player => player.Selected);
     private int SelectedAppRosterCount => Roster.Count(player => player.Selected && player.HasApp);
     private int SelectedInviteRequiredCount => Roster.Count(player => player.Selected && !player.HasApp);
     private int MissingTournamentPositionCount => Roster.Count(player => player.Selected && string.IsNullOrWhiteSpace(player.Position));
     private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
     private bool CanSubmitRoster => SelectedOwnerTeamId.HasValue && SelectedRosterCount == 11 && MissingTournamentPositionCount == 0 && HeightViolationCount == 0 && !RosterBusy;
+    private string PaymentConfirmationText => SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays
+        ? "Le paiement equipe sera valide cote GM. Pour la V1 web, PayPal reste le flux le plus simple pour encaisser et reverser les lots."
+        : "Chaque joueur convoque devra valider sa presence et payer sa place individuellement avant la limite du tournoi.";
+    private IReadOnlyList<RosterPlayerModel> FilteredPickerPlayers => Roster
+        .Where(player => string.IsNullOrWhiteSpace(PositionPickerSearch)
+            || player.DisplayName.Contains(PositionPickerSearch, StringComparison.OrdinalIgnoreCase)
+            || player.Gamertag.Contains(PositionPickerSearch, StringComparison.OrdinalIgnoreCase)
+            || (player.EaPosition?.Contains(PositionPickerSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (player.Position?.Contains(PositionPickerSearch, StringComparison.OrdinalIgnoreCase) ?? false))
+        .OrderBy(player => IsHeightEligibleForPosition(player, PositionPickerSlot) ? 0 : 1)
+        .ThenBy(PositionSort)
+        .ThenByDescending(player => player.HasApp)
+        .ThenByDescending(player => player.AverageRating ?? 0)
+        .ThenBy(player => player.DisplayName)
+        .ToArray();
     private IReadOnlyList<RosterPositionGroup> RosterGroups => Roster
         .OrderBy(PositionSort)
         .ThenByDescending(player => player.HasApp)
@@ -453,6 +617,88 @@
         await LoadMatchDetailsAsync(match);
     }
 
+    private void GoToRegistrationStep(int step)
+    {
+        if (step > 1 && !IsSelectedTeamRegistered)
+        {
+            RosterMessage = "Inscris d'abord le club au tournoi pour debloquer la preparation des 11.";
+            RegistrationStep = 1;
+            return;
+        }
+
+        RegistrationStep = Math.Clamp(step, 1, 3);
+    }
+
+    private async Task StartTournamentRegistrationAsync()
+    {
+        if (!CanStartRegistration || SelectedOwnerTeamId is null)
+        {
+            return;
+        }
+
+        RosterBusy = true;
+        RosterMessage = null;
+
+        try
+        {
+            var registration = await Api.RegisterTeamForTournamentAsync(TournamentId, new RegisterTeamForTournamentRequest(SelectedOwnerTeamId.Value, SelectedPaymentMode));
+            if (!registration.Success && !IsAlreadyRegistered(registration.Error))
+            {
+                RosterMessage = registration.Error ?? "Impossible d'inscrire ce club au tournoi.";
+                return;
+            }
+
+            LocallyRegisteredTeamIds.Add(SelectedOwnerTeamId.Value);
+            RosterMessage = registration.Success
+                ? $"Club inscrit provisoirement. Mode paiement: {PaymentModeLabel(SelectedPaymentMode)}."
+                : "Club deja inscrit. Tu peux preparer les 11.";
+            RegistrationStep = 2;
+            await LoadRosterForSelectedTeamAsync();
+        }
+        finally
+        {
+            RosterBusy = false;
+        }
+    }
+
+    private void OpenPositionPicker(string slot)
+    {
+        PositionPickerSlot = slot;
+        PositionPickerSearch = string.Empty;
+    }
+
+    private void ClosePositionPicker()
+    {
+        PositionPickerSlot = null;
+        PositionPickerSearch = string.Empty;
+    }
+
+    private void SelectPlayerForSlot(RosterPlayerModel player)
+    {
+        if (PositionPickerSlot is null)
+        {
+            return;
+        }
+
+        var currentSlotPlayer = Roster.FirstOrDefault(item => item.Selected && string.Equals(item.Position, PositionPickerSlot, StringComparison.OrdinalIgnoreCase));
+        if (currentSlotPlayer is not null && currentSlotPlayer != player)
+        {
+            currentSlotPlayer.Selected = false;
+            currentSlotPlayer.Position = string.Empty;
+        }
+
+        if (!player.Selected && SelectedRosterCount >= 11)
+        {
+            RosterMessage = "Tu as deja 11 joueurs. Retire un joueur avant d'en ajouter un autre.";
+            return;
+        }
+
+        player.Selected = true;
+        player.Position = PositionPickerSlot;
+        FocusedRosterPlayer = player;
+        ClosePositionPicker();
+    }
+
     private async Task LoadOwnerContextAsync()
     {
         OwnerTeams.Clear();
@@ -468,7 +714,7 @@
             return;
         }
 
-        foreach (var membership in me.Value.Memberships.Where(member => member.TeamId.HasValue && member.Role is TeamRole.Owner or TeamRole.Manager))
+        foreach (var membership in me.Value.Memberships.Where(member => member.TeamId.HasValue))
         {
             OwnerTeams.Add(new OwnerTeamOption(membership.TeamId!.Value, membership.TeamName ?? membership.TeamShortName ?? membership.DisplayName, membership.Role));
         }
@@ -582,12 +828,14 @@
 
         try
         {
-            var registration = await Api.RegisterTeamForTournamentAsync(TournamentId, new RegisterTeamForTournamentRequest(SelectedOwnerTeamId.Value, TournamentPaymentMode.IndividualPlayers));
+            var registration = await Api.RegisterTeamForTournamentAsync(TournamentId, new RegisterTeamForTournamentRequest(SelectedOwnerTeamId.Value, SelectedPaymentMode));
             if (!registration.Success && !IsAlreadyRegistered(registration.Error))
             {
                 RosterMessage = registration.Error;
                 return;
             }
+
+            LocallyRegisteredTeamIds.Add(SelectedOwnerTeamId.Value);
 
             foreach (var player in Roster.Where(player => player.Selected).Take(11))
             {
@@ -609,6 +857,7 @@
             RosterMessage = InviteLinks.Count > 0
                 ? $"Equipe inscrite provisoirement: {SelectedAppRosterCount} joueur(s) app ajoutes, {InviteLinks.Count} invitation(s) a envoyer."
                 : "Equipe inscrite et 11 joueurs convoques. Les joueurs doivent valider leur presence.";
+            RegistrationStep = 3;
         }
         finally
         {
@@ -731,6 +980,16 @@
         }
 
         return player.Height.Value <= GetMaxHeightForPosition(string.IsNullOrWhiteSpace(player.Position) ? player.EaPosition : player.Position);
+    }
+
+    private bool IsHeightEligibleForPosition(RosterPlayerModel player, string? position)
+    {
+        if (!player.Height.HasValue || string.IsNullOrWhiteSpace(position))
+        {
+            return true;
+        }
+
+        return player.Height.Value <= GetMaxHeightForPosition(position);
     }
 
     private int GetMaxHeightForPosition(string? position)
@@ -906,6 +1165,9 @@
         ? $"Tournoi goodies, {tournament.MaxTeams} equipes maximum. {tournament.GoodiesDescription}"
         : $"Tournoi standard, {tournament.MaxTeams} equipes maximum. Scores et equipes suivis depuis la base.";
     private static string PrizeLabel(TournamentResponse tournament) => tournament.IsCashPrize ? (string.IsNullOrWhiteSpace(tournament.GoodiesDescription) ? "Lots goodies" : tournament.GoodiesDescription!) : "Pas de goodies";
+    private static string PaymentModeLabel(TournamentPaymentMode mode) => mode == TournamentPaymentMode.ClubManagerPays
+        ? "GM paie l'equipe"
+        : "Paiement individuel";
     private static string BuildBannerStyle(string? bannerUrl) => string.IsNullOrWhiteSpace(bannerUrl)
         ? string.Empty
         : $"background-image: linear-gradient(90deg, rgba(7,7,14,.96), rgba(7,7,14,.55)), url('{bannerUrl}');";

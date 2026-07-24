@@ -211,6 +211,114 @@ body:has(.et-detail-page) {
     gap: 16px;
 }
 
+.etd-stepper {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.etd-stepper button {
+    min-height: 74px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    background: #07070e;
+    color: #9b9acf;
+    text-align: left;
+}
+
+.etd-stepper button.active,
+.etd-stepper button.done {
+    border-color: rgba(0, 230, 118, .55);
+    background: #0b211e;
+}
+
+.etd-stepper button:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.etd-stepper span,
+.etd-tunnel-copy p,
+.etd-confirm-grid span {
+    color: #9b9acf;
+}
+
+.etd-stepper strong {
+    display: block;
+    margin-top: 5px;
+    color: #fff;
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+.etd-step-card {
+    min-height: 260px;
+}
+
+.etd-tunnel-copy {
+    display: grid;
+    gap: 8px;
+    max-width: 980px;
+}
+
+.etd-tunnel-copy p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.etd-payment-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.etd-payment-options label,
+.etd-rules-accept {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    background: #07070e;
+    color: #f0f0f8;
+}
+
+.etd-payment-options label.selected {
+    border-color: rgba(0, 230, 118, .55);
+    background: #0b211e;
+}
+
+.etd-payment-options span,
+.etd-rules-accept span {
+    color: #fff;
+    font-weight: 900;
+}
+
+.etd-payment-options small {
+    color: #9b9acf;
+    line-height: 1.45;
+}
+
+.etd-confirm-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.etd-confirm-grid div {
+    padding: 14px;
+    border-radius: 12px;
+    background: #07070e;
+}
+
+.etd-confirm-grid strong {
+    display: block;
+    margin-top: 5px;
+    color: #fff;
+    font-size: 1.05rem;
+}
+
 .etd-register-card,
 .etd-roster-card {
     display: grid;
@@ -258,6 +366,7 @@ body:has(.et-detail-page) {
 }
 
 .etd-field select,
+.etd-field input,
 .etd-roster-player select,
 .etd-invite-list input {
     width: 100%;
@@ -474,6 +583,75 @@ body:has(.et-detail-page) {
     align-items: center;
 }
 
+.etd-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    background: rgba(0, 0, 0, .72);
+}
+
+.etd-player-picker {
+    width: min(920px, 100%);
+    max-height: min(760px, 90vh);
+    display: grid;
+    gap: 14px;
+    overflow: auto;
+    padding: 20px;
+    border: 1px solid rgba(0, 230, 118, .35);
+    border-radius: 18px;
+    background: #10101a;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .55);
+}
+
+.etd-picker-list {
+    display: grid;
+    gap: 10px;
+}
+
+.etd-picker-player {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    background: #07070e;
+    color: #f0f0f8;
+    text-align: left;
+}
+
+.etd-picker-player.selected {
+    border-color: rgba(0, 230, 118, .55);
+    background: #0b211e;
+}
+
+.etd-picker-player.invalid {
+    border-color: rgba(255, 82, 82, .55);
+}
+
+.etd-picker-player strong {
+    color: #fff;
+}
+
+.etd-picker-player small {
+    color: #9b9acf;
+}
+
+.etd-picker-player > span {
+    display: inline-grid;
+    min-height: 38px;
+    place-items: center;
+    padding: 0 12px;
+    border-radius: 9px;
+    background: #00e676;
+    color: #07070e;
+    font-weight: 900;
+}
+
 .etd-panel-head {
     display: flex;
     justify-content: space-between;
@@ -666,6 +844,11 @@ body:has(.et-detail-page) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .etd-payment-options,
+    .etd-confirm-grid {
+        grid-template-columns: 1fr;
+    }
+
     .etd-roster-player {
         grid-template-columns: 34px minmax(0, 1fr);
     }
@@ -676,6 +859,10 @@ body:has(.et-detail-page) {
     }
 
     .etd-invite-list div {
+        grid-template-columns: 1fr;
+    }
+
+    .etd-picker-player {
         grid-template-columns: 1fr;
     }
 }
@@ -713,6 +900,10 @@ body:has(.et-detail-page) {
         grid-template-columns: 1fr;
     }
 
+    .etd-stepper {
+        grid-template-columns: 1fr;
+    }
+
     .etd-lineup-board {
         padding: 10px;
     }
@@ -724,5 +915,14 @@ body:has(.et-detail-page) {
     .etd-lineup-slot {
         min-height: 78px;
         padding: 8px;
+    }
+
+    .etd-modal-backdrop {
+        padding: 10px;
+    }
+
+    .etd-player-picker {
+        max-height: 92vh;
+        padding: 14px;
     }
 }
