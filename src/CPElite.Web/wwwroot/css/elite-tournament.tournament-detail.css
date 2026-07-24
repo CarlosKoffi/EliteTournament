@@ -319,6 +319,68 @@ body:has(.et-detail-page) {
     font-size: 1.05rem;
 }
 
+.etd-selected-summary {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 14px;
+    background: #07070e;
+}
+
+.etd-selected-group {
+    display: grid;
+    gap: 8px;
+}
+
+.etd-selected-group h3 {
+    margin: 0;
+    color: #00e676;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.etd-selected-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.etd-selected-player {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    background: #10101a;
+}
+
+.etd-selected-player.invalid {
+    border-color: rgba(255, 82, 82, .55);
+}
+
+.etd-selected-player span {
+    display: grid;
+    min-height: 40px;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(0, 230, 118, .14);
+    color: #00e676;
+    font-weight: 900;
+}
+
+.etd-selected-player strong {
+    color: #fff;
+}
+
+.etd-selected-player small {
+    color: #9b9acf;
+}
+
 .etd-register-card,
 .etd-roster-card {
     display: grid;
@@ -845,7 +907,8 @@ body:has(.et-detail-page) {
     }
 
     .etd-payment-options,
-    .etd-confirm-grid {
+    .etd-confirm-grid,
+    .etd-selected-list {
         grid-template-columns: 1fr;
     }
 

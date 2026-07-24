@@ -176,7 +176,7 @@
                                 <div class="etd-lineup-row" style="grid-template-columns: repeat(@row.Count, minmax(0, 1fr));">
                                     @foreach (var slot in row)
                                     {
-                                        <button type="button" class="etd-lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => OpenPositionPicker(slot.Position)">
+                                        <button type="button" class="etd-lineup-slot @(slot.Player is null ? "empty" : "") @(slot.Player is not null && !IsHeightEligibleForTournament(slot.Player) ? "invalid" : "")" @onclick="() => OpenPositionPicker(slot)">
                                             <span>@slot.Position</span>
                                             <strong>@(slot.Player?.DisplayName ?? "A choisir")</strong>
                                             <small>@(slot.Player is null ? "Slot libre" : $"{slot.Player.HeightLabel} - {slot.Player.OverallLabel}")</small>
@@ -300,6 +300,33 @@
                         <div><span>Postes manquants</span><strong>@MissingTournamentPositionCount</strong></div>
                         <div><span>Invitations</span><strong>@SelectedInviteRequiredCount</strong></div>
                     </div>
+
+                    <section class="etd-selected-summary">
+                        <div class="etd-register-head">
+                            <div>
+                                <span>Recap des 11</span>
+                                <strong>Gardien, defense, milieu, attaque</strong>
+                            </div>
+                            <span class="etd-count-pill">@SelectedRosterCount joueur(s)</span>
+                        </div>
+
+                        @foreach (var group in SelectedRosterGroups)
+                        {
+                            <div class="etd-selected-group">
+                                <h3>@group.Label</h3>
+                                <div class="etd-selected-list">
+                                    @foreach (var player in group.Players)
+                                    {
+                                        <article class="etd-selected-player @(!IsHeightEligibleForTournament(player) ? "invalid" : "")">
+                                            <span>@player.PositionLabel</span>
+                                            <strong>@player.DisplayName</strong>
+                                            <small>@player.HeightLabel - @player.EaPositionLabel - @(player.HasApp ? "Dans l'app" : "Invitation a envoyer")</small>
+                                        </article>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </section>
 
                     <div class="etd-rule-note">
                         <strong>Validation paiement</strong>
@@ -515,6 +542,7 @@
     private TournamentPaymentMode SelectedPaymentMode { get; set; } = TournamentPaymentMode.ClubManagerPays;
     private bool RulesAccepted { get; set; }
     private string? PositionPickerSlot { get; set; }
+    private string? PositionPickerSlotKey { get; set; }
     private string PositionPickerSearch { get; set; } = string.Empty;
     private bool RosterBusy { get; set; }
     private string? RosterMessage { get; set; }
@@ -560,6 +588,14 @@
         .ThenByDescending(player => player.AverageRating ?? 0)
         .ThenBy(player => player.DisplayName)
         .GroupBy(player => PositionGroup(player.EaPosition))
+        .Select(group => new RosterPositionGroup(PositionGroupLabel(group.Key), group.ToArray()))
+        .ToArray();
+    private IReadOnlyList<RosterPositionGroup> SelectedRosterGroups => Roster
+        .Where(player => player.Selected)
+        .OrderBy(PositionSortFromTournamentPosition)
+        .ThenBy(player => player.Position)
+        .ThenBy(player => player.DisplayName)
+        .GroupBy(player => PositionGroup(player.Position))
         .Select(group => new RosterPositionGroup(PositionGroupLabel(group.Key), group.ToArray()))
         .ToArray();
     private IReadOnlyList<IReadOnlyList<LineupSlotModel>> LineupRows => BuildLineupRows();
@@ -661,30 +697,33 @@
         }
     }
 
-    private void OpenPositionPicker(string slot)
+    private void OpenPositionPicker(LineupSlotModel slot)
     {
-        PositionPickerSlot = slot;
+        PositionPickerSlot = slot.Position;
+        PositionPickerSlotKey = slot.Key;
         PositionPickerSearch = string.Empty;
     }
 
     private void ClosePositionPicker()
     {
         PositionPickerSlot = null;
+        PositionPickerSlotKey = null;
         PositionPickerSearch = string.Empty;
     }
 
     private void SelectPlayerForSlot(RosterPlayerModel player)
     {
-        if (PositionPickerSlot is null)
+        if (PositionPickerSlot is null || PositionPickerSlotKey is null)
         {
             return;
         }
 
-        var currentSlotPlayer = Roster.FirstOrDefault(item => item.Selected && string.Equals(item.Position, PositionPickerSlot, StringComparison.OrdinalIgnoreCase));
+        var currentSlotPlayer = Roster.FirstOrDefault(item => item.Selected && item.AssignedSlotKey == PositionPickerSlotKey);
         if (currentSlotPlayer is not null && currentSlotPlayer != player)
         {
             currentSlotPlayer.Selected = false;
             currentSlotPlayer.Position = string.Empty;
+            currentSlotPlayer.AssignedSlotKey = null;
         }
 
         if (!player.Selected && SelectedRosterCount >= 11)
@@ -695,6 +734,7 @@
 
         player.Selected = true;
         player.Position = PositionPickerSlot;
+        player.AssignedSlotKey = PositionPickerSlotKey;
         FocusedRosterPlayer = player;
         ClosePositionPicker();
     }
@@ -799,6 +839,11 @@
     private async Task TogglePlayerAsync(RosterPlayerModel player, ChangeEventArgs args)
     {
         player.Selected = args.Value is bool selected && selected && player.CanBeSelected;
+        if (!player.Selected)
+        {
+            player.AssignedSlotKey = null;
+        }
+
         if (player.Selected && string.IsNullOrWhiteSpace(player.Position))
         {
             player.Position = SuggestTournamentPosition(player.EaPosition);
@@ -811,6 +856,7 @@
     private async Task UpdatePlayerPositionAsync(RosterPlayerModel player, ChangeEventArgs args)
     {
         player.Position = args.Value?.ToString() ?? string.Empty;
+        player.AssignedSlotKey = null;
         FocusedRosterPlayer = player;
         await Task.CompletedTask;
     }
@@ -1002,15 +1048,28 @@
     private IReadOnlyList<IReadOnlyList<LineupSlotModel>> BuildLineupRows()
     {
         var usedPlayerKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var slotCounters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         return GetFormationRows(SelectedFormation)
-            .Select(row => row.Select(position => new LineupSlotModel(position, GetLineupPlayer(position, usedPlayerKeys))).ToArray())
+            .Select(row => row.Select(position =>
+            {
+                slotCounters[position] = slotCounters.TryGetValue(position, out var count) ? count + 1 : 1;
+                var key = $"{position}-{slotCounters[position]}";
+                return new LineupSlotModel(key, position, GetLineupPlayer(key, position, usedPlayerKeys));
+            }).ToArray())
             .ToArray();
     }
 
-    private RosterPlayerModel? GetLineupPlayer(string slot, HashSet<string> usedPlayerKeys)
+    private RosterPlayerModel? GetLineupPlayer(string slotKey, string slot, HashSet<string> usedPlayerKeys)
     {
         var selected = Roster.Where(player => player.Selected).ToList();
-        var direct = selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && string.Equals(player.Position, slot, StringComparison.OrdinalIgnoreCase));
+        var assigned = selected.FirstOrDefault(player => player.AssignedSlotKey == slotKey);
+        if (assigned is not null)
+        {
+            usedPlayerKeys.Add(assigned.RosterKey);
+            return assigned;
+        }
+
+        var direct = selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && string.Equals(player.Position, slot, StringComparison.OrdinalIgnoreCase));
         if (direct is not null)
         {
             usedPlayerKeys.Add(direct.RosterKey);
@@ -1019,13 +1078,13 @@
 
         var fallback = slot switch
         {
-            "DC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DG" or "DD" or "MDC"),
-            "DG" or "DD" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DC" or "MDC"),
-            "MDC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "DC"),
-            "MC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MDC" or "MOC"),
-            "MOC" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "AG" or "AD"),
-            "AG" or "AD" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MOC" or "BU"),
-            "BU" => selected.FirstOrDefault(player => !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "AG" or "AD" or "MOC"),
+            "DC" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DG" or "DD" or "MDC"),
+            "DG" or "DD" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "DC" or "MDC"),
+            "MDC" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "DC"),
+            "MC" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MDC" or "MOC"),
+            "MOC" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MC" or "AG" or "AD"),
+            "AG" or "AD" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "MOC" or "BU"),
+            "BU" => selected.FirstOrDefault(player => string.IsNullOrWhiteSpace(player.AssignedSlotKey) && !usedPlayerKeys.Contains(player.RosterKey) && player.Position is "AG" or "AD" or "MOC"),
             _ => null
         };
 
@@ -1091,6 +1150,15 @@
     }
 
     private static int PositionSort(RosterPlayerModel player) => PositionGroup(player.EaPosition) switch
+    {
+        "GK" => 0,
+        "DEF" => 1,
+        "MIL" => 2,
+        "ATT" => 3,
+        _ => 4
+    };
+
+    private static int PositionSortFromTournamentPosition(RosterPlayerModel player) => PositionGroup(player.Position) switch
     {
         "GK" => 0,
         "DEF" => 1,
@@ -1218,7 +1286,7 @@
     private sealed record OwnerTeamOption(Guid TeamId, string Name, TeamRole Role);
     private sealed record PlayerInviteLink(string PlayerName, string EaPlayerId, string Position, string Url);
     private sealed record RosterPositionGroup(string Label, IReadOnlyList<RosterPlayerModel> Players);
-    private sealed record LineupSlotModel(string Position, RosterPlayerModel? Player);
+    private sealed record LineupSlotModel(string Key, string Position, RosterPlayerModel? Player);
 
     private sealed class RosterPlayerModel
     {
@@ -1258,6 +1326,7 @@
         public string EaPlayerId { get; }
         public string? EaPosition { get; }
         public string Position { get; set; }
+        public string? AssignedSlotKey { get; set; }
         public bool Selected { get; set; }
         public bool HasApp { get; }
         public string Status { get; }
@@ -1271,6 +1340,7 @@
         public string HeightLabel => Height.HasValue ? $"{Height} cm" : "-";
         public string OverallLabel => Overall.HasValue ? $"{Overall} OVR" : "-";
         public string MatchesLabel => Matches.HasValue ? $"{Matches} MJ" : "-";
+        public string PositionLabel => string.IsNullOrWhiteSpace(Position) ? "Poste -" : Position;
 
         public static RosterPlayerModel FromEaProfile(EaPlayerProfileSnapshotResponse profile, TeamMemberResponse? member, TournamentParticipantResponse? participant)
         {
