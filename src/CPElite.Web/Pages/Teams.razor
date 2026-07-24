@@ -1651,7 +1651,7 @@
                 Metric("Temps reel", Duration(stat.RealtimeGame)),
                 Metric("Temps idle", Duration(stat.RealtimeIdle)),
                 Metric("Carton rouge", stat.RedCards),
-                Metric("Archetype", stat.ArchetypeId),
+                Metric("Archetype", EaArchetypeMapper.Label(stat.ArchetypeId)),
                 Metric("Attributs VPro", stat.VproAttributes ?? "-")
             }));
 

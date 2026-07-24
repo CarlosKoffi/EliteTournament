@@ -279,7 +279,7 @@
                                             <div><dt>Buts encaisses</dt><dd>@SelectedTournamentStats.GoalsConceded</dd></div>
                                             <div><dt>Clean sheets</dt><dd>@CleanSheetLabel(SelectedTournamentStats)</dd></div>
                                             <div><dt>Minutes</dt><dd>@MinutesLabel(SelectedTournamentStats.SecondsPlayed)</dd></div>
-                                            <div><dt>Archetype brut</dt><dd>@TournamentArchetypeLabel(SelectedTournamentStats)</dd></div>
+                                            <div><dt>Archetype</dt><dd>@TournamentArchetypeLabel(SelectedTournamentStats)</dd></div>
                                         </dl>
                                     }
                                 </section>
@@ -717,10 +717,10 @@
     {
         if (stats.ArchetypeId.HasValue)
         {
-            return stats.ArchetypeId.Value.ToString();
+            return EaArchetypeMapper.Label(stats.ArchetypeId);
         }
 
-        return string.IsNullOrWhiteSpace(stats.VproAttributes) ? "-" : stats.VproAttributes;
+        return EaArchetypeMapper.Label(stats.ArchetypeId, stats.VproAttributes);
     }
 
     private RenderFragment AwardCard(string title, TeamTournamentPlayerAwardResponse? player, string metric) => @<article class="el-award-card">
