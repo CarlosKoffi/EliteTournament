@@ -381,6 +381,28 @@ body:has(.et-detail-page) {
     color: #9b9acf;
 }
 
+.etd-blocking-reasons {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid rgba(255, 82, 82, .32);
+    border-radius: 12px;
+    background: rgba(255, 82, 82, .08);
+}
+
+.etd-blocking-reasons strong {
+    color: #ff6868;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.etd-blocking-reasons span {
+    color: #ffd6d6;
+    line-height: 1.4;
+}
+
 .etd-register-card,
 .etd-roster-card {
     display: grid;

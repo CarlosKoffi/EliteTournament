@@ -141,6 +141,17 @@
                             <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStepAsync(2)">Passer a l'equipe</button>
                         }
                     </div>
+
+                    @if (Step1BlockingReasons.Count > 0)
+                    {
+                        <div class="etd-blocking-reasons">
+                            <strong>Pourquoi tu ne peux pas continuer</strong>
+                            @foreach (var reason in Step1BlockingReasons)
+                            {
+                                <span>@reason</span>
+                            }
+                        </div>
+                    }
                 </article>
             }
 
@@ -207,6 +218,17 @@
                             <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStepAsync(1)">Retour inscription</button>
                             <button type="button" class="etd-primary" @onclick="() => GoToRegistrationStepAsync(3)" disabled="@(SelectedRosterCount != 11)">Continuer vers confirmation</button>
                         </div>
+
+                        @if (Step2BlockingReasons.Count > 0)
+                        {
+                            <div class="etd-blocking-reasons">
+                                <strong>Pourquoi tu ne peux pas continuer</strong>
+                                @foreach (var reason in Step2BlockingReasons)
+                                {
+                                    <span>@reason</span>
+                                }
+                            </div>
+                        }
                     </article>
                 </div>
 
@@ -338,6 +360,17 @@
                         <button type="button" class="etd-primary" @onclick="SubmitRosterAsync" disabled="@(!CanSubmitRoster)">Confirmer l'inscription</button>
                         <button type="button" class="etd-secondary" @onclick="RemindPendingAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Relancer presences</button>
                     </div>
+
+                    @if (Step3BlockingReasons.Count > 0)
+                    {
+                        <div class="etd-blocking-reasons">
+                            <strong>Pourquoi tu ne peux pas confirmer</strong>
+                            @foreach (var reason in Step3BlockingReasons)
+                            {
+                                <span>@reason</span>
+                            }
+                        </div>
+                    }
                 </article>
             }
 
@@ -568,7 +601,21 @@
     private int SelectedInviteRequiredCount => Roster.Count(player => player.Selected && !player.HasApp);
     private int MissingTournamentPositionCount => Roster.Count(player => player.Selected && string.IsNullOrWhiteSpace(player.Position));
     private int HeightViolationCount => Roster.Count(player => player.Selected && !IsHeightEligibleForTournament(player));
-    private bool CanSubmitRoster => SelectedOwnerTeamId.HasValue && SelectedRosterCount == 11 && MissingTournamentPositionCount == 0 && HeightViolationCount == 0 && !RosterBusy;
+    private bool CanSubmitRoster => SelectedOwnerTeamId.HasValue
+        && SelectedRosterCount == 11
+        && MissingTournamentPositionCount == 0
+        && HeightViolationCount == 0
+        && SelectedInviteRequiredCount == 0
+        && PendingPresenceCount == 0
+        && UnavailablePresenceCount == 0
+        && !RosterBusy;
+    private int MissingPlayerCount => Math.Max(11 - SelectedRosterCount, 0);
+    private int PendingPresenceCount => Roster.Count(player => player.Selected && string.Equals(player.Status, TournamentPlayerPresenceStatus.Pending.ToString(), StringComparison.OrdinalIgnoreCase));
+    private int UnavailablePresenceCount => Roster.Count(player => player.Selected && string.Equals(player.Status, TournamentPlayerPresenceStatus.Unavailable.ToString(), StringComparison.OrdinalIgnoreCase));
+    private int LatePresenceCount => Roster.Count(player => player.Selected && string.Equals(player.Status, TournamentPlayerPresenceStatus.Late.ToString(), StringComparison.OrdinalIgnoreCase));
+    private IReadOnlyList<string> Step1BlockingReasons => BuildStep1BlockingReasons();
+    private IReadOnlyList<string> Step2BlockingReasons => BuildStep2BlockingReasons();
+    private IReadOnlyList<string> Step3BlockingReasons => BuildStep3BlockingReasons();
     private string PaymentConfirmationText => SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays
         ? "Le paiement equipe sera valide cote GM. Pour la V1 web, PayPal reste le flux le plus simple pour encaisser et reverser les lots."
         : "Chaque joueur convoque devra valider sa presence et payer sa place individuellement avant la limite du tournoi.";
@@ -672,6 +719,89 @@
     {
         SelectedPaymentMode = mode;
         await SaveRegistrationDraftAsync();
+    }
+
+    private IReadOnlyList<string> BuildStep1BlockingReasons()
+    {
+        var reasons = new List<string>();
+        if (SelectedOwnerTeamId is null)
+        {
+            reasons.Add("Aucun club n'est selectionne pour l'inscription.");
+        }
+
+        if (!RulesAccepted)
+        {
+            reasons.Add("Les regles du tournoi doivent etre acceptees.");
+        }
+
+        if (RosterBusy)
+        {
+            reasons.Add("Chargement en cours, attends la fin de la synchronisation.");
+        }
+
+        return reasons;
+    }
+
+    private IReadOnlyList<string> BuildStep2BlockingReasons()
+    {
+        var reasons = new List<string>();
+        if (!IsSelectedTeamRegistered)
+        {
+            reasons.Add("Le club doit d'abord etre inscrit au tournoi.");
+        }
+
+        if (Roster.Count == 0)
+        {
+            reasons.Add("L'effectif du club n'est pas encore charge.");
+        }
+
+        if (MissingPlayerCount > 0)
+        {
+            reasons.Add($"Il manque {MissingPlayerCount} joueur(s) pour atteindre les 11 convoques.");
+        }
+
+        if (SelectedRosterCount > 11)
+        {
+            reasons.Add("Il y a plus de 11 joueurs selectionnes.");
+        }
+
+        if (MissingTournamentPositionCount > 0)
+        {
+            reasons.Add($"{MissingTournamentPositionCount} joueur(s) selectionne(s) n'ont pas de poste tournoi.");
+        }
+
+        if (HeightViolationCount > 0)
+        {
+            reasons.Add($"{HeightViolationCount} joueur(s) ne respectent pas les restrictions de taille.");
+        }
+
+        return reasons;
+    }
+
+    private IReadOnlyList<string> BuildStep3BlockingReasons()
+    {
+        var reasons = BuildStep2BlockingReasons().ToList();
+        if (SelectedInviteRequiredCount > 0)
+        {
+            reasons.Add($"{SelectedInviteRequiredCount} joueur(s) selectionne(s) ne sont pas encore dans l'application. Envoie les liens d'invitation.");
+        }
+
+        if (PendingPresenceCount > 0)
+        {
+            reasons.Add($"{PendingPresenceCount} joueur(s) doivent encore valider leur presence.");
+        }
+
+        if (UnavailablePresenceCount > 0)
+        {
+            reasons.Add($"{UnavailablePresenceCount} joueur(s) ont indique qu'ils ne sont pas disponibles.");
+        }
+
+        if (LatePresenceCount > 0)
+        {
+            reasons.Add($"{LatePresenceCount} joueur(s) ont indique un retard. Le GM doit verifier si c'est acceptable.");
+        }
+
+        return reasons;
     }
 
     private async Task StartTournamentRegistrationAsync()
