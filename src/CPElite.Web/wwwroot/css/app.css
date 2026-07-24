@@ -7587,3 +7587,31 @@ body {
         font-size: clamp(38px, 15vw, 64px);
     }
 }
+
+#login input,
+#login select,
+#login textarea,
+.panel input,
+.panel select,
+.panel textarea {
+    color: #050505;
+    background: #ffffff;
+    caret-color: #050505;
+}
+
+#login input::placeholder,
+.panel input::placeholder,
+.panel textarea::placeholder {
+    color: #667085;
+}
+
+#login .session-box,
+.panel .session-box {
+    color: #111827;
+}
+
+#login .session-box strong,
+#login .session-box p,
+#login .session-box .eyebrow {
+    color: #111827;
+}
