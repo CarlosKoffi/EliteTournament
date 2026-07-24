@@ -100,7 +100,7 @@
                     else
                     {
                         <label class="etd-field">Club a inscrire
-                            <select @bind="SelectedOwnerTeamId" @bind:after="async () => await LoadRosterForSelectedTeamAsync()">
+                            <select @bind="SelectedOwnerTeamId" @bind:after="OnOwnerTeamChangedAsync">
                                 @foreach (var team in OwnerTeams)
                                 {
                                     <option value="@team.TeamId">@team.Name - @team.Role</option>
@@ -123,7 +123,7 @@
                     </div>
 
                     <label class="etd-rules-accept">
-                        <input type="checkbox" @bind="RulesAccepted" @bind:after="SaveRegistrationDraftAsync" />
+                        <input type="checkbox" @bind="RulesAccepted" @bind:after="async () => await SaveRegistrationDraftAsync()" />
                         <span>J'ai compris les regles: horaires a respecter, effectif conforme, restrictions tournoi et paiement avant validation finale.</span>
                     </label>
 
@@ -168,7 +168,7 @@
                         </div>
 
                         <label class="etd-field">Formation
-                            <select @bind="SelectedFormation" @bind:after="SaveRegistrationDraftAsync">
+                            <select @bind="SelectedFormation" @bind:after="async () => await SaveRegistrationDraftAsync()">
                                 <option>4-2-3-1</option>
                                 <option>4-3-3</option>
                                 <option>3-5-2</option>
@@ -721,6 +721,16 @@
         await SaveRegistrationDraftAsync();
     }
 
+    private async Task OnOwnerTeamChangedAsync()
+    {
+        PendingDraftPlayers = [];
+        DraftRestored = false;
+        InviteLinks.Clear();
+        TeamInviteLink = null;
+        await LoadRosterForSelectedTeamAsync();
+        await SaveRegistrationDraftAsync(showSavedMessage: true);
+    }
+
     private IReadOnlyList<string> BuildStep1BlockingReasons()
     {
         var reasons = new List<string>();
@@ -1011,7 +1021,7 @@
         await LoadRosterForSelectedTeamAsync();
     }
 
-    private async Task SaveRegistrationDraftAsync()
+    private async Task SaveRegistrationDraftAsync(bool showSavedMessage = false)
     {
         if (SelectedOwnerTeamId is null)
         {
@@ -1039,7 +1049,11 @@
                 SelectedFormation,
                 selectedPlayers));
 
-        if (!result.Success && !string.IsNullOrWhiteSpace(result.Error))
+        if (result.Success && showSavedMessage)
+        {
+            RosterMessage = "Brouillon sauvegarde. Tu peux quitter et revenir sans perdre cette equipe.";
+        }
+        else if (!result.Success && !string.IsNullOrWhiteSpace(result.Error))
         {
             RosterMessage = result.Error;
         }
