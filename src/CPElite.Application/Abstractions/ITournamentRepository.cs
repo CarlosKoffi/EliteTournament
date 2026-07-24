@@ -14,6 +14,8 @@ public interface ITournamentRepository
     Task<IReadOnlyCollection<TournamentMatch>> GetEaVerificationDueMatchesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentScoreAudit>> GetScoreAuditsAsync(Guid tournamentId, int take = 100, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentRegistrationEvent>> GetRegistrationEventsAsync(Guid tournamentId, Guid? teamId = null, int take = 200, CancellationToken cancellationToken = default);
+    Task<TournamentRegistrationDraft?> GetRegistrationDraftAsync(Guid tournamentId, Guid teamId, Guid userId, CancellationToken cancellationToken = default);
+    Task<TournamentRegistrationDraft?> GetLatestRegistrationDraftAsync(Guid tournamentId, Guid userId, CancellationToken cancellationToken = default);
     Task<TournamentRegistration?> GetRegistrationAsync(Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentRegistration>> GetRegistrationsAsync(Guid tournamentId, CancellationToken cancellationToken = default);
     Task AddTournamentAsync(Tournament tournament, CancellationToken cancellationToken = default);
@@ -24,6 +26,7 @@ public interface ITournamentRepository
     Task AddMomentAsync(TournamentMoment moment, CancellationToken cancellationToken = default);
     Task AddScoreAuditAsync(TournamentScoreAudit audit, CancellationToken cancellationToken = default);
     Task AddRegistrationEventAsync(TournamentRegistrationEvent registrationEvent, CancellationToken cancellationToken = default);
+    Task AddRegistrationDraftAsync(TournamentRegistrationDraft draft, CancellationToken cancellationToken = default);
     Task<TournamentMoment?> GetMomentAsync(Guid momentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<TournamentMoment>> GetPendingDiscordMomentsAsync(int take, CancellationToken cancellationToken = default);
 }

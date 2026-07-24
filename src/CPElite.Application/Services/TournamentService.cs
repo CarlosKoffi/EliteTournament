@@ -472,6 +472,50 @@ public sealed class TournamentService
         return Result<IReadOnlyCollection<TournamentRegistrationEventResponse>>.Success(events.Select(ToRegistrationEventResponse).ToArray());
     }
 
+    public async Task<Result<TournamentRegistrationDraftResponse>> GetRegistrationDraftAsync(Guid actorUserId, Guid tournamentId, Guid? teamId = null, CancellationToken cancellationToken = default)
+    {
+        TournamentRegistrationDraft? draft = teamId.HasValue
+            ? await _tournaments.GetRegistrationDraftAsync(tournamentId, teamId.Value, actorUserId, cancellationToken)
+            : await _tournaments.GetLatestRegistrationDraftAsync(tournamentId, actorUserId, cancellationToken);
+
+        return draft is null
+            ? Result<TournamentRegistrationDraftResponse>.Failure(ErrorType.NotFound, "registration_draft.not_found", "No tournament registration draft was found.")
+            : Result<TournamentRegistrationDraftResponse>.Success(ToRegistrationDraftResponse(draft));
+    }
+
+    public async Task<Result<TournamentRegistrationDraftResponse>> SaveRegistrationDraftAsync(Guid actorUserId, Guid tournamentId, SaveTournamentRegistrationDraftRequest request, CancellationToken cancellationToken = default)
+    {
+        if (await _tournaments.GetTournamentAsync(tournamentId, cancellationToken) is null)
+        {
+            return Result<TournamentRegistrationDraftResponse>.Failure(ErrorType.NotFound, "tournament.not_found", "Tournament was not found.");
+        }
+
+        var actorMembership = await _teams.GetMembershipAsync(request.TeamId, actorUserId, cancellationToken);
+        if (!await CanRegisterTeamAsync(actorMembership, request.TeamId, actorUserId, cancellationToken))
+        {
+            return Result<TournamentRegistrationDraftResponse>.Failure(ErrorType.Forbidden, "registration_draft.forbidden", "Only a team owner, manager or pending GM claimant can save this draft.");
+        }
+
+        var selectedPlayers = request.SelectedPlayers
+            .Where(player => !string.IsNullOrWhiteSpace(player.EaPlayerId) || player.UserId.HasValue || !string.IsNullOrWhiteSpace(player.DisplayName))
+            .Take(11)
+            .ToArray();
+        var selectedPlayersJson = JsonSerializer.Serialize(selectedPlayers);
+        var draft = await _tournaments.GetRegistrationDraftAsync(tournamentId, request.TeamId, actorUserId, cancellationToken);
+        if (draft is null)
+        {
+            draft = new TournamentRegistrationDraft(Guid.NewGuid(), tournamentId, request.TeamId, actorUserId, request.Step, (DomainPaymentMode)(int)request.PaymentMode, request.RulesAccepted, request.Formation, selectedPlayersJson, _clock.UtcNow);
+            await _tournaments.AddRegistrationDraftAsync(draft, cancellationToken);
+        }
+        else
+        {
+            draft.Refresh(request.Step, (DomainPaymentMode)(int)request.PaymentMode, request.RulesAccepted, request.Formation, selectedPlayersJson, _clock.UtcNow);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result<TournamentRegistrationDraftResponse>.Success(ToRegistrationDraftResponse(draft));
+    }
+
     public async Task<Result<DiscordTournamentRegistrationResponse>> LockRegistrationFromDiscordAsync(Guid tournamentId, CancellationToken cancellationToken = default)
     {
         var tournament = await _tournaments.GetTournamentAsync(tournamentId, cancellationToken);
@@ -1266,6 +1310,32 @@ public sealed class TournamentService
             registrationEvent.Message,
             registrationEvent.PayloadJson,
             registrationEvent.CreatedAt);
+    }
+
+    private static TournamentRegistrationDraftResponse ToRegistrationDraftResponse(TournamentRegistrationDraft draft)
+    {
+        IReadOnlyCollection<TournamentRegistrationDraftPlayerRequest> selectedPlayers;
+        try
+        {
+            selectedPlayers = JsonSerializer.Deserialize<IReadOnlyCollection<TournamentRegistrationDraftPlayerRequest>>(draft.SelectedPlayersJson) ?? Array.Empty<TournamentRegistrationDraftPlayerRequest>();
+        }
+        catch (JsonException)
+        {
+            selectedPlayers = Array.Empty<TournamentRegistrationDraftPlayerRequest>();
+        }
+
+        return new TournamentRegistrationDraftResponse(
+            draft.Id,
+            draft.TournamentId,
+            draft.TeamId,
+            draft.UserId,
+            draft.Step,
+            (ContractPaymentMode)(int)draft.PaymentMode,
+            draft.RulesAccepted,
+            draft.Formation,
+            selectedPlayers,
+            draft.CreatedAt,
+            draft.UpdatedAt);
     }
 
     private async Task TrackRegistrationEventAsync(TournamentRegistration registration, Guid? actorUserId, string eventType, string step, string message, object? payload, CancellationToken cancellationToken)

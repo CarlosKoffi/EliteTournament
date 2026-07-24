@@ -53,6 +53,18 @@ public sealed class TournamentsController : ApiControllerBase
         return ToActionResult(await _tournamentService.GetRegistrationEventsAsync(tournamentId, teamId, cancellationToken));
     }
 
+    [HttpGet("{tournamentId:guid}/registrations/draft")]
+    public async Task<IActionResult> GetRegistrationDraft(Guid tournamentId, [FromQuery] Guid? teamId, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.GetRegistrationDraftAsync(CurrentUserId, tournamentId, teamId, cancellationToken));
+    }
+
+    [HttpPut("{tournamentId:guid}/registrations/draft")]
+    public async Task<IActionResult> SaveRegistrationDraft(Guid tournamentId, SaveTournamentRegistrationDraftRequest request, CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _tournamentService.SaveRegistrationDraftAsync(CurrentUserId, tournamentId, request, cancellationToken));
+    }
+
     [HttpPost("{tournamentId:guid}/registrations/{teamId:guid}/app-confirmation")]
     public async Task<IActionResult> ConfirmFromApp(Guid tournamentId, Guid teamId, CancellationToken cancellationToken)
     {

@@ -132,6 +132,20 @@ public sealed class TournamentRepository : ITournamentRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public Task<TournamentRegistrationDraft?> GetRegistrationDraftAsync(Guid tournamentId, Guid teamId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.TournamentRegistrationDrafts
+            .FirstOrDefaultAsync(draft => draft.TournamentId == tournamentId && draft.TeamId == teamId && draft.UserId == userId, cancellationToken);
+    }
+
+    public Task<TournamentRegistrationDraft?> GetLatestRegistrationDraftAsync(Guid tournamentId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.TournamentRegistrationDrafts
+            .Where(draft => draft.TournamentId == tournamentId && draft.UserId == userId)
+            .OrderByDescending(draft => draft.UpdatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public Task<TournamentRegistration?> GetRegistrationAsync(Guid tournamentId, Guid teamId, CancellationToken cancellationToken = default)
     {
         return _dbContext.TournamentRegistrations
@@ -186,6 +200,11 @@ public sealed class TournamentRepository : ITournamentRepository
     public async Task AddRegistrationEventAsync(TournamentRegistrationEvent registrationEvent, CancellationToken cancellationToken = default)
     {
         await _dbContext.TournamentRegistrationEvents.AddAsync(registrationEvent, cancellationToken);
+    }
+
+    public async Task AddRegistrationDraftAsync(TournamentRegistrationDraft draft, CancellationToken cancellationToken = default)
+    {
+        await _dbContext.TournamentRegistrationDrafts.AddAsync(draft, cancellationToken);
     }
 
     public Task<TournamentMoment?> GetMomentAsync(Guid momentId, CancellationToken cancellationToken = default)

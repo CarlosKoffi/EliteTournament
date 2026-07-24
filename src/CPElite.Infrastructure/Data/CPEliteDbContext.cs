@@ -26,6 +26,7 @@ public sealed class CPEliteDbContext : DbContext
     public DbSet<EaMatchClubStat> EaMatchClubStats => Set<EaMatchClubStat>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<TournamentRegistration> TournamentRegistrations => Set<TournamentRegistration>();
+    public DbSet<TournamentRegistrationDraft> TournamentRegistrationDrafts => Set<TournamentRegistrationDraft>();
     public DbSet<TournamentRegistrationEvent> TournamentRegistrationEvents => Set<TournamentRegistrationEvent>();
     public DbSet<TournamentMatch> TournamentMatches => Set<TournamentMatch>();
     public DbSet<MatchScoreSubmission> MatchScoreSubmissions => Set<MatchScoreSubmission>();
@@ -359,6 +360,24 @@ public sealed class CPEliteDbContext : DbContext
             entity.HasOne(registration => registration.Team)
                 .WithMany()
                 .HasForeignKey(registration => registration.TeamId);
+        });
+
+        modelBuilder.Entity<TournamentRegistrationDraft>(entity =>
+        {
+            entity.HasKey(draft => draft.Id);
+            entity.HasIndex(draft => new { draft.TournamentId, draft.TeamId, draft.UserId }).IsUnique();
+            entity.HasIndex(draft => new { draft.TournamentId, draft.UserId, draft.UpdatedAt });
+            entity.Property(draft => draft.Formation).HasMaxLength(20).IsRequired();
+            entity.Property(draft => draft.SelectedPlayersJson).HasColumnType("jsonb");
+            entity.HasOne(draft => draft.Tournament)
+                .WithMany()
+                .HasForeignKey(draft => draft.TournamentId);
+            entity.HasOne(draft => draft.Team)
+                .WithMany()
+                .HasForeignKey(draft => draft.TeamId);
+            entity.HasOne(draft => draft.User)
+                .WithMany()
+                .HasForeignKey(draft => draft.UserId);
         });
 
         modelBuilder.Entity<TournamentRegistrationEvent>(entity =>

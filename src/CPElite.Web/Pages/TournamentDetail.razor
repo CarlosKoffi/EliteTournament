@@ -63,15 +63,15 @@
             </div>
 
             <nav class="etd-stepper" aria-label="Etapes inscription tournoi">
-                <button type="button" class="@(RegistrationStep == 1 ? "active" : "") @(IsSelectedTeamRegistered ? "done" : "")" @onclick="() => GoToRegistrationStep(1)">
+                <button type="button" class="@(RegistrationStep == 1 ? "active" : "") @(IsSelectedTeamRegistered ? "done" : "")" @onclick="() => GoToRegistrationStepAsync(1)">
                     <span>Etape 1</span>
                     <strong>S'inscrire</strong>
                 </button>
-                <button type="button" class="@(RegistrationStep == 2 ? "active" : "") @(SelectedRosterCount == 11 ? "done" : "")" @onclick="() => GoToRegistrationStep(2)" disabled="@(!IsSelectedTeamRegistered)">
+                <button type="button" class="@(RegistrationStep == 2 ? "active" : "") @(SelectedRosterCount == 11 ? "done" : "")" @onclick="() => GoToRegistrationStepAsync(2)" disabled="@(!IsSelectedTeamRegistered)">
                     <span>Etape 2</span>
                     <strong>Faire l'equipe</strong>
                 </button>
-                <button type="button" class="@(RegistrationStep == 3 ? "active" : "") @(CanSubmitRoster ? "done" : "")" @onclick="() => GoToRegistrationStep(3)" disabled="@(!IsSelectedTeamRegistered)">
+                <button type="button" class="@(RegistrationStep == 3 ? "active" : "") @(CanSubmitRoster ? "done" : "")" @onclick="() => GoToRegistrationStepAsync(3)" disabled="@(!IsSelectedTeamRegistered)">
                     <span>Etape 3</span>
                     <strong>Confirmer</strong>
                 </button>
@@ -100,7 +100,7 @@
                     else
                     {
                         <label class="etd-field">Club a inscrire
-                            <select @bind="SelectedOwnerTeamId" @bind:after="LoadRosterForSelectedTeamAsync">
+                            <select @bind="SelectedOwnerTeamId" @bind:after="async () => await LoadRosterForSelectedTeamAsync()">
                                 @foreach (var team in OwnerTeams)
                                 {
                                     <option value="@team.TeamId">@team.Name - @team.Role</option>
@@ -111,19 +111,19 @@
 
                     <div class="etd-payment-options">
                         <label class="@(SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays ? "selected" : "")">
-                            <input type="radio" name="payment-mode" checked="@(SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays)" @onchange="() => SelectedPaymentMode = TournamentPaymentMode.ClubManagerPays" />
+                            <input type="radio" name="payment-mode" checked="@(SelectedPaymentMode == TournamentPaymentMode.ClubManagerPays)" @onchange="() => ChangePaymentModeAsync(TournamentPaymentMode.ClubManagerPays)" />
                             <span>GM paie pour l'equipe</span>
                             <small>Le manager regle l'inscription du club, puis gere ses joueurs.</small>
                         </label>
                         <label class="@(SelectedPaymentMode == TournamentPaymentMode.IndividualPlayers ? "selected" : "")">
-                            <input type="radio" name="payment-mode" checked="@(SelectedPaymentMode == TournamentPaymentMode.IndividualPlayers)" @onchange="() => SelectedPaymentMode = TournamentPaymentMode.IndividualPlayers" />
+                            <input type="radio" name="payment-mode" checked="@(SelectedPaymentMode == TournamentPaymentMode.IndividualPlayers)" @onchange="() => ChangePaymentModeAsync(TournamentPaymentMode.IndividualPlayers)" />
                             <span>Chaque joueur paie sa place</span>
                             <small>Chaque joueur convoque devra valider sa presence et payer son entree.</small>
                         </label>
                     </div>
 
                     <label class="etd-rules-accept">
-                        <input type="checkbox" @bind="RulesAccepted" />
+                        <input type="checkbox" @bind="RulesAccepted" @bind:after="SaveRegistrationDraftAsync" />
                         <span>J'ai compris les regles: horaires a respecter, effectif conforme, restrictions tournoi et paiement avant validation finale.</span>
                     </label>
 
@@ -138,7 +138,7 @@
                         <button type="button" class="etd-primary" @onclick="StartTournamentRegistrationAsync" disabled="@(!CanStartRegistration)">S'inscrire au tournoi</button>
                         @if (IsSelectedTeamRegistered)
                         {
-                            <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStep(2)">Passer a l'equipe</button>
+                            <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStepAsync(2)">Passer a l'equipe</button>
                         }
                     </div>
                 </article>
@@ -157,7 +157,7 @@
                         </div>
 
                         <label class="etd-field">Formation
-                            <select @bind="SelectedFormation">
+                            <select @bind="SelectedFormation" @bind:after="SaveRegistrationDraftAsync">
                                 <option>4-2-3-1</option>
                                 <option>4-3-3</option>
                                 <option>3-5-2</option>
@@ -204,8 +204,8 @@
                         </div>
 
                         <div class="etd-action-row">
-                            <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStep(1)">Retour inscription</button>
-                            <button type="button" class="etd-primary" @onclick="() => GoToRegistrationStep(3)" disabled="@(SelectedRosterCount != 11)">Continuer vers confirmation</button>
+                            <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStepAsync(1)">Retour inscription</button>
+                            <button type="button" class="etd-primary" @onclick="() => GoToRegistrationStepAsync(3)" disabled="@(SelectedRosterCount != 11)">Continuer vers confirmation</button>
                         </div>
                     </article>
                 </div>
@@ -334,7 +334,7 @@
                     </div>
 
                     <div class="etd-action-row">
-                        <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStep(2)">Modifier les 11</button>
+                        <button type="button" class="etd-secondary" @onclick="() => GoToRegistrationStepAsync(2)">Modifier les 11</button>
                         <button type="button" class="etd-primary" @onclick="SubmitRosterAsync" disabled="@(!CanSubmitRoster)">Confirmer l'inscription</button>
                         <button type="button" class="etd-secondary" @onclick="RemindPendingAsync" disabled="@(RosterBusy || SelectedOwnerTeamId is null)">Relancer presences</button>
                     </div>
@@ -396,7 +396,7 @@
                         <div class="etd-picker-list">
                             @foreach (var player in FilteredPickerPlayers)
                             {
-                                <button type="button" class="etd-picker-player @(player.Selected ? "selected" : "") @(!IsHeightEligibleForPosition(player, PositionPickerSlot) ? "invalid" : "")" @onclick="() => SelectPlayerForSlot(player)">
+                                <button type="button" class="etd-picker-player @(player.Selected ? "selected" : "") @(!IsHeightEligibleForPosition(player, PositionPickerSlot) ? "invalid" : "")" @onclick="() => SelectPlayerForSlotAsync(player)">
                                     <div>
                                         <strong>@player.DisplayName</strong>
                                         <small>@player.Gamertag</small>
@@ -534,6 +534,7 @@
     private List<RosterPlayerModel> Roster { get; } = [];
     private List<PlayerInviteLink> InviteLinks { get; } = [];
     private HashSet<Guid> LocallyRegisteredTeamIds { get; } = [];
+    private IReadOnlyCollection<TournamentRegistrationDraftPlayerRequest> PendingDraftPlayers { get; set; } = [];
     private PlayerInviteLink? TeamInviteLink { get; set; }
     private Guid? SelectedOwnerTeamId { get; set; }
     private RosterPlayerModel? FocusedRosterPlayer { get; set; }
@@ -541,6 +542,7 @@
     private int RegistrationStep { get; set; } = 1;
     private TournamentPaymentMode SelectedPaymentMode { get; set; } = TournamentPaymentMode.ClubManagerPays;
     private bool RulesAccepted { get; set; }
+    private bool DraftRestored { get; set; }
     private string? PositionPickerSlot { get; set; }
     private string? PositionPickerSlotKey { get; set; }
     private string PositionPickerSearch { get; set; } = string.Empty;
@@ -653,7 +655,7 @@
         await LoadMatchDetailsAsync(match);
     }
 
-    private void GoToRegistrationStep(int step)
+    private async Task GoToRegistrationStepAsync(int step)
     {
         if (step > 1 && !IsSelectedTeamRegistered)
         {
@@ -663,6 +665,13 @@
         }
 
         RegistrationStep = Math.Clamp(step, 1, 3);
+        await SaveRegistrationDraftAsync();
+    }
+
+    private async Task ChangePaymentModeAsync(TournamentPaymentMode mode)
+    {
+        SelectedPaymentMode = mode;
+        await SaveRegistrationDraftAsync();
     }
 
     private async Task StartTournamentRegistrationAsync()
@@ -689,7 +698,8 @@
                 ? $"Club inscrit provisoirement. Mode paiement: {PaymentModeLabel(SelectedPaymentMode)}."
                 : "Club deja inscrit. Tu peux preparer les 11.";
             RegistrationStep = 2;
-            await LoadRosterForSelectedTeamAsync();
+            await LoadRosterForSelectedTeamAsync(refreshDraft: false);
+            await SaveRegistrationDraftAsync();
         }
         finally
         {
@@ -711,7 +721,7 @@
         PositionPickerSearch = string.Empty;
     }
 
-    private void SelectPlayerForSlot(RosterPlayerModel player)
+    private async Task SelectPlayerForSlotAsync(RosterPlayerModel player)
     {
         if (PositionPickerSlot is null || PositionPickerSlotKey is null)
         {
@@ -737,6 +747,7 @@
         player.AssignedSlotKey = PositionPickerSlotKey;
         FocusedRosterPlayer = player;
         ClosePositionPicker();
+        await SaveRegistrationDraftAsync();
     }
 
     private async Task LoadOwnerContextAsync()
@@ -765,6 +776,18 @@
             return;
         }
 
+        var draftResult = await Api.GetTournamentRegistrationDraftAsync(TournamentId);
+        if (draftResult.Value is not null && OwnerTeams.Any(team => team.TeamId == draftResult.Value.TeamId))
+        {
+            SelectedOwnerTeamId = draftResult.Value.TeamId;
+            RegistrationStep = Math.Clamp(draftResult.Value.Step, 1, 3);
+            SelectedPaymentMode = draftResult.Value.PaymentMode;
+            RulesAccepted = draftResult.Value.RulesAccepted;
+            SelectedFormation = string.IsNullOrWhiteSpace(draftResult.Value.Formation) ? SelectedFormation : draftResult.Value.Formation;
+            PendingDraftPlayers = draftResult.Value.SelectedPlayers;
+            DraftRestored = true;
+        }
+
         if (SelectedOwnerTeamId is null || OwnerTeams.All(team => team.TeamId != SelectedOwnerTeamId.Value))
         {
             SelectedOwnerTeamId = OwnerTeams[0].TeamId;
@@ -773,7 +796,7 @@
         await LoadRosterForSelectedTeamAsync();
     }
 
-    private async Task LoadRosterForSelectedTeamAsync()
+    private async Task LoadRosterForSelectedTeamAsync(bool refreshDraft = true)
     {
         if (SelectedOwnerTeamId is null)
         {
@@ -788,6 +811,25 @@
 
         try
         {
+            if (refreshDraft)
+            {
+                var draftResult = await Api.GetTournamentRegistrationDraftAsync(TournamentId, SelectedOwnerTeamId.Value);
+                if (draftResult.Value is not null)
+                {
+                    RegistrationStep = Math.Clamp(draftResult.Value.Step, 1, 3);
+                    SelectedPaymentMode = draftResult.Value.PaymentMode;
+                    RulesAccepted = draftResult.Value.RulesAccepted;
+                    SelectedFormation = string.IsNullOrWhiteSpace(draftResult.Value.Formation) ? SelectedFormation : draftResult.Value.Formation;
+                    PendingDraftPlayers = draftResult.Value.SelectedPlayers;
+                    DraftRestored = true;
+                }
+                else
+                {
+                    PendingDraftPlayers = [];
+                    DraftRestored = false;
+                }
+            }
+
             var membersResult = await Api.GetTeamMembersAsync(SelectedOwnerTeamId.Value);
             var profilesResult = await Api.GetTeamEaPlayersAsync(SelectedOwnerTeamId.Value);
             var participantsResult = await Api.GetTournamentParticipantsAsync(TournamentId, SelectedOwnerTeamId.Value);
@@ -811,10 +853,13 @@
                 Roster.Add(RosterPlayerModel.FromAppMember(member, participant));
             }
 
+            ApplyDraftToRoster();
             FocusedRosterPlayer = Roster.FirstOrDefault();
             RosterMessage = Roster.Count == 0
                 ? "Aucun joueur en base. Lance une mise a jour EA pour recuperer l'effectif."
-                : $"Effectif charge: {Roster.Count} joueur(s), {Roster.Count(player => player.HasApp)} dans l'app.";
+                : DraftRestored
+                    ? $"Brouillon restaure: etape {RegistrationStep}, {SelectedRosterCount} joueur(s) selectionne(s)."
+                    : $"Effectif charge: {Roster.Count} joueur(s), {Roster.Count(player => player.HasApp)} dans l'app.";
         }
         finally
         {
@@ -836,6 +881,76 @@
         await LoadRosterForSelectedTeamAsync();
     }
 
+    private async Task SaveRegistrationDraftAsync()
+    {
+        if (SelectedOwnerTeamId is null)
+        {
+            return;
+        }
+
+        var selectedPlayers = Roster
+            .Where(player => player.Selected)
+            .Take(11)
+            .Select(player => new TournamentRegistrationDraftPlayerRequest(
+                player.HasApp && player.UserId != Guid.Empty ? player.UserId : null,
+                player.EaPlayerId,
+                player.DisplayName,
+                player.Position,
+                player.AssignedSlotKey))
+            .ToArray();
+
+        var result = await Api.SaveTournamentRegistrationDraftAsync(
+            TournamentId,
+            new SaveTournamentRegistrationDraftRequest(
+                SelectedOwnerTeamId.Value,
+                RegistrationStep,
+                SelectedPaymentMode,
+                RulesAccepted,
+                SelectedFormation,
+                selectedPlayers));
+
+        if (!result.Success && !string.IsNullOrWhiteSpace(result.Error))
+        {
+            RosterMessage = result.Error;
+        }
+    }
+
+    private void ApplyDraftToRoster()
+    {
+        if (PendingDraftPlayers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var player in Roster)
+        {
+            player.Selected = false;
+            player.AssignedSlotKey = null;
+            if (!IsAlreadyParticipant(player))
+            {
+                player.Position = string.Empty;
+            }
+        }
+
+        foreach (var draftPlayer in PendingDraftPlayers.Take(11))
+        {
+            var player = Roster.FirstOrDefault(item =>
+                (draftPlayer.UserId.HasValue && item.UserId == draftPlayer.UserId.Value) ||
+                SamePlayer(item.EaPlayerId, draftPlayer.EaPlayerId) ||
+                SamePlayer(item.DisplayName, draftPlayer.DisplayName) ||
+                SamePlayer(item.Gamertag, draftPlayer.DisplayName));
+
+            if (player is null)
+            {
+                continue;
+            }
+
+            player.Selected = true;
+            player.Position = draftPlayer.Position;
+            player.AssignedSlotKey = draftPlayer.AssignedSlotKey;
+        }
+    }
+
     private async Task TogglePlayerAsync(RosterPlayerModel player, ChangeEventArgs args)
     {
         player.Selected = args.Value is bool selected && selected && player.CanBeSelected;
@@ -850,7 +965,7 @@
         }
 
         FocusedRosterPlayer = player;
-        await Task.CompletedTask;
+        await SaveRegistrationDraftAsync();
     }
 
     private async Task UpdatePlayerPositionAsync(RosterPlayerModel player, ChangeEventArgs args)
@@ -858,7 +973,7 @@
         player.Position = args.Value?.ToString() ?? string.Empty;
         player.AssignedSlotKey = null;
         FocusedRosterPlayer = player;
-        await Task.CompletedTask;
+        await SaveRegistrationDraftAsync();
     }
 
     private async Task SubmitRosterAsync()
@@ -1137,6 +1252,11 @@
             || error?.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true
             || error?.Contains("existe", StringComparison.OrdinalIgnoreCase) == true
             || error?.Contains("deja", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsAlreadyParticipant(RosterPlayerModel player)
+    {
+        return !string.Equals(player.Status, "Disponible", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int ReadRestrictionInt(System.Text.Json.JsonElement root, string propertyName, int fallback)
